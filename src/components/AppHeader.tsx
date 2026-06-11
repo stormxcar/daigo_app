@@ -1,24 +1,45 @@
-import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Bell, ChevronLeft, Moon, Sun } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { useAuthStore } from '@/stores/authStore';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface AppHeaderProps {
   title?: string;
   showBack?: boolean;
   showNotifications?: boolean;
+  notificationsHref?: string;
+  backHref?: string;
 }
 
 export function AppHeader({
   title,
   showBack = false,
   showNotifications = true,
+  notificationsHref = '/(customer)/notifications',
+  backHref,
 }: AppHeaderProps) {
   const { colors, isDark, toggleTheme } = useTheme();
+  const { user } = useAuthStore();
+  const { unreadCount, fetchNotifications } = useNotifications(user?.id);
   const insets = useSafeAreaInsets();
+  const pulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  useEffect(() => {
+    if (unreadCount <= 0) return;
+    Animated.sequence([
+      Animated.spring(pulse, { toValue: 1.18, friction: 4, useNativeDriver: true }),
+      Animated.spring(pulse, { toValue: 1, friction: 4, useNativeDriver: true }),
+    ]).start();
+  }, [unreadCount]);
 
   return (
     <View
@@ -44,7 +65,16 @@ export function AppHeader({
         <View style={{ width: 44 }}>
           {showBack && (
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={() => {
+                if (backHref) {
+                  router.replace(backHref as any);
+                  return;
+                }
+                if (router.canGoBack()) {
+                  router.back();
+                  return;
+                }
+              }}
               activeOpacity={0.75}
               style={{
                 width: 40,
@@ -76,7 +106,7 @@ export function AppHeader({
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {showNotifications && (
             <TouchableOpacity
-              onPress={() => router.push('/(customer)/notifications')}
+              onPress={() => router.push(notificationsHref as any)}
               activeOpacity={0.75}
               style={{
                 width: 40,
@@ -88,6 +118,27 @@ export function AppHeader({
               }}
             >
               <Bell size={20} color={colors.text} />
+              {unreadCount > 0 && (
+                <Animated.View
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    minWidth: 20,
+                    height: 20,
+                    borderRadius: borderRadius.full,
+                    backgroundColor: colors.error,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingHorizontal: 5,
+                    transform: [{ scale: pulse }],
+                  }}
+                >
+                  <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </Animated.View>
+              )}
             </TouchableOpacity>
           )}
           <TouchableOpacity

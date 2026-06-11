@@ -5,15 +5,24 @@ import {
   Car,
   Briefcase,
   UserCircle,
+  MessageCircle,
+  Newspaper,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { AuthRequired } from '@/components/AuthRequired';
 import { AppHeader } from '@/components/AppHeader';
+import { LiquidTabBar } from '@/components/LiquidTabBar';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function DriverLayout() {
   const { colors } = useTheme();
   const { isAuthenticated, user } = useAuthStore();
+  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail'];
+  const backHrefByRoute: Record<string, string> = {
+    notifications: '/(driver)/dashboard',
+    'chat-detail': '/(driver)/chat',
+    'booking-detail': '/(driver)/bookings',
+  };
 
   useEffect(() => {
     if (isAuthenticated && user?.role !== 'driver') {
@@ -42,24 +51,24 @@ export default function DriverLayout() {
     <Tabs
       screenOptions={{
         headerShown: true,
-        header: ({ options }: { options: { title?: string } }) => (
-          <AppHeader title={options.title} showNotifications={false} />
+        header: ({ options, route }: { options: { title?: string }; route: { name: string } }) => (
+          <AppHeader
+            title={options.title}
+            showBack={detailRoutes.includes(route.name)}
+            showNotifications={!detailRoutes.includes(route.name)}
+            notificationsHref="/(driver)/notifications"
+            backHref={backHrefByRoute[route.name]}
+          />
         ),
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: {
-          borderTopColor: colors.border,
-          backgroundColor: colors.surface,
-          paddingBottom: 8,
-          paddingTop: 8,
-          height: 70,
-        },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '500',
           marginTop: 4,
         },
       }}
+      tabBar={(props: any) => <LiquidTabBar {...props} />}
     >
       <Tabs.Screen
         name="dashboard"
@@ -80,11 +89,29 @@ export default function DriverLayout() {
         }}
       />
       <Tabs.Screen
+        name="blog"
+        options={{
+          title: 'Tin tức',
+          tabBarIcon: ({ color, size }) => (
+            <Newspaper color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="bookings"
         options={{
           title: 'Chuyến đi',
           tabBarIcon: ({ color, size }) => (
             <Briefcase color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          title: 'Tin nhắn',
+          tabBarIcon: ({ color, size }) => (
+            <MessageCircle color={color} size={size} />
           ),
         }}
       />
@@ -95,6 +122,27 @@ export default function DriverLayout() {
           tabBarIcon: ({ color, size }) => (
             <UserCircle color={color} size={size} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          href: null,
+          title: 'Thông báo',
+        }}
+      />
+      <Tabs.Screen
+        name="chat-detail"
+        options={{
+          href: null,
+          title: 'Tin nhắn',
+        }}
+      />
+      <Tabs.Screen
+        name="booking-detail"
+        options={{
+          href: null,
+          title: 'Chi tiết chuyến đi',
         }}
       />
     </Tabs>

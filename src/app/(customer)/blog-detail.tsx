@@ -1,23 +1,116 @@
-import React from 'react';
-import { Image, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, Image, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { Heart, MessageCircle, Share2 } from 'lucide-react-native';
+import { Heart, MessageCircle, Send, Share2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { Card } from '@/components/BaseComponents';
+import { Button, Card, CardSkeleton, TextInput } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
-import { MOCK_BLOG_POSTS } from '@/services/mockData';
+import { apiClient } from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
+import { BlogComment, BlogPost } from '@/types';
 
 export default function BlogDetailScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const post = MOCK_BLOG_POSTS.find((item) => item.id === id) ?? MOCK_BLOG_POSTS[0];
+  const { user } = useAuthStore();
+  const [post, setPost] = useState<BlogPost | null>(null);
+  const [comments, setComments] = useState<BlogComment[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [replyTo, setReplyTo] = useState<BlogComment | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  const loadPost = async () => {
+    if (!id) return;
+    try {
+      setInitialLoading(true);
+      const [postData, commentData] = await Promise.all([
+        apiClient.getBlogPostById(id),
+        apiClient.getBlogComments(id),
+      ]);
+      setPost(postData);
+      setComments(commentData);
+    } catch {
+      setPost(null);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPost();
+  }, [id]);
+
+  const toggleLike = async () => {
+    if (!post || !user || loading) return;
+    try {
+      setLoading(true);
+      const updated = await apiClient.toggleBlogLike(post.id, user.id);
+      setPost(updated);
+    } catch (error: any) {
+      Alert.alert('Không thể thả tim', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitComment = async () => {
+    if (!post || !user || !commentText.trim() || loading) return;
+    try {
+      setLoading(true);
+      const comment = await apiClient.createBlogComment(post.id, user.id, commentText.trim(), replyTo?.id);
+      setComments((current) => [...current, comment]);
+      setCommentText('');
+      setReplyTo(null);
+      setPost(await apiClient.getBlogPostById(post.id));
+    } catch (error: any) {
+      Alert.alert('Không thể bình luận', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sharePost = async () => {
+    if (!post || !user || loading) return;
+    try {
+      setLoading(true);
+      const updated = await apiClient.shareBlogPost(post.id, user.id);
+      setPost(updated);
+      Alert.alert('Đã chia sẻ', 'Lượt chia sẻ đã được lưu vào database.');
+    } catch (error: any) {
+      Alert.alert('Không thể chia sẻ', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (initialLoading) {
+    return (
+      <Screen padding>
+        <CardSkeleton image style={{ marginBottom: spacing.lg }} />
+        <CardSkeleton />
+      </Screen>
+    );
+  }
+
+  if (!post) {
+    return (
+      <Screen padding>
+        <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>Không tìm thấy bài viết.</Text>
+      </Screen>
+    );
+  }
+
+  const parentComments = comments.filter((comment) => !comment.parentCommentId);
+  const getReplies = (commentId: string) =>
+    comments.filter((comment) => comment.parentCommentId === commentId);
 
   return (
     <Screen scroll padding>
-      <Card>
+      <Card style={{ marginBottom: spacing.lg }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
-          <Image source={{ uri: post.driverAvatar }} style={{ width: 52, height: 52, borderRadius: 26 }} />
+          <Image source={{ uri: post.driverAvatar }} style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surfaceAlt }} />
           <View>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>{post.driverName}</Text>
             <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
@@ -28,17 +121,80 @@ export default function BlogDetailScreen() {
         <Text style={{ color: colors.text, fontSize: 16, lineHeight: 24, marginBottom: spacing.lg }}>
           {post.caption}
         </Text>
-        {post.mediaUrls[0] && (
+        {post.mediaUrls[0] && post.mediaTypes[0] === 'image' && (
           <Image
             source={{ uri: post.mediaUrls[0] }}
-            style={{ width: '100%', height: 260, borderRadius: borderRadius.lg, marginBottom: spacing.lg }}
+            style={{ width: '100%', height: 260, borderRadius: borderRadius.lg, marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}
           />
         )}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
-          <Text style={{ color: colors.text }}><Heart size={16} color={colors.error} /> {post.likes} thích</Text>
-          <Text style={{ color: colors.text }}><MessageCircle size={16} color={colors.info} /> {post.comments} bình luận</Text>
-          <Text style={{ color: colors.text }}><Share2 size={16} color={colors.primary} /> {post.shares} chia sẻ</Text>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <TouchableOpacity onPress={toggleLike} disabled={loading} style={{ flex: 1, alignItems: 'center', padding: spacing.sm }}>
+            <Heart size={20} color={post.liked ? colors.error : colors.textSecondary} fill={post.liked ? colors.error : 'transparent'} />
+            <Text style={{ color: colors.text, marginTop: spacing.xs }}>{post.likes} thích</Text>
+          </TouchableOpacity>
+          <View style={{ flex: 1, alignItems: 'center', padding: spacing.sm }}>
+            <MessageCircle size={20} color={colors.info} />
+            <Text style={{ color: colors.text, marginTop: spacing.xs }}>{post.comments} bình luận</Text>
+          </View>
+          <TouchableOpacity onPress={sharePost} disabled={loading} style={{ flex: 1, alignItems: 'center', padding: spacing.sm }}>
+            <Share2 size={20} color={colors.primary} />
+            <Text style={{ color: colors.text, marginTop: spacing.xs }}>{post.shares} chia sẻ</Text>
+          </TouchableOpacity>
         </View>
+      </Card>
+
+      <Card>
+        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Bình luận</Text>
+        {parentComments.map((comment) => (
+          <View key={comment.id} style={{ marginBottom: spacing.md }}>
+            <View style={{ flexDirection: 'row', gap: spacing.md }}>
+              <Image source={{ uri: comment.authorAvatar }} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surfaceAlt }} />
+              <View style={{ flex: 1 }}>
+                <View style={{ padding: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt }}>
+                  <Text style={{ color: colors.text, fontWeight: '800' }}>{comment.authorName}</Text>
+                  <Text style={{ color: colors.text, marginTop: spacing.xs, lineHeight: 20 }}>{comment.text}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setReplyTo(comment)} style={{ alignSelf: 'flex-start', paddingVertical: spacing.xs }}>
+                  <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: '800' }}>Trả lời</Text>
+                </TouchableOpacity>
+
+                {getReplies(comment.id).map((reply) => (
+                  <View key={reply.id} style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+                    <Image source={{ uri: reply.authorAvatar }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surfaceAlt }} />
+                    <View style={{ flex: 1, padding: spacing.sm, borderRadius: borderRadius.md, backgroundColor: colors.surface }}>
+                      <Text style={{ color: colors.text, fontWeight: '800', fontSize: fontSize.sm }}>{reply.authorName}</Text>
+                      <Text style={{ color: colors.text, marginTop: spacing.xs, lineHeight: 19 }}>{reply.text}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        ))}
+        {replyTo && (
+          <View style={{ padding: spacing.sm, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt, marginBottom: spacing.sm }}>
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
+              Đang trả lời {replyTo.authorName}
+            </Text>
+            <TouchableOpacity onPress={() => setReplyTo(null)} style={{ marginTop: spacing.xs }}>
+              <Text style={{ color: colors.primary, fontWeight: '800' }}>Hủy trả lời</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        <TextInput
+          value={commentText}
+          onChangeText={setCommentText}
+          placeholder="Viết bình luận..."
+          disabled={loading}
+          style={{ marginTop: spacing.sm, marginBottom: spacing.md }}
+        />
+        <Button
+          label="Gửi bình luận"
+          onPress={submitComment}
+          disabled={!commentText.trim() || loading}
+          loading={loading}
+          icon={<Send size={18} color="white" />}
+        />
       </Card>
     </Screen>
   );

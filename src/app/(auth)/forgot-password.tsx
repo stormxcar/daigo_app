@@ -1,20 +1,45 @@
 import React, { useState } from 'react';
-import { View, Text } from 'react-native';
+import { Alert, View, Text } from 'react-native';
+import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { Mail } from 'lucide-react-native';
+import { useAuth } from '@/hooks/useAuth';
+import { isValidEmail, toVietnameseAuthError } from '@/utils/authValidation';
 
 export default function ForgotPasswordScreen() {
   const { colors } = useTheme();
+  const { resetPassword, isLoading, error } = useAuth();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [localError, setLocalError] = useState('');
 
-  const handleSendReset = () => {
-    if (!email) return;
-    setSent(true);
+  const handleSendReset = async () => {
+    if (!email) {
+      const message = 'Vui lòng nhập email để đặt lại mật khẩu.';
+      setLocalError(message);
+      Alert.alert('Thiếu email', message);
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      const message = 'Email không đúng định dạng.';
+      setLocalError(message);
+      Alert.alert('Email không hợp lệ', message);
+      return;
+    }
+
+    try {
+      await resetPassword(email, Linking.createURL('/(auth)/reset-password'));
+      setSent(true);
+    } catch (err: any) {
+      const message = toVietnameseAuthError(err.message);
+      setLocalError(message);
+      Alert.alert('Không thể gửi email', message);
+    }
   };
 
   if (sent) {
@@ -50,12 +75,30 @@ export default function ForgotPasswordScreen() {
 
   return (
     <Screen scroll padding>
+      {(error || localError) && (
+        <View
+          style={{
+            backgroundColor: colors.error,
+            padding: spacing.md,
+            borderRadius: borderRadius.md,
+            marginBottom: spacing.lg,
+          }}
+        >
+          <Text style={{ color: 'white', fontSize: fontSize.sm }}>
+            {error || localError}
+          </Text>
+        </View>
+      )}
       <TextInput
         label="Email"
         placeholder="Nhập email của bạn"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(value) => {
+          setEmail(value);
+          setLocalError('');
+        }}
         keyboardType="email-address"
+        disabled={isLoading}
         icon={<Mail size={20} color={colors.textSecondary} />}
         style={{ marginBottom: spacing.lg }}
       />
@@ -64,6 +107,7 @@ export default function ForgotPasswordScreen() {
         label="Gửi"
         onPress={handleSendReset}
         disabled={!email}
+        loading={isLoading}
         style={{ marginBottom: spacing.lg }}
       />
 
@@ -71,6 +115,7 @@ export default function ForgotPasswordScreen() {
         label="Quay lại đăng nhập"
         onPress={() => router.push('/(auth)/login')}
         variant="outline"
+        disabled={isLoading}
       />
     </Screen>
   );

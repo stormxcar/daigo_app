@@ -1,19 +1,65 @@
-import React from 'react';
-import { Image, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, Image, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Heart, MessageCircle, Share2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { Card } from '@/components/BaseComponents';
+import { Button, Card, CardSkeleton } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
-import { MOCK_BLOG_POSTS } from '@/services/mockData';
+import { apiClient } from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
+import { BlogPost } from '@/types';
 
 export default function BlogScreen() {
   const { colors } = useTheme();
+  const { user } = useAuthStore();
+  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(8);
+
+  const loadPosts = async () => {
+    setLoading(true);
+    apiClient.getBlogPosts()
+      .then(setPosts)
+      .catch(() => setPosts([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadPosts();
+  }, []);
+
+  const updatePost = (updated: BlogPost) => {
+    setPosts((current) => current.map((post) => (post.id === updated.id ? updated : post)));
+  };
+
+  const toggleLike = async (post: BlogPost) => {
+    if (!user) return;
+    try {
+      updatePost(await apiClient.toggleBlogLike(post.id, user.id));
+    } catch (error: any) {
+      Alert.alert('Không thể thả tim', error.message);
+    }
+  };
+
+  const sharePost = async (post: BlogPost) => {
+    if (!user) return;
+    try {
+      updatePost(await apiClient.shareBlogPost(post.id, user.id));
+      Alert.alert('Đã chia sẻ', 'Lượt chia sẻ đã được lưu.');
+    } catch (error: any) {
+      Alert.alert('Không thể chia sẻ', error.message);
+    }
+  };
 
   return (
-    <Screen scroll padding>
-      {MOCK_BLOG_POSTS.map((post) => (
+    <Screen scroll padding refreshing={loading} onRefresh={loadPosts}>
+      {loading ? (
+        <>
+          <CardSkeleton image style={{ marginBottom: spacing.lg }} />
+          <CardSkeleton image style={{ marginBottom: spacing.lg }} />
+        </>
+      ) : posts.slice(0, visibleCount).map((post) => (
         <TouchableOpacity
           key={post.id}
           activeOpacity={0.86}
@@ -53,13 +99,34 @@ export default function BlogScreen() {
               />
             )}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ color: colors.textSecondary }}><Heart size={14} color={colors.error} /> {post.likes}</Text>
-              <Text style={{ color: colors.textSecondary }}><MessageCircle size={14} color={colors.info} /> {post.comments}</Text>
-              <Text style={{ color: colors.textSecondary }}><Share2 size={14} color={colors.primary} /> {post.shares}</Text>
+              <TouchableOpacity onPress={() => toggleLike(post)} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                <Heart size={14} color={post.liked ? colors.error : colors.textSecondary} fill={post.liked ? colors.error : 'transparent'} />
+                <Text style={{ color: colors.textSecondary }}>{post.likes}</Text>
+              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                <MessageCircle size={14} color={colors.info} />
+                <Text style={{ color: colors.textSecondary }}>{post.comments}</Text>
+              </View>
+              <TouchableOpacity onPress={() => sharePost(post)} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                <Share2 size={14} color={colors.primary} />
+                <Text style={{ color: colors.textSecondary }}>{post.shares}</Text>
+              </TouchableOpacity>
             </View>
           </Card>
         </TouchableOpacity>
       ))}
+      {!loading && posts.length === 0 && (
+        <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xl }}>
+          Chưa có bài viết trong database.
+        </Text>
+      )}
+      {!loading && posts.length > visibleCount && (
+        <Button
+          label="Tải thêm bài viết"
+          onPress={() => setVisibleCount((current) => current + 8)}
+          variant="outline"
+        />
+      )}
     </Screen>
   );
 }

@@ -199,6 +199,7 @@ export const DriverCard: FC<DriverCardProps> = ({
 
 interface BookingCardProps {
   id: string;
+  bookingCode?: string;
   pickupLocation: string;
   dropoffLocation: string;
   date: string;
@@ -211,6 +212,7 @@ interface BookingCardProps {
 
 export const BookingCard: FC<BookingCardProps> = ({
   id,
+  bookingCode,
   pickupLocation,
   dropoffLocation,
   date,
@@ -235,7 +237,7 @@ export const BookingCard: FC<BookingCardProps> = ({
     <Card onPress={onPress} pressable={!!onPress} style={{ marginVertical: spacing.md }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
         <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>
-          {id}
+          {bookingCode ?? 'Chuyến đi'}
         </Text>
         <View
           style={{

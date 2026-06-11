@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Switch, Text, TouchableOpacity, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Bell, ChevronRight, Info, LogOut, Mail, Phone, Shield, User } from 'lucide-react-native';
+import { Bell, Camera, ChevronRight, Info, LogOut, Mail, Phone, Shield, User } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Avatar, Button, Card, TextInput } from '@/components/BaseComponents';
@@ -10,44 +11,100 @@ import { Screen } from '@/components/ScreenComponents';
 import { BookingCard } from '@/components/FeatureCards';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
-import { MOCK_BOOKINGS } from '@/services/mockData';
+import { useBooking } from '@/hooks/useBooking';
+import { apiClient } from '@/services/api';
+import { uploadMediaToCloudinary } from '@/services/cloudinary';
 
 export default function ProfileScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
   const { setUser } = useAuthStore();
+  const { bookings, fetchBookings } = useBooking();
   const [fullName, setFullName] = useState(user?.fullName ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
-  const [address, setAddress] = useState('Vinhomes Ocean Park, Gia Lâm, Hà Nội');
+  const [address, setAddress] = useState(user?.address ?? '');
+  const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const [visibleBookingCount, setVisibleBookingCount] = useState(6);
 
-  const customerBookings = useMemo(
-    () =>
-      MOCK_BOOKINGS.filter(
-        (booking) => booking.customerId === user?.id || booking.customerEmail === user?.email
-      ),
-    [user?.email, user?.id]
-  );
+  const refreshProfile = () => {
+    if (user?.id) fetchBookings({ customerId: user.id });
+  };
+
+  useEffect(() => {
+    if (user?.id) fetchBookings({ customerId: user.id });
+  }, [user?.id, fetchBookings]);
+
+  useEffect(() => {
+    setFullName(user?.fullName ?? '');
+    setEmail(user?.email ?? '');
+    setPhone(user?.phone ?? '');
+    setAddress(user?.address ?? '');
+  }, [user?.id]);
 
   const handleLogout = () => {
     logout();
     router.replace('/(customer)/home');
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!user) return;
 
-    setUser({
-      ...user,
-      fullName,
-      email,
-      phone,
-      updatedAt: new Date().toISOString(),
-    });
-    Alert.alert('Đã lưu', 'Thông tin hồ sơ của bạn đã được cập nhật.');
+    try {
+      setSaving(true);
+      const updated = await apiClient.updateProfile(user.id, {
+        fullName,
+        phone,
+        address,
+        avatarUrl: user.avatarUrl,
+      });
+      setUser(updated);
+      Alert.alert('Đã lưu', 'Thông tin hồ sơ của bạn đã được cập nhật.');
+    } catch (error: any) {
+      Alert.alert('Không thể lưu hồ sơ', error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUploadAvatar = async () => {
+    if (!user) return;
+
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Cần quyền truy cập ảnh', 'Vui lòng cho phép ứng dụng truy cập thư viện ảnh.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.82,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      setUploadingAvatar(true);
+      const asset = result.assets[0];
+      const ext = asset.uri.split('.').pop() || 'jpg';
+      const uploaded = await uploadMediaToCloudinary({
+        uri: asset.uri,
+        name: `avatar-${user.id}.${ext}`,
+        type: asset.mimeType || 'image/jpeg',
+      }, 'image');
+      const updated = await apiClient.updateProfile(user.id, { avatarUrl: uploaded.secure_url });
+      setUser(updated);
+    } catch (error: any) {
+      Alert.alert('Không thể upload avatar', error.message);
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   if (!isAuthenticated) {
@@ -55,9 +112,10 @@ export default function ProfileScreen() {
   }
 
   return (
-    <Screen scroll padding>
+    <Screen scroll padding onRefresh={refreshProfile}>
       <Card style={{ marginBottom: spacing.lg, alignItems: 'center' }}>
         <Avatar
+          source={user?.avatarUrl ? { uri: user.avatarUrl } : undefined}
           initials={
             user?.fullName
               ?.split(' ')
@@ -74,6 +132,18 @@ export default function ProfileScreen() {
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs }}>
           {user?.email}
         </Text>
+        <Text style={{ color: user?.emailVerified ? colors.success : colors.warning, fontSize: fontSize.xs, marginTop: spacing.xs, fontWeight: '700' }}>
+          {user?.emailVerified ? 'Email đã xác thực' : 'Email chưa xác thực'}
+        </Text>
+        <Button
+          label="Upload avatar"
+          onPress={handleUploadAvatar}
+          loading={uploadingAvatar}
+          variant="outline"
+          size="sm"
+          icon={<Camera size={16} color={colors.primary} />}
+          style={{ marginTop: spacing.md }}
+        />
       </Card>
 
       <Card style={{ marginBottom: spacing.lg }}>
@@ -93,6 +163,7 @@ export default function ProfileScreen() {
           onChangeText={setEmail}
           keyboardType="email-address"
           icon={<Mail size={20} color={colors.textSecondary} />}
+          disabled
           style={{ marginBottom: spacing.md }}
         />
         <TextInput
@@ -111,17 +182,24 @@ export default function ProfileScreen() {
           numberOfLines={3}
           style={{ marginBottom: spacing.lg }}
         />
-        <Button label="Lưu hồ sơ" onPress={handleSave} />
+        <Button label="Lưu hồ sơ" onPress={handleSave} loading={saving} />
       </Card>
 
       <View style={{ marginBottom: spacing.lg }}>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: spacing.sm }}>
           Lịch sử chuyến đi
         </Text>
-        {customerBookings.map((booking) => (
+        {bookings.slice(0, visibleBookingCount).map((booking) => (
           <BookingCard key={booking.id} {...booking} />
         ))}
-        {customerBookings.length === 0 && (
+        {bookings.length > visibleBookingCount && (
+          <Button
+            label="Tải thêm chuyến đi"
+            onPress={() => setVisibleBookingCount((current) => current + 6)}
+            variant="outline"
+          />
+        )}
+        {bookings.length === 0 && (
           <Card>
             <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>
               Bạn chưa có chuyến đi nào.

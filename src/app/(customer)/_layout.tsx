@@ -20,6 +20,13 @@ export default function CustomerLayout() {
     'chat-detail',
     'notification-detail',
   ];
+  const backHrefByRoute: Record<string, string> = {
+    notifications: '/(customer)/home',
+    'booking-detail': '/(customer)/booking',
+    'blog-detail': '/(customer)/blog',
+    'chat-detail': '/(customer)/chat',
+    'notification-detail': '/(customer)/notifications',
+  };
 
   return (
     <Tabs
@@ -30,6 +37,7 @@ export default function CustomerLayout() {
             title={options.title}
             showBack={detailRoutes.includes(route.name)}
             showNotifications={!detailRoutes.includes(route.name)}
+            backHref={backHrefByRoute[route.name]}
           />
         ),
         tabBarActiveTintColor: colors.primary,

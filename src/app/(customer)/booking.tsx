@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Calendar, Car, Clock, MapPin, Search, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
@@ -8,8 +8,10 @@ import { Button, Card, TextInput } from '@/components/BaseComponents';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Screen } from '@/components/ScreenComponents';
 import { useAuthStore } from '@/stores/authStore';
-import { MOCK_BOOKINGS, MOCK_VEHICLES } from '@/services/mockData';
 import { Vehicle } from '@/types';
+import { apiClient } from '@/services/api';
+import { getDistanceKm, LocationSuggestion, searchVietnamLocations } from '@/services/locations';
+import { MapPreview } from '@/components/MapPreview';
 
 type SortMode = 'price_asc' | 'price_desc' | 'seats_desc';
 
@@ -29,29 +31,72 @@ export default function BookingScreen() {
   const [time, setTime] = useState('09:00');
   const [passengers, setPassengers] = useState('2');
   const [maxPrice, setMaxPrice] = useState('');
+  const [note, setNote] = useState('');
   const [onlyAvailable, setOnlyAvailable] = useState(true);
   const [sortMode, setSortMode] = useState<SortMode>('price_asc');
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+  const [vehiclesData, setVehiclesData] = useState<Vehicle[]>([]);
+  const [bookedVehicleIds, setBookedVehicleIds] = useState<string[]>([]);
+  const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
+  const [visibleVehicleCount, setVisibleVehicleCount] = useState(8);
+  const [pickupSuggestions, setPickupSuggestions] = useState<LocationSuggestion[]>([]);
+  const [dropoffSuggestions, setDropoffSuggestions] = useState<LocationSuggestion[]>([]);
+  const [pickupPoint, setPickupPoint] = useState<LocationSuggestion | null>(null);
+  const [dropoffPoint, setDropoffPoint] = useState<LocationSuggestion | null>(null);
+  const [locationLoading, setLocationLoading] = useState<'pickup' | 'dropoff' | null>(null);
 
   const passengerCount = Math.max(Number(passengers) || 1, 1);
+  const distance = getDistanceKm(pickupPoint, dropoffPoint);
+
+  const loadVehicles = () => {
+    setIsLoadingVehicles(true);
+    apiClient
+      .getVehicles()
+      .then(setVehiclesData)
+      .catch((error) => Alert.alert('Không thể tải xe', error.message))
+      .finally(() => setIsLoadingVehicles(false));
+  };
+
+  useEffect(() => {
+    loadVehicles();
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!pickupLocation || pickupPoint?.label === pickupLocation) return;
+      setLocationLoading('pickup');
+      searchVietnamLocations(pickupLocation)
+        .then(setPickupSuggestions)
+        .catch(() => setPickupSuggestions([]))
+        .finally(() => setLocationLoading(null));
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [pickupLocation, pickupPoint?.label]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!dropoffLocation || dropoffPoint?.label === dropoffLocation) return;
+      setLocationLoading('dropoff');
+      searchVietnamLocations(dropoffLocation)
+        .then(setDropoffSuggestions)
+        .catch(() => setDropoffSuggestions([]))
+        .finally(() => setLocationLoading(null));
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [dropoffLocation, dropoffPoint?.label]);
 
   const vehicleAvailability = (vehicle: Vehicle) => {
     if (vehicle.status !== 'Sẵn sàng') return false;
-
-    return !MOCK_BOOKINGS.some(
-      (booking) =>
-        booking.vehicleId === vehicle.id &&
-        booking.date === date &&
-        booking.time === time &&
-        booking.status !== 'Đã hủy'
-    );
+    return !bookedVehicleIds.includes(vehicle.id);
   };
 
   const vehicles = useMemo(() => {
     const priceLimit = Number(maxPrice) || Infinity;
 
-    return MOCK_VEHICLES
+    return vehiclesData
       .filter((vehicle) => vehicle.seats >= passengerCount)
       .filter((vehicle) => vehicle.pricePerKm <= priceLimit)
       .filter((vehicle) => !onlyAvailable || vehicleAvailability(vehicle))
@@ -60,14 +105,25 @@ export default function BookingScreen() {
         if (sortMode === 'seats_desc') return b.seats - a.seats;
         return a.pricePerKm - b.pricePerKm;
       });
-  }, [date, time, passengerCount, maxPrice, onlyAvailable, sortMode]);
+  }, [vehiclesData, passengerCount, maxPrice, onlyAvailable, sortMode, bookedVehicleIds]);
 
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
 
-  const handleSearch = () => {
-    if (!pickupLocation || !dropoffLocation || !date || !time || !passengers) {
+  const handleSearch = async () => {
+    if (!pickupPoint || !dropoffPoint || !date || !time || !passengers) {
       Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đón, điểm đến, ngày, giờ và số người.');
       return;
+    }
+
+    try {
+      const bookings = await apiClient.getBookings();
+      setBookedVehicleIds(
+        bookings
+          .filter((booking) => booking.date === date && booking.time === time && booking.status !== 'Đã hủy')
+          .map((booking) => booking.vehicleId)
+      );
+    } catch {
+      setBookedVehicleIds([]);
     }
 
     setSearched(true);
@@ -91,7 +147,7 @@ export default function BookingScreen() {
   }
 
   return (
-    <Screen scroll padding>
+    <Screen scroll padding refreshing={isLoadingVehicles} onRefresh={loadVehicles}>
       <Card style={{ marginBottom: spacing.lg }}>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: spacing.md }}>
           Tìm chuyến đi
@@ -101,18 +157,61 @@ export default function BookingScreen() {
           label="Điểm đón"
           placeholder="Nhập địa chỉ đón"
           value={pickupLocation}
-          onChangeText={setPickupLocation}
+          onChangeText={(text) => {
+            setPickupLocation(text);
+            setPickupPoint(null);
+          }}
           icon={<MapPin size={20} color={colors.primary} />}
           style={{ marginBottom: spacing.md }}
         />
+        {locationLoading === 'pickup' && <ActivityIndicator color={colors.primary} style={{ marginBottom: spacing.sm }} />}
+        {pickupSuggestions.map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            onPress={() => {
+              setPickupPoint(item);
+              setPickupLocation(item.label);
+              setPickupSuggestions([]);
+            }}
+            style={{ paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}
+          >
+            <Text numberOfLines={2} style={{ color: colors.text, fontSize: fontSize.sm }}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
         <TextInput
           label="Điểm đến"
           placeholder="Nhập địa chỉ đến"
           value={dropoffLocation}
-          onChangeText={setDropoffLocation}
+          onChangeText={(text) => {
+            setDropoffLocation(text);
+            setDropoffPoint(null);
+          }}
           icon={<MapPin size={20} color={colors.error} />}
           style={{ marginBottom: spacing.md }}
         />
+        {locationLoading === 'dropoff' && <ActivityIndicator color={colors.primary} style={{ marginBottom: spacing.sm }} />}
+        {dropoffSuggestions.map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            onPress={() => {
+              setDropoffPoint(item);
+              setDropoffLocation(item.label);
+              setDropoffSuggestions([]);
+            }}
+            style={{ paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}
+          >
+            <Text numberOfLines={2} style={{ color: colors.text, fontSize: fontSize.sm }}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
+
+        {pickupPoint && dropoffPoint && (
+          <View style={{ marginBottom: spacing.lg }}>
+            <MapPreview
+              pickup={{ label: pickupLocation, lat: pickupPoint.lat, lng: pickupPoint.lng }}
+              dropoff={{ label: dropoffLocation, lat: dropoffPoint.lat, lng: dropoffPoint.lng }}
+            />
+          </View>
+        )}
 
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
           <TextInput
@@ -132,6 +231,16 @@ export default function BookingScreen() {
             style={{ flex: 1, marginBottom: spacing.md }}
           />
         </View>
+
+        <TextInput
+          label="Ghi chú cho tài xế"
+          placeholder="Ví dụ: đón ở cổng chính, có hành lý, đi cùng trẻ nhỏ..."
+          value={note}
+          onChangeText={setNote}
+          multiline
+          numberOfLines={3}
+          style={{ marginBottom: spacing.md }}
+        />
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
           {quickTimes.map((item) => (
@@ -207,6 +316,7 @@ export default function BookingScreen() {
         <Button
           label="Tìm xe phù hợp"
           onPress={handleSearch}
+          loading={isLoadingVehicles}
           icon={<Search size={20} color="white" />}
         />
       </Card>
@@ -218,9 +328,10 @@ export default function BookingScreen() {
           </Text>
           <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: spacing.md }}>
             {vehicles.length} xe khớp ngày {date}, giờ {time}, {passengerCount} hành khách
+            {distance ? `, khoảng ${distance} km` : ''}
           </Text>
 
-          {vehicles.map((vehicle) => {
+          {vehicles.slice(0, visibleVehicleCount).map((vehicle) => {
             const selected = selectedVehicleId === vehicle.id;
             const available = vehicleAvailability(vehicle);
 
@@ -238,6 +349,12 @@ export default function BookingScreen() {
                       date,
                       time,
                       passengers: String(passengerCount),
+                      note,
+                      pickupLat: String(pickupPoint?.lat ?? ''),
+                      pickupLng: String(pickupPoint?.lng ?? ''),
+                      dropoffLat: String(dropoffPoint?.lat ?? ''),
+                      dropoffLng: String(dropoffPoint?.lng ?? ''),
+                      distance: String(distance),
                     },
                   });
                 }}
@@ -288,6 +405,13 @@ export default function BookingScreen() {
               </TouchableOpacity>
             );
           })}
+          {vehicles.length > visibleVehicleCount && (
+            <Button
+              label="Tải thêm xe"
+              onPress={() => setVisibleVehicleCount((current) => current + 8)}
+              variant="outline"
+            />
+          )}
 
           {vehicles.length === 0 && (
             <Text style={{ color: colors.textSecondary, textAlign: 'center', marginVertical: spacing.xl }}>

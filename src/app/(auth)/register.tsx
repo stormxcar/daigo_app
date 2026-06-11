@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { Alert, View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { useAuth } from '@/hooks/useAuth';
-import { User, Mail, Phone, Lock } from 'lucide-react-native';
+import { Eye, EyeOff, User, Mail, Phone, Lock } from 'lucide-react-native';
+import { UserRole } from '@/types';
+import { isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
 
 export default function RegisterScreen() {
   const { colors } = useTheme();
@@ -17,30 +19,68 @@ export default function RegisterScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [role, setRole] = useState<UserRole>('customer');
   const [localError, setLocalError] = useState('');
+
+  const showError = (message: string) => {
+    setLocalError(message);
+    Alert.alert('Không thể đăng ký', message);
+  };
 
   const handleRegister = async () => {
     if (!fullName || !email || !phone || !password || !confirmPassword) {
-      setLocalError('Vui lòng điền đầy đủ thông tin');
+      showError('Vui lòng nhập đầy đủ họ tên, email, số điện thoại và mật khẩu.');
+      return;
+    }
+
+    if (fullName.trim().length < 2) {
+      showError('Họ và tên phải có ít nhất 2 ký tự.');
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      showError('Email không đúng định dạng.');
+      return;
+    }
+
+    if (phone.trim().length < 9) {
+      showError('Số điện thoại không hợp lệ.');
+      return;
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      showError(passwordError);
       return;
     }
 
     if (password !== confirmPassword) {
-      setLocalError('Mật khẩu xác nhận không khớp');
+      showError('Mật khẩu xác nhận không khớp.');
       return;
     }
 
     try {
-      await register({
+      const response = await register({
         fullName,
         email,
         phone,
         password,
         confirmPassword,
+        role,
       });
-      router.replace('/(customer)/home');
+      if (response.token) {
+        router.replace(response.user.role === 'driver' ? '/(driver)/dashboard' : '/(customer)/home');
+      } else {
+        Alert.alert('Xác thực email', 'Tài khoản đã được tạo. Vui lòng nhập mã OTP được gửi về email để kích hoạt tài khoản.');
+        router.replace({
+          pathname: '/(auth)/verify-email' as any,
+          params: { email },
+        });
+      }
     } catch (err: any) {
-      setLocalError(err.message);
+      showError(toVietnameseAuthError(err.message));
     }
   };
 
@@ -70,6 +110,7 @@ export default function RegisterScreen() {
             setFullName(text);
             setLocalError('');
           }}
+          disabled={isLoading}
           icon={<User size={20} color={colors.textSecondary} />}
           style={{ marginBottom: spacing.lg }}
         />
@@ -83,6 +124,7 @@ export default function RegisterScreen() {
             setLocalError('');
           }}
           keyboardType="email-address"
+          disabled={isLoading}
           icon={<Mail size={20} color={colors.textSecondary} />}
           style={{ marginBottom: spacing.lg }}
         />
@@ -96,9 +138,37 @@ export default function RegisterScreen() {
             setLocalError('');
           }}
           keyboardType="phone-pad"
+          disabled={isLoading}
           icon={<Phone size={20} color={colors.textSecondary} />}
           style={{ marginBottom: spacing.lg }}
         />
+
+        <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '600', marginBottom: spacing.sm }}>
+          Loại tài khoản
+        </Text>
+        <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg }}>
+          {[
+            { label: 'Khách hàng', value: 'customer' as const },
+            { label: 'Tài xế', value: 'driver' as const },
+          ].map((item) => (
+            <TouchableOpacity
+              key={item.value}
+              onPress={() => setRole(item.value)}
+              disabled={isLoading}
+              style={{
+                flex: 1,
+                paddingVertical: spacing.md,
+                borderRadius: borderRadius.md,
+                alignItems: 'center',
+                backgroundColor: role === item.value ? colors.primary : colors.surfaceAlt,
+              }}
+            >
+              <Text style={{ color: role === item.value ? 'white' : colors.text, fontWeight: '700' }}>
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <TextInput
           label="Mật khẩu"
@@ -108,8 +178,18 @@ export default function RegisterScreen() {
             setPassword(text);
             setLocalError('');
           }}
-          secureTextEntry
+          secureTextEntry={!showPassword}
+          disabled={isLoading}
           icon={<Lock size={20} color={colors.textSecondary} />}
+          rightIcon={
+            <TouchableOpacity onPress={() => setShowPassword((value) => !value)} disabled={isLoading}>
+              {showPassword ? (
+                <EyeOff size={20} color={colors.textSecondary} />
+              ) : (
+                <Eye size={20} color={colors.textSecondary} />
+              )}
+            </TouchableOpacity>
+          }
           style={{ marginBottom: spacing.lg }}
         />
 
@@ -121,8 +201,18 @@ export default function RegisterScreen() {
             setConfirmPassword(text);
             setLocalError('');
           }}
-          secureTextEntry
+          secureTextEntry={!showConfirmPassword}
+          disabled={isLoading}
           icon={<Lock size={20} color={colors.textSecondary} />}
+          rightIcon={
+            <TouchableOpacity onPress={() => setShowConfirmPassword((value) => !value)} disabled={isLoading}>
+              {showConfirmPassword ? (
+                <EyeOff size={20} color={colors.textSecondary} />
+              ) : (
+                <Eye size={20} color={colors.textSecondary} />
+              )}
+            </TouchableOpacity>
+          }
         />
       </View>
 
@@ -130,6 +220,7 @@ export default function RegisterScreen() {
         label="Đăng ký"
         onPress={handleRegister}
         loading={isLoading}
+        disabled={isLoading}
         style={{ marginBottom: spacing.lg }}
       />
 
@@ -144,7 +235,7 @@ export default function RegisterScreen() {
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
           Đã có tài khoản?
         </Text>
-        <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
+        <TouchableOpacity onPress={() => router.push('/(auth)/login')} disabled={isLoading}>
           <Text
             style={{
               color: colors.primary,

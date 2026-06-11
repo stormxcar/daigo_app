@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Image, Linking, Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Phone, Send } from 'lucide-react-native';
+import { Send } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, TextInput } from '@/components/BaseComponents';
@@ -12,13 +12,14 @@ import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 
-export default function ChatDetailScreen() {
+export default function DriverChatDetail() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { user } = useAuthStore();
   const { conversations, setConversations, addMessage } = useChatStore();
   const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
   const conversation = useMemo(() => conversations.find((item) => item.id === id), [conversations, id]);
 
   useEffect(() => {
@@ -31,20 +32,17 @@ export default function ChatDetailScreen() {
     apiClient
       .markConversationMessagesAsRead(id, user.id)
       .then(() => {
-        const current = conversations.find((item) => item.id === id);
-        if (current) {
-          setConversations(
-            conversations.map((item) =>
-              item.id === id
-                ? {
-                    ...item,
-                    unreadCount: 0,
-                    messages: item.messages.map((message) => ({ ...message, read: true })),
-                  }
-                : item
-            )
-          );
-        }
+        setConversations(
+          conversations.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  unreadCount: 0,
+                  messages: item.messages.map((message) => ({ ...message, read: true })),
+                }
+              : item
+          )
+        );
       })
       .catch(() => undefined);
   }, [id, user?.id]);
@@ -52,7 +50,7 @@ export default function ChatDetailScreen() {
   useEffect(() => {
     if (!id) return;
 
-    const channelName = `chat-detail-${id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const channelName = `driver-chat-detail-${id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` }, async () => {
@@ -70,9 +68,14 @@ export default function ChatDetailScreen() {
 
   const handleSend = async () => {
     if (!id || !user || !text.trim()) return;
-    const message = await apiClient.sendMessage(id, text.trim(), user.id);
-    addMessage(id, message);
-    setText('');
+    try {
+      setSending(true);
+      const message = await apiClient.sendMessage(id, text.trim(), user.id);
+      addMessage(id, message);
+      setText('');
+    } finally {
+      setSending(false);
+    }
   };
 
   if (!conversation) {
@@ -87,55 +90,30 @@ export default function ChatDetailScreen() {
     <Screen scroll padding style={{ paddingBottom: 110 + insets.bottom }}>
       <Card style={{ marginBottom: spacing.lg }}>
         <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
-          <Image source={{ uri: conversation.participantAvatar }} style={{ width: 48, height: 48, borderRadius: 24 }} />
-          <View style={{ flex: 1 }}>
+          <Image source={{ uri: conversation.participantAvatar }} style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surfaceAlt }} />
+          <View>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>
               {conversation.participantName}
             </Text>
-            <Text style={{ color: colors.success, fontSize: fontSize.sm }}>Đang hoạt động</Text>
+            <Text style={{ color: colors.success, fontSize: fontSize.sm }}>Khách hàng</Text>
           </View>
-          <Button
-            label="Gọi"
-            onPress={() => {
-              if (conversation.participantPhone) {
-                Linking.openURL(`tel:${conversation.participantPhone}`);
-              }
-            }}
-            disabled={!conversation.participantPhone}
-            size="sm"
-            icon={<Phone size={16} color="white" />}
-          />
         </View>
       </Card>
 
       {conversation.messages.map((message) => {
-        const fromUser = message.sender === 'user';
+        const fromMe = message.sender === 'user';
         return (
-          <View
-            key={message.id}
-            style={{
-              alignItems: fromUser ? 'flex-end' : 'flex-start',
-              marginBottom: spacing.md,
-            }}
-          >
+          <View key={message.id} style={{ alignItems: fromMe ? 'flex-end' : 'flex-start', marginBottom: spacing.md }}>
             <View
               style={{
                 maxWidth: '82%',
                 padding: spacing.md,
                 borderRadius: borderRadius.lg,
-                backgroundColor: fromUser ? colors.primary : colors.surface,
+                backgroundColor: fromMe ? colors.primary : colors.surface,
               }}
             >
-              <Text style={{ color: fromUser ? 'white' : colors.text, lineHeight: 20 }}>
-                {message.text}
-              </Text>
-              <Text
-                style={{
-                  color: fromUser ? 'rgba(255,255,255,0.75)' : colors.textTertiary,
-                  fontSize: fontSize.xs,
-                  marginTop: spacing.xs,
-                }}
-              >
+              <Text style={{ color: fromMe ? 'white' : colors.text, lineHeight: 20 }}>{message.text}</Text>
+              <Text style={{ color: fromMe ? 'rgba(255,255,255,0.75)' : colors.textTertiary, fontSize: fontSize.xs, marginTop: spacing.xs }}>
                 {new Date(message.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
@@ -161,9 +139,10 @@ export default function ChatDetailScreen() {
           value={text}
           onChangeText={setText}
           placeholder="Nhập tin nhắn..."
+          disabled={sending}
           style={{ flex: 1 }}
         />
-        <Button label="Gửi" onPress={handleSend} disabled={!text.trim()} icon={<Send size={18} color="white" />} />
+        <Button label="Gửi" onPress={handleSend} disabled={!text.trim() || sending} loading={sending} icon={<Send size={18} color="white" />} />
       </View>
     </Screen>
   );

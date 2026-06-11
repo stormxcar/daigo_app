@@ -7,6 +7,8 @@ export interface User {
   email: string;
   phone: string;
   avatarUrl?: string;
+  address?: string;
+  emailVerified?: boolean;
   role: UserRole;
   createdAt: string;
   updatedAt: string;
@@ -16,6 +18,10 @@ export type VehicleStatus = 'Sẵn sàng' | 'Đang bận' | 'Bảo trì';
 
 export interface Vehicle {
   id: string;
+  driverId?: string;
+  driverName?: string;
+  driverPhone?: string;
+  driverAvatar?: string;
   name: string;
   brand: string;
   licensePlate: string;
@@ -37,12 +43,17 @@ export type BookingStatus =
 
 export interface Booking {
   id: string;
+  bookingCode?: string;
   customerId: string;
   customerName: string;
   customerPhone: string;
   customerEmail: string;
   pickupLocation: string;
+  pickupLat?: number;
+  pickupLng?: number;
   dropoffLocation: string;
+  dropoffLat?: number;
+  dropoffLng?: number;
   date: string;
   time: string;
   passengers: number;
@@ -66,6 +77,7 @@ export type NotificationType =
   | 'driver_cancel'
   | 'trip_done'
   | 'booking_update'
+  | 'blog_interaction'
   | 'system';
 
 export interface NotificationItem {
@@ -77,6 +89,7 @@ export interface NotificationItem {
   type: NotificationType;
   read: boolean;
   relatedBookingId?: string;
+  relatedPostId?: string;
   createdAt: string;
 }
 
@@ -93,6 +106,7 @@ export interface ChatConversation {
   id: string;
   participantId: string;
   participantName: string;
+  participantPhone?: string;
   participantAvatar?: string;
   lastMessage: string;
   lastMessageTime: string;
@@ -119,6 +133,7 @@ export interface BlogPost {
 export interface BlogComment {
   id: string;
   postId: string;
+  parentCommentId?: string;
   authorId: string;
   authorName: string;
   authorAvatar?: string;
@@ -135,6 +150,7 @@ export interface RegisterData extends AuthCredentials {
   fullName: string;
   phone: string;
   confirmPassword: string;
+  role?: UserRole;
 }
 
 export interface AuthResponse {

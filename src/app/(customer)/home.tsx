@@ -1,237 +1,189 @@
 import React, { useEffect } from 'react';
-import { Alert, Linking, View, Text, TouchableOpacity } from 'react-native';
+import { Image, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
+import { CalendarClock, Car, MapPin, Phone, ShieldCheck, Star } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { spacing, fontSize, borderRadius } from '@/theme/tokens';
+import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { Badge, Button, Card, CardSkeleton } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
-import { Card, Button, Badge } from '@/components/BaseComponents';
-import { VehicleCard, DriverCard } from '@/components/FeatureCards';
 import { useAuth } from '@/hooks/useAuth';
-import { useVehicles } from '@/hooks/useVehicles';
 import { useBooking } from '@/hooks/useBooking';
-import { MapPin, Clock } from 'lucide-react-native';
-import { MOCK_VEHICLES, MOCK_DRIVER } from '@/services/mockData';
+import { useVehicles } from '@/hooks/useVehicles';
+import { Vehicle } from '@/types';
+
+function DriverVehicleCard({ vehicle }: { vehicle: Vehicle }) {
+  const { colors } = useTheme();
+  const callDriver = () => {
+    if (vehicle.driverPhone) {
+      Linking.openURL(`tel:${vehicle.driverPhone}`);
+    }
+  };
+
+  return (
+    <Card style={{ marginBottom: spacing.lg }}>
+      {!!vehicle.image && (
+        <Image
+          source={{ uri: vehicle.image }}
+          style={{ width: '100%', height: 176, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, marginBottom: spacing.md }}
+        />
+      )}
+
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.md }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>{vehicle.name}</Text>
+          <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+            {vehicle.licensePlate} - {vehicle.color} - {vehicle.seats} chỗ
+          </Text>
+        </View>
+        <Badge label={vehicle.status} variant={vehicle.status === 'Sẵn sàng' ? 'success' : 'warning'} />
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, marginBottom: spacing.md }}>
+        <Image
+          source={{ uri: vehicle.driverAvatar }}
+          style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surface }}
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.text, fontWeight: '900' }}>{vehicle.driverName ?? 'Tài xế'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs }}>
+            <Star size={14} color={colors.warning} fill={colors.warning} />
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>Tài xế đã xác thực</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md }}>
+        <Text style={{ color: colors.primary, fontSize: 18, fontWeight: '900' }}>
+          {vehicle.pricePerKm.toLocaleString('vi-VN')}đ/km
+        </Text>
+        <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>Thanh toán sau chuyến đi</Text>
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <Button
+          label="Đặt xe"
+          onPress={() => router.push('/(customer)/booking')}
+          style={{ flex: 1 }}
+          icon={<Car size={18} color="white" />}
+        />
+        <Button
+          label="Gọi ngay"
+          onPress={callDriver}
+          disabled={!vehicle.driverPhone}
+          variant="secondary"
+          style={{ flex: 1 }}
+          icon={<Phone size={18} color={colors.text} />}
+        />
+      </View>
+    </Card>
+  );
+}
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const { fetchVehicles } = useVehicles();
+  const { vehicles, fetchVehicles, isLoading } = useVehicles();
   const { fetchBookings } = useBooking();
 
-  const handleCallDriver = async () => {
-    const phoneUrl = `tel:${MOCK_DRIVER.phone}`;
-
-    try {
-      const supported = await Linking.canOpenURL(phoneUrl);
-      if (!supported) {
-        Alert.alert('Không thể gọi', 'Thiết bị hiện không hỗ trợ mở ứng dụng gọi điện.');
-        return;
-      }
-      await Linking.openURL(phoneUrl);
-    } catch {
-      Alert.alert('Không thể gọi', 'Vui lòng thử lại sau.');
-    }
-  };
-
   useEffect(() => {
-    // Load initial data
     fetchVehicles();
     if (user?.id) {
       fetchBookings({ customerId: user.id });
     }
   }, [user?.id]);
 
+  const availableVehicles = vehicles.filter((vehicle) => vehicle.status === 'Sẵn sàng');
+
   return (
-    <Screen scroll>
-      {/* Header with greeting and notification */}
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: spacing.lg,
-        }}
-      >
-        <View>
-          <Text style={{ fontSize: 14, color: colors.textSecondary }}>
-            Xin chào
-          </Text>
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: '700',
-              color: colors.text,
-              marginTop: spacing.xs,
-            }}
-          >
-            {user?.fullName || 'Khách hàng'}
-          </Text>
-        </View>
+    <Screen scroll padding refreshing={isLoading} onRefresh={fetchVehicles}>
+      <View style={{ marginBottom: spacing.lg }}>
+        <Text style={{ fontSize: 14, color: colors.textSecondary }}>Xin chào</Text>
+        <Text style={{ fontSize: 22, fontWeight: '900', color: colors.text, marginTop: spacing.xs }}>
+          {user?.fullName || 'Khách hàng'}
+        </Text>
       </View>
 
-      {/* Feature Highlight */}
       <Card style={{ marginBottom: spacing.lg }}>
-        <View
-          style={{
-            backgroundColor: colors.primary,
-            borderRadius: borderRadius.lg,
-            padding: spacing.lg,
-            marginBottom: spacing.md,
-          }}
-        >
-          <Badge label="VinFast VF7 Plus Premium" variant="primary" size="sm" />
-          <Text
-            style={{
-              color: 'white',
-              fontSize: 20,
-              fontWeight: '700',
-              marginTop: spacing.md,
-              marginBottom: spacing.sm,
-            }}
-          >
-            Đặt xe cao cấp
-          </Text>
-          <Text
-            style={{
-              color: 'rgba(255, 255, 255, 0.8)',
-              fontSize: 14,
-              lineHeight: 20,
-            }}
-          >
-            Trải nghiệm dịch vụ vận chuyển sang trọng với công nghệ điện hàng đầu
-          </Text>
+        <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center', marginBottom: spacing.md }}>
+          <View style={{ width: 48, height: 48, borderRadius: borderRadius.full, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+            <ShieldCheck size={24} color="white" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Đặt xe với tài xế thật</Text>
+            <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+              Chọn xe đang sẵn sàng và gọi trực tiếp tài xế khi cần.
+            </Text>
+          </View>
         </View>
-
-        <Button
-          label="Đặt xe ngay"
-          onPress={() => router.push('/(customer)/booking')}
-        />
+        <Button label="Tạo chuyến mới" onPress={() => router.push('/(customer)/booking')} icon={<MapPin size={18} color="white" />} />
       </Card>
 
-      {/* Vehicles Section */}
-      <View style={{ marginBottom: spacing.lg }}>
-        <Text
-          style={{
-            fontSize: 16,
-            fontWeight: '700',
-            color: colors.text,
-            marginBottom: spacing.md,
-          }}
-        >
-          Xe khả dụng
-        </Text>
-        {MOCK_VEHICLES.map((vehicle) => (
-          <VehicleCard
-            key={vehicle.id}
-            {...vehicle}
-            onPress={() => router.push('/(customer)/booking')}
-            style={{ marginBottom: spacing.md }}
-          />
-        ))}
-      </View>
+      <Text style={{ fontSize: 18, fontWeight: '900', color: colors.text, marginBottom: spacing.md }}>
+        Xe và tài xế khả dụng
+      </Text>
 
-      {/* Driver Section */}
-      <View style={{ marginBottom: spacing.lg }}>
-        <Text
-          style={{
-            fontSize: 16,
-            fontWeight: '700',
-            color: colors.text,
-            marginBottom: spacing.md,
-          }}
-        >
-          Tài xế của bạn
-        </Text>
-        <DriverCard
-          name={MOCK_DRIVER.name}
-          rating={MOCK_DRIVER.rating}
-          experience={MOCK_DRIVER.experienceYears}
-          phone={MOCK_DRIVER.phone}
-          avatarUri={MOCK_DRIVER.avatar}
-          onCallPress={handleCallDriver}
-          onChatPress={() => router.push('/(customer)/chat')}
-        />
-      </View>
+      {isLoading ? (
+        <>
+          <CardSkeleton image style={{ marginBottom: spacing.lg }} />
+          <CardSkeleton image style={{ marginBottom: spacing.lg }} />
+        </>
+      ) : (
+        availableVehicles.map((vehicle) => (
+          <DriverVehicleCard key={vehicle.id} vehicle={vehicle} />
+        ))
+      )}
 
-      {/* Quick Actions */}
+      {!isLoading && availableVehicles.length === 0 && (
+        <Card style={{ marginBottom: spacing.lg }}>
+          <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.xs }}>Chưa có xe sẵn sàng</Text>
+          <Text style={{ color: colors.textSecondary }}>Khi tài xế thêm xe hoặc bật trạng thái sẵn sàng, xe sẽ hiển thị tại đây.</Text>
+        </Card>
+      )}
+
       <View style={{ marginBottom: spacing.xl }}>
-        <Text
-          style={{
-            fontSize: 16,
-            fontWeight: '700',
-            color: colors.text,
-            marginBottom: spacing.md,
-          }}
-        >
+        <Text style={{ fontSize: 18, fontWeight: '900', color: colors.text, marginBottom: spacing.md }}>
           Hành động nhanh
         </Text>
-        <View style={{ gap: spacing.md }}>
-          <TouchableOpacity
-            onPress={() => router.push('/(customer)/booking')}
-            style={{
-              padding: spacing.lg,
-              backgroundColor: colors.surface,
-              borderRadius: borderRadius.lg,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.md,
-            }}
-          >
-            <View
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                backgroundColor: colors.primary,
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <MapPin size={24} color="white" />
-            </View>
-            <View>
-              <Text style={{ fontWeight: '700', color: colors.text, marginBottom: 4 }}>
-                Đặt chuyến đi
-              </Text>
-              <Text style={{ fontSize: 12, color: colors.textSecondary }}>
-                Bắt đầu chuyến đi mới
-              </Text>
-            </View>
-          </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => router.push('/(customer)/booking')}
+          style={{
+            padding: spacing.lg,
+            backgroundColor: colors.surface,
+            borderRadius: borderRadius.lg,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.md,
+            marginBottom: spacing.md,
+          }}
+        >
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }}>
+            <MapPin size={24} color="white" />
+          </View>
+          <View>
+            <Text style={{ fontWeight: '800', color: colors.text, marginBottom: 4 }}>Đặt chuyến đi</Text>
+            <Text style={{ fontSize: 12, color: colors.textSecondary }}>Chọn điểm đón, điểm đến và xe</Text>
+          </View>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => router.push('/(customer)/booking')}
-            style={{
-              padding: spacing.lg,
-              backgroundColor: colors.surface,
-              borderRadius: borderRadius.lg,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.md,
-            }}
-          >
-            <View
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                backgroundColor: colors.info,
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <Clock size={24} color="white" />
-            </View>
-            <View>
-              <Text style={{ fontWeight: '700', color: colors.text, marginBottom: 4 }}>
-                Lịch sử chuyến đi
-              </Text>
-              <Text style={{ fontSize: 12, color: colors.textSecondary }}>
-                Xem chuyến đi trước đó
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          onPress={() => router.push('/(customer)/profile')}
+          style={{
+            padding: spacing.lg,
+            backgroundColor: colors.surface,
+            borderRadius: borderRadius.lg,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.md,
+          }}
+        >
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.info, justifyContent: 'center', alignItems: 'center' }}>
+            <CalendarClock size={24} color="white" />
+          </View>
+          <View>
+            <Text style={{ fontWeight: '800', color: colors.text, marginBottom: 4 }}>Lịch sử chuyến đi</Text>
+            <Text style={{ fontSize: 12, color: colors.textSecondary }}>Xem lại các chuyến đã đặt</Text>
+          </View>
+        </TouchableOpacity>
       </View>
     </Screen>
   );

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Bell, CalendarClock, ChevronRight } from 'lucide-react-native';
@@ -6,13 +6,36 @@ import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
-import { MOCK_BOOKINGS, MOCK_NOTIFICATIONS } from '@/services/mockData';
+import { apiClient } from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
+import { Booking, NotificationItem } from '@/types';
 
 export default function NotificationDetailScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const notification = MOCK_NOTIFICATIONS.find((item) => item.id === id) ?? MOCK_NOTIFICATIONS[0];
-  const booking = MOCK_BOOKINGS.find((item) => item.id === notification.relatedBookingId);
+  const { user } = useAuthStore();
+  const [notification, setNotification] = useState<NotificationItem | null>(null);
+  const [booking, setBooking] = useState<Booking | null>(null);
+
+  useEffect(() => {
+    if (!user?.id || !id) return;
+    apiClient.getNotifications(user.id).then(async (items) => {
+      const found = items.find((item) => item.id === id) ?? null;
+      setNotification(found);
+      if (found?.relatedBookingId) {
+        const related = await apiClient.getBookingById(found.relatedBookingId);
+        setBooking(related);
+      }
+    }).catch(() => setNotification(null));
+  }, [id, user?.id]);
+
+  if (!notification) {
+    return (
+      <Screen padding>
+        <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>Không tìm thấy thông báo.</Text>
+      </Screen>
+    );
+  }
 
   return (
     <Screen scroll padding>
@@ -50,7 +73,7 @@ export default function NotificationDetailScreen() {
             </Text>
           </View>
           {[
-            ['Mã chuyến', booking.id],
+            ['Mã chuyến', booking.bookingCode ?? 'Chuyến đi'],
             ['Tuyến', `${booking.pickupLocation} → ${booking.dropoffLocation}`],
             ['Thời gian', `${booking.time} - ${booking.date}`],
             ['Tài xế', booking.driverName],

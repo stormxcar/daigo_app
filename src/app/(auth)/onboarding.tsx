@@ -12,8 +12,7 @@ import { router } from 'expo-router';
 import { useTheme } from '@/theme';
 import { spacing, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
-import { Button } from '@/components/BaseComponents';
-import { ChevronRight, Zap, Calendar, Phone } from 'lucide-react-native';
+import { Zap, Calendar, Phone } from 'lucide-react-native';
 
 interface OnboardingStep {
   title: string;
@@ -44,19 +43,6 @@ export default function OnboardingScreen() {
       icon: <Phone size={48} color={colors.primary} />,
     },
   ];
-
-  const goToStep = (nextStep: number) => {
-    listRef.current?.scrollToIndex({ index: nextStep, animated: true });
-    setStep(nextStep);
-  };
-
-  const handleNext = () => {
-    if (step < steps.length - 1) {
-      goToStep(step + 1);
-    } else {
-      router.replace('/(customer)/home');
-    }
-  };
 
   const handleMomentumScrollEnd = (
     event: NativeSyntheticEvent<NativeScrollEvent>
@@ -158,22 +144,7 @@ export default function OnboardingScreen() {
           )}
         />
 
-        {/* Buttons */}
         <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md }}>
-          <Button
-            label={step === steps.length - 1 ? 'Bắt đầu' : 'Tiếp tục'}
-            onPress={handleNext}
-            icon={<ChevronRight size={20} color="white" />}
-          />
-
-          {step > 0 && (
-            <Button
-              label="Quay lại"
-              onPress={() => goToStep(step - 1)}
-              variant="outline"
-            />
-          )}
-
           <TouchableOpacity onPress={() => router.replace('/(customer)/home')}>
             <Text
               style={{

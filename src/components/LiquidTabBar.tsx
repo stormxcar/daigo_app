@@ -3,6 +3,7 @@ import { Animated, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { useChatStore } from '@/stores/chatStore';
 
 interface LiquidTabBarProps {
   state: any;
@@ -17,6 +18,9 @@ export function LiquidTabBar({
 }: LiquidTabBarProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const chatUnreadCount = useChatStore((state) =>
+    state.conversations.reduce((sum, conversation) => sum + conversation.unreadCount, 0)
+  );
   const animations = useRef<Record<string, Animated.Value>>({}).current;
   const hiddenRoutes = [
     'notifications',
@@ -150,6 +154,26 @@ export function LiquidTabBar({
                     focused,
                   })}
                 </Animated.View>
+                {route.name === 'chat' && chatUnreadCount > 0 && (
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      minWidth: 19,
+                      height: 19,
+                      borderRadius: borderRadius.full,
+                      backgroundColor: colors.error,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingHorizontal: 5,
+                    }}
+                  >
+                    <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>
+                      {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text
                 numberOfLines={1}

@@ -1,6 +1,7 @@
 import { useNotificationStore } from '@/stores/notificationStore';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { apiClient } from '@/services/api';
+import { supabase } from '@/services/supabase';
 
 export const useNotifications = (userId?: string) => {
   const store = useNotificationStore();
@@ -26,6 +27,26 @@ export const useNotifications = (userId?: string) => {
       store.setError(err.message);
     }
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const channelName = `notifications-${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        () => {
+          fetchNotifications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, fetchNotifications]);
 
   return {
     ...store,

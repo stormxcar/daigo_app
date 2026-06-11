@@ -1,37 +1,84 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, View, Text, TouchableOpacity } from 'react-native';
+import * as Linking from 'expo-linking';
+import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { useAuth } from '@/hooks/useAuth';
-import { Mail, Lock } from 'lucide-react-native';
+import { Check, Eye, EyeOff, Lock, Mail, Square } from 'lucide-react-native';
+import { isValidEmail, toVietnameseAuthError } from '@/utils/authValidation';
+
+const REMEMBER_EMAIL_KEY = 'booking_daigo_remember_email';
+const REMEMBER_PASSWORD_KEY = 'booking_daigo_remember_password';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
-  const { login, isLoading, error } = useAuth();
+  const { login, loginWithGoogle, isLoading, error } = useAuth();
 
-  const [email, setEmail] = useState('khachhang@gmail.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(false);
   const [localError, setLocalError] = useState('');
+
+  useEffect(() => {
+    const loadRememberedLogin = async () => {
+      const rememberedEmail = await SecureStore.getItemAsync(REMEMBER_EMAIL_KEY);
+      const rememberedPassword = await SecureStore.getItemAsync(REMEMBER_PASSWORD_KEY);
+      if (rememberedEmail && rememberedPassword) {
+        setEmail(rememberedEmail);
+        setPassword(rememberedPassword);
+        setRememberLogin(true);
+      }
+    };
+
+    loadRememberedLogin();
+  }, []);
+
+  const showError = (message: string) => {
+    setLocalError(message);
+    Alert.alert('Không thể đăng nhập', message);
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
-      setLocalError('Vui lòng điền đầy đủ thông tin');
+      showError('Vui lòng nhập email và mật khẩu.');
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      showError('Email không đúng định dạng.');
       return;
     }
 
     try {
       const response = await login({ email, password });
+      if (rememberLogin) {
+        await SecureStore.setItemAsync(REMEMBER_EMAIL_KEY, email);
+        await SecureStore.setItemAsync(REMEMBER_PASSWORD_KEY, password);
+      } else {
+        await SecureStore.deleteItemAsync(REMEMBER_EMAIL_KEY);
+        await SecureStore.deleteItemAsync(REMEMBER_PASSWORD_KEY);
+      }
       router.replace(
         response.user.role === 'customer'
           ? '/(customer)/home'
           : '/(driver)/dashboard'
       );
     } catch (err: any) {
-      setLocalError(err.message);
+      showError(toVietnameseAuthError(err.message));
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const response = await loginWithGoogle(Linking.createURL('/(customer)/home'));
+      router.replace(response.user.role === 'customer' ? '/(customer)/home' : '/(driver)/dashboard');
+    } catch (err: any) {
+      showError(toVietnameseAuthError(err.message));
     }
   };
 
@@ -62,6 +109,7 @@ export default function LoginScreen() {
             setLocalError('');
           }}
           keyboardType="email-address"
+          disabled={isLoading}
           icon={<Mail size={20} color={colors.textSecondary} />}
           style={{ marginBottom: spacing.lg }}
         />
@@ -75,12 +123,47 @@ export default function LoginScreen() {
             setLocalError('');
           }}
           secureTextEntry={!showPassword}
+          disabled={isLoading}
           icon={<Lock size={20} color={colors.textSecondary} />}
+          rightIcon={
+            <TouchableOpacity onPress={() => setShowPassword((value) => !value)} disabled={isLoading}>
+              {showPassword ? (
+                <EyeOff size={20} color={colors.textSecondary} />
+              ) : (
+                <Eye size={20} color={colors.textSecondary} />
+              )}
+            </TouchableOpacity>
+          }
         />
       </View>
 
       <TouchableOpacity
+        onPress={() => setRememberLogin((value) => !value)}
+        disabled={isLoading}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg }}
+      >
+        <View
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: borderRadius.sm,
+            borderWidth: 1,
+            borderColor: rememberLogin ? colors.primary : colors.border,
+            backgroundColor: rememberLogin ? colors.primary : colors.surface,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {rememberLogin ? <Check size={16} color="white" /> : <Square size={14} color="transparent" />}
+        </View>
+        <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '600' }}>
+          Ghi nhớ đăng nhập
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
         onPress={() => router.push('/(auth)/forgot-password')}
+        disabled={isLoading}
         style={{ marginBottom: spacing.xl }}
       >
         <Text
@@ -102,6 +185,15 @@ export default function LoginScreen() {
         style={{ marginBottom: spacing.lg }}
       />
 
+      <Button
+        label="Đăng nhập với Google"
+        onPress={handleGoogleLogin}
+        variant="outline"
+        loading={isLoading}
+        disabled={isLoading}
+        style={{ marginBottom: spacing.md }}
+      />
+
       <View
         style={{
           flexDirection: 'row',
@@ -113,7 +205,7 @@ export default function LoginScreen() {
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
           Chưa có tài khoản?
         </Text>
-        <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+        <TouchableOpacity onPress={() => router.push('/(auth)/register')} disabled={isLoading}>
           <Text
             style={{
               color: colors.primary,
@@ -126,46 +218,6 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
 
-      <View
-        style={{
-          marginVertical: spacing.xl,
-          paddingVertical: spacing.lg,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-        }}
-      >
-        <Text
-          style={{
-            color: colors.textSecondary,
-            fontSize: fontSize.xs,
-            textAlign: 'center',
-            marginBottom: spacing.md,
-          }}
-        >
-          TÀI KHOẢN DEMO
-        </Text>
-        <Button
-          label="Khách hàng Demo"
-          onPress={() => {
-            setEmail('khachhang@gmail.com');
-            setPassword('password123');
-          }}
-          variant="outline"
-          size="sm"
-          style={{ marginBottom: spacing.sm }}
-        />
-        <Button
-          label="Tài xế Demo"
-          onPress={() => {
-            setEmail('taixe.nguyenxuandai@gmail.com');
-            setPassword('tai-xe-quan-tri-7');
-          }}
-          variant="outline"
-          size="sm"
-        />
-      </View>
     </Screen>
   );
 }

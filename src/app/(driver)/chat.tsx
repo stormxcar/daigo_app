@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
+import { MessageCircle } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { AuthRequired } from '@/components/AuthRequired';
 import { Button, Card } from '@/components/BaseComponents';
-import { Screen } from '@/components/ScreenComponents';
-import { useAuthStore } from '@/stores/authStore';
-import { useChatStore } from '@/stores/chatStore';
+import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { supabase } from '@/services/supabase';
+import { useAuthStore } from '@/stores/authStore';
+import { useChatStore } from '@/stores/chatStore';
 
-export default function ChatScreen() {
+export default function DriverChat() {
   const { colors } = useTheme();
-  const { isAuthenticated, user } = useAuthStore();
+  const { user } = useAuthStore();
   const { conversations, setConversations, setError } = useChatStore();
   const [refreshing, setRefreshing] = useState(false);
   const [visibleCount, setVisibleCount] = useState(12);
@@ -35,7 +35,7 @@ export default function ChatScreen() {
 
     refreshConversations();
 
-    const channelName = `chat-list-${user.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const channelName = `driver-chat-list-${user.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
@@ -51,10 +51,6 @@ export default function ChatScreen() {
     };
   }, [user?.id]);
 
-  if (!isAuthenticated) {
-    return <AuthRequired description="Bạn cần đăng nhập để trò chuyện với tài xế." />;
-  }
-
   return (
     <Screen scroll padding refreshing={refreshing} onRefresh={refreshConversations}>
       {conversations.slice(0, visibleCount).map((conversation) => (
@@ -63,7 +59,7 @@ export default function ChatScreen() {
           activeOpacity={0.84}
           onPress={() =>
             router.push({
-              pathname: '/(customer)/chat-detail' as any,
+              pathname: '/(driver)/chat-detail' as any,
               params: { id: conversation.id },
             })
           }
@@ -107,10 +103,13 @@ export default function ChatScreen() {
           </Card>
         </TouchableOpacity>
       ))}
+
       {conversations.length === 0 && (
-        <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xl }}>
-          Chưa có cuộc trò chuyện. Conversation sẽ được tạo sau khi bạn đặt xe.
-        </Text>
+        <EmptyState
+          icon={<MessageCircle size={48} color={colors.primary} />}
+          title="Chưa có tin nhắn"
+          description="Tin nhắn từ khách hàng sẽ hiển thị khi chuyến đi có cuộc trò chuyện."
+        />
       )}
       {conversations.length > visibleCount && (
         <Button

@@ -2,6 +2,7 @@ import React, { FC, ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   StatusBar,
   Text,
@@ -20,6 +21,8 @@ interface ScreenProps {
   paddingHorizontal?: boolean;
   paddingVertical?: boolean;
   safeArea?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }
 
 export const Screen: FC<ScreenProps> = ({
@@ -30,6 +33,8 @@ export const Screen: FC<ScreenProps> = ({
   paddingHorizontal = padding,
   paddingVertical = padding,
   safeArea = false,
+  refreshing = false,
+  onRefresh,
 }) => {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -49,12 +54,22 @@ export const Screen: FC<ScreenProps> = ({
     <ScrollView
       style={containerStyle}
       contentContainerStyle={[
-        { flexGrow: 1, paddingBottom: spacing.xl },
+        { flexGrow: 1, paddingBottom: spacing.xl + insets.bottom },
         style,
       ]}
       scrollEnabled={true}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        ) : undefined
+      }
     >
       {children}
     </ScrollView>

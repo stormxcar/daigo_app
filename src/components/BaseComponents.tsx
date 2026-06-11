@@ -100,6 +100,7 @@ interface TextInputProps {
   error?: string;
   disabled?: boolean;
   icon?: ReactNode;
+  rightIcon?: ReactNode;
   style?: ViewStyle;
   multiline?: boolean;
   numberOfLines?: number;
@@ -115,6 +116,7 @@ export const TextInput: FC<TextInputProps> = ({
   error,
   disabled = false,
   icon,
+  rightIcon,
   style,
   multiline = false,
   numberOfLines,
@@ -168,6 +170,7 @@ export const TextInput: FC<TextInputProps> = ({
           multiline={multiline}
           numberOfLines={numberOfLines}
         />
+        {rightIcon && rightIcon}
       </View>
       {error && (
         <Text
@@ -361,3 +364,28 @@ export const Skeleton: FC<SkeletonProps> = ({ width = '100%', height = 12, borde
     />
   );
 };
+
+export const CardSkeleton: FC<{ rows?: number; image?: boolean; style?: ViewStyle }> = ({
+  rows = 3,
+  image = false,
+  style,
+}) => (
+  <Card style={style}>
+    {image && <Skeleton height={150} borderRadius={borderRadius.lg} style={{ marginBottom: spacing.md }} />}
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
+      <Skeleton width={48} height={48} borderRadius={24} />
+      <View style={{ flex: 1, gap: spacing.sm }}>
+        <Skeleton width="72%" height={16} />
+        <Skeleton width="48%" height={12} />
+      </View>
+    </View>
+    {Array.from({ length: rows }).map((_, index) => (
+      <Skeleton
+        key={index}
+        width={index === rows - 1 ? '58%' : '100%'}
+        height={12}
+        style={{ marginTop: index === 0 ? 0 : spacing.sm }}
+      />
+    ))}
+  </Card>
+);
