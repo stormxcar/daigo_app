@@ -369,7 +369,16 @@ class ApiClient {
   }
 
   async createBooking(data: Partial<Booking> & { pickupLat?: number; pickupLng?: number; dropoffLat?: number; dropoffLng?: number }): Promise<Booking> {
-    const selectedDriverId = data.driverId || data.vehicle?.driverId || null;
+    let selectedDriverId = data.driverId || data.vehicle?.driverId || null;
+    if (!selectedDriverId && data.vehicleId) {
+      const { data: vehicleRow } = await supabase
+        .from('vehicles')
+        .select('driver_id')
+        .eq('id', data.vehicleId)
+        .maybeSingle();
+      selectedDriverId = vehicleRow?.driver_id ?? null;
+    }
+
     const { data: inserted, error } = await supabase
       .from('bookings')
       .insert({
@@ -410,9 +419,20 @@ class ApiClient {
       time: 'Vừa xong',
     });
 
+    const driverReceiverIds = new Set<string>();
     if (selectedDriverId) {
+      driverReceiverIds.add(selectedDriverId);
+    } else {
+      const { data: drivers } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'driver');
+      (drivers ?? []).forEach((driver: any) => driverReceiverIds.add(driver.id));
+    }
+
+    for (const driverId of driverReceiverIds) {
       await this.createNotificationSafely({
-        userId: selectedDriverId,
+        userId: driverId,
         title: 'Có chuyến đi mới',
         content: `Khách hàng đặt chuyến từ ${inserted.pickup_location} đến ${inserted.dropoff_location}.`,
         type: 'booking_update',
@@ -457,6 +477,21 @@ class ApiClient {
         time: 'Vừa xong',
       });
     }
+    return booking;
+  }
+
+  async completeBooking(id: string): Promise<Booking> {
+    const booking = await this.updateBooking(id, { status: 'Hoàn thành' });
+    await this.createNotificationSafely({
+      userId: booking.customerId,
+      title: 'Chuyến đi đã hoàn thành',
+      content: `Chuyến đi ${booking.bookingCode ?? ''} đã hoàn thành. Cảm ơn bạn đã sử dụng dịch vụ.`,
+      type: 'trip_done',
+      read: false,
+      relatedBookingId: booking.id,
+      createdAt: new Date().toISOString(),
+      time: 'Vừa xong',
+    });
     return booking;
   }
 
@@ -825,6 +860,41 @@ class ApiClient {
       .eq('conversation_id', conversationId)
       .neq('sender_id', userId);
     if (error) throw error;
+  }
+
+  async markConversationThreadMessagesAsRead(conversationId: string, userId: string): Promise<void> {
+    const { data: conversation, error } = await supabase
+      .from('conversations')
+      .select('customer_id, driver_id')
+      .eq('id', conversationId)
+      .single();
+    if (error) throw error;
+
+    const participantId =
+      conversation.customer_id === userId ? conversation.driver_id : conversation.customer_id;
+
+    if (!participantId) {
+      await this.markConversationMessagesAsRead(conversationId, userId);
+      return;
+    }
+
+    const { data: conversations, error: listError } = await supabase
+      .from('conversations')
+      .select('id')
+      .or(
+        `and(customer_id.eq.${userId},driver_id.eq.${participantId}),and(customer_id.eq.${participantId},driver_id.eq.${userId})`
+      );
+    if (listError) throw listError;
+
+    const ids = (conversations ?? []).map((item: any) => item.id);
+    if (ids.length === 0) return;
+
+    const { error: updateError } = await supabase
+      .from('messages')
+      .update({ read: true })
+      .in('conversation_id', ids)
+      .neq('sender_id', userId);
+    if (updateError) throw updateError;
   }
 }
 

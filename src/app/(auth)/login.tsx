@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, View, Text, TouchableOpacity } from 'react-native';
+import { Alert, Image, View, Text, TouchableOpacity } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
@@ -10,12 +11,14 @@ import { Button, TextInput } from '@/components/BaseComponents';
 import { useAuth } from '@/hooks/useAuth';
 import { Check, Eye, EyeOff, Lock, Mail, Square } from 'lucide-react-native';
 import { isValidEmail, toVietnameseAuthError } from '@/utils/authValidation';
+import { DAIGO_LOGO_URL, APP_TAGLINE } from '@/constants/branding';
 
 const REMEMBER_EMAIL_KEY = 'booking_daigo_remember_email';
 const REMEMBER_PASSWORD_KEY = 'booking_daigo_remember_password';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { login, loginWithGoogle, isLoading, error } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -84,6 +87,57 @@ export default function LoginScreen() {
 
   return (
     <Screen scroll padding>
+      {/* ─── LOGO + TAGLINE HEADER (Uber pattern) ─── */}
+      <View
+        style={{
+          alignItems: 'center',
+          paddingTop: spacing.xl,
+          paddingBottom: spacing.xl,
+          marginBottom: spacing.lg,
+        }}
+      >
+        <Image
+          source={{ uri: DAIGO_LOGO_URL }}
+          style={{
+            width: 160,
+            height: 72,
+            resizeMode: 'contain',
+            marginBottom: spacing.md,
+          }}
+        />
+        <Text
+          style={{
+            fontSize: fontSize.sm,
+            color: colors.textSecondary,
+            fontWeight: '500',
+            letterSpacing: 0.5,
+          }}
+        >
+          {APP_TAGLINE}
+        </Text>
+      </View>
+
+      {/* Title */}
+      <Text
+        style={{
+          fontSize: 26,
+          fontWeight: '800',
+          color: colors.text,
+          marginBottom: spacing.xs,
+        }}
+      >
+        Đăng nhập
+      </Text>
+      <Text
+        style={{
+          fontSize: fontSize.sm,
+          color: colors.textSecondary,
+          marginBottom: spacing.xl,
+        }}
+      >
+        Chào mừng trở lại!
+      </Text>
+
       {(error || localError) && (
         <View
           style={{
@@ -137,46 +191,53 @@ export default function LoginScreen() {
         />
       </View>
 
-      <TouchableOpacity
-        onPress={() => setRememberLogin((value) => !value)}
-        disabled={isLoading}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg }}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: spacing.xl,
+        }}
       >
-        <View
-          style={{
-            width: 22,
-            height: 22,
-            borderRadius: borderRadius.sm,
-            borderWidth: 1,
-            borderColor: rememberLogin ? colors.primary : colors.border,
-            backgroundColor: rememberLogin ? colors.primary : colors.surface,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+        <TouchableOpacity
+          onPress={() => setRememberLogin((value) => !value)}
+          disabled={isLoading}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}
         >
-          {rememberLogin ? <Check size={16} color="white" /> : <Square size={14} color="transparent" />}
-        </View>
-        <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '600' }}>
-          Ghi nhớ đăng nhập
-        </Text>
-      </TouchableOpacity>
+          <View
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: borderRadius.sm,
+              borderWidth: 1,
+              borderColor: rememberLogin ? colors.primary : colors.border,
+              backgroundColor: rememberLogin ? colors.primary : colors.surface,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {rememberLogin ? <Check size={16} color="white" /> : <Square size={14} color="transparent" />}
+          </View>
+          <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '600' }}>
+            Ghi nhớ đăng nhập
+          </Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        onPress={() => router.push('/(auth)/forgot-password')}
-        disabled={isLoading}
-        style={{ marginBottom: spacing.xl }}
-      >
-        <Text
-          style={{
-            color: colors.primary,
-            fontSize: fontSize.sm,
-            fontWeight: '600',
-            textAlign: 'right',
-          }}
+        <TouchableOpacity
+          onPress={() => router.push('/(auth)/forgot-password')}
+          disabled={isLoading}
         >
-          Quên mật khẩu?
-        </Text>
-      </TouchableOpacity>
+          <Text
+            style={{
+              color: colors.primary,
+              fontSize: fontSize.sm,
+              fontWeight: '600',
+            }}
+          >
+            Quên mật khẩu?
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <Button
         label="Đăng nhập"

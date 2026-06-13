@@ -7,7 +7,11 @@ export const useNotifications = (userId?: string) => {
   const store = useNotificationStore();
 
   const fetchNotifications = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      store.clearNotifications();
+      store.setLoading(false);
+      return;
+    }
     try {
       store.setLoading(true);
       const notifications = await apiClient.getNotifications(userId);
@@ -29,7 +33,11 @@ export const useNotifications = (userId?: string) => {
   }, []);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      store.clearNotifications();
+      store.setLoading(false);
+      return;
+    }
 
     const channelName = `notifications-${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase

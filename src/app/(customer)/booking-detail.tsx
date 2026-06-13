@@ -9,12 +9,15 @@ import { Button, Card } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
-import { Vehicle } from '@/types';
+import { Booking, DriverLocation, Vehicle } from '@/types';
 import { MapPreview } from '@/components/MapPreview';
+import { RealtimeTripMap } from '@/components/RealtimeTripMap';
+import { getDriverLocation, subscribeDriverLocation } from '@/services/driverLocation';
 
 export default function BookingDetailScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams<{
+    id?: string;
     vehicleId?: string;
     pickupLocation?: string;
     dropoffLocation?: string;
@@ -31,6 +34,8 @@ export default function BookingDetailScreen() {
 
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -42,14 +47,31 @@ export default function BookingDetailScreen() {
   const dropoffLat = Number(params.dropoffLat);
   const dropoffLng = Number(params.dropoffLng);
   const hasMap = [pickupLat, pickupLng, dropoffLat, dropoffLng].every(Number.isFinite);
+  const existingBookingHasMap =
+    booking &&
+    [booking.pickupLat, booking.pickupLng, booking.dropoffLat, booking.dropoffLng].every((value) => typeof value === 'number');
 
   useEffect(() => {
+    if (params.id) return;
     if (!params.vehicleId) return;
     apiClient
       .getVehicleById(params.vehicleId)
       .then(setVehicle)
       .catch((error) => Alert.alert('Không thể tải xe', error.message));
-  }, [params.vehicleId]);
+  }, [params.id, params.vehicleId]);
+
+  useEffect(() => {
+    if (!params.id) return undefined;
+
+    apiClient
+      .getBookingById(params.id)
+      .then(setBooking)
+      .catch((error) => Alert.alert('Không thể tải chuyến đi', error.message));
+    getDriverLocation(params.id).then(setDriverLocation).catch(() => undefined);
+
+    const unsubscribe = subscribeDriverLocation(params.id, setDriverLocation);
+    return unsubscribe;
+  }, [params.id]);
 
   const handleConfirm = async () => {
     if (loading || submitted) return;
@@ -57,7 +79,7 @@ export default function BookingDetailScreen() {
 
     try {
       setLoading(true);
-      await apiClient.createBooking({
+      const created = await apiClient.createBooking({
         customerId: user.id,
         customerName: user.fullName,
         customerPhone: user.phone,
@@ -80,7 +102,10 @@ export default function BookingDetailScreen() {
       Alert.alert(
         'Đặt xe thành công',
         `Yêu cầu đặt ${vehicle.name} đã được lưu vào Supabase.`,
-        [{ text: 'Về trang chủ', onPress: () => router.replace('/(customer)/home') }]
+        [
+          { text: 'Về trang chủ', onPress: () => router.replace('/(customer)/home') },
+          { text: 'Theo dõi chuyến', onPress: () => router.replace({ pathname: '/(customer)/booking-detail' as any, params: { id: created.id } }) },
+        ]
       );
       setSubmitted(true);
     } catch (error: any) {
@@ -89,6 +114,65 @@ export default function BookingDetailScreen() {
       setLoading(false);
     }
   };
+
+  if (params.id) {
+    if (!booking) {
+      return (
+        <Screen padding>
+          <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>Đang tải chuyến đi...</Text>
+        </Screen>
+      );
+    }
+
+    return (
+      <Screen scroll padding>
+        <Card style={{ marginBottom: spacing.lg }}>
+          <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800', marginBottom: spacing.sm }}>
+            {booking.bookingCode ?? 'Chuyến đi'}
+          </Text>
+          <Text style={{ color: colors.textSecondary }}>
+            {booking.status} - {booking.time} - {booking.date}
+          </Text>
+        </Card>
+
+        {existingBookingHasMap && (
+          <Card style={{ marginBottom: spacing.lg }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
+              Theo dõi tài xế realtime
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
+              {driverLocation ? 'Vị trí tài xế đang được cập nhật trực tiếp.' : 'Tài xế chưa bật chia sẻ GPS.'}
+            </Text>
+            <RealtimeTripMap
+              pickup={{ label: booking.pickupLocation, latitude: booking.pickupLat!, longitude: booking.pickupLng! }}
+              dropoff={{ label: booking.dropoffLocation, latitude: booking.dropoffLat!, longitude: booking.dropoffLng! }}
+              driverLocation={driverLocation}
+            />
+          </Card>
+        )}
+
+        <Card style={{ marginBottom: spacing.lg }}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>
+            Thông tin chuyến đi
+          </Text>
+          {[
+            { icon: <MapPin size={18} color={colors.primary} />, label: 'Điểm đón', value: booking.pickupLocation },
+            { icon: <Navigation size={18} color={colors.error} />, label: 'Điểm đến', value: booking.dropoffLocation },
+            { icon: <Clock size={18} color={colors.info} />, label: 'Thời gian', value: `${booking.time} - ${booking.date}` },
+            { icon: <Car size={18} color={colors.primary} />, label: 'Tài xế', value: booking.driverName || 'Đang chờ xác nhận' },
+          ].map((item) => (
+            <View key={item.label} style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}>
+              {item.icon}
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{item.label}</Text>
+                <Text style={{ color: colors.text, fontWeight: '700', marginTop: spacing.xs }}>{item.value}</Text>
+              </View>
+            </View>
+          ))}
+        </Card>
+      </Screen>
+    );
+  }
 
   return (
     <Screen scroll padding>
@@ -120,6 +204,7 @@ export default function BookingDetailScreen() {
           <MapPreview
             pickup={{ label: params.pickupLocation || 'Điểm đón', lat: pickupLat, lng: pickupLng }}
             dropoff={{ label: params.dropoffLocation || 'Điểm đến', lat: dropoffLat, lng: dropoffLng }}
+            showControls={false}
           />
         ) : null}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.md }}>

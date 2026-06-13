@@ -71,6 +71,21 @@ export interface Booking {
   status: BookingStatus;
 }
 
+export type TripPhase = 'pickup' | 'dropoff';
+
+export interface DriverLocation {
+  bookingId: string;
+  driverId: string;
+  latitude: number;
+  longitude: number;
+  heading?: number;
+  speed?: number;
+  accuracy?: number;
+  phase: TripPhase;
+  updatedAt: string;
+  createdAt?: string;
+}
+
 export type NotificationType =
   | 'booking_success'
   | 'driver_confirm'

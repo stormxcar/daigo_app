@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, View, Text, TouchableOpacity } from 'react-native';
+import { Alert, Image, View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Eye, EyeOff, User, Mail, Phone, Lock } from 'lucide-react-native';
 import { UserRole } from '@/types';
 import { isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
+import { DAIGO_LOGO_URL } from '@/constants/branding';
 
 export default function RegisterScreen() {
   const { colors } = useTheme();
@@ -86,6 +87,44 @@ export default function RegisterScreen() {
 
   return (
     <Screen scroll padding>
+      {/* ─── LOGO COMPACT HEADER ─── */}
+      <View
+        style={{
+          alignItems: 'center',
+          paddingTop: spacing.md,
+          paddingBottom: spacing.xl,
+        }}
+      >
+        <Image
+          source={{ uri: DAIGO_LOGO_URL }}
+          style={{
+            width: 130,
+            height: 56,
+            resizeMode: 'contain',
+          }}
+        />
+      </View>
+
+      <Text
+        style={{
+          fontSize: 24,
+          fontWeight: '800',
+          color: colors.text,
+          marginBottom: spacing.xs,
+        }}
+      >
+        Tạo tài khoản
+      </Text>
+      <Text
+        style={{
+          fontSize: fontSize.sm,
+          color: colors.textSecondary,
+          marginBottom: spacing.lg,
+        }}
+      >
+        Chào mừng bạn đến với Daigo!
+      </Text>
+
       {(error || localError) && (
         <View
           style={{

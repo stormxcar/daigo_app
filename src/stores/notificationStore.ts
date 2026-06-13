@@ -38,12 +38,17 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   },
 
   markAsRead: (id) => {
-    set((state) => ({
-      notifications: state.notifications.map((n) =>
-        n.id === id ? { ...n, read: true } : n
-      ),
-      unreadCount: Math.max(0, state.unreadCount - 1),
-    }));
+    set((state) => {
+      const target = state.notifications.find((n) => n.id === id);
+      return {
+        notifications: state.notifications.map((n) =>
+          n.id === id ? { ...n, read: true } : n
+        ),
+        unreadCount: target && !target.read
+          ? Math.max(0, state.unreadCount - 1)
+          : state.unreadCount,
+      };
+    });
   },
 
   markAllAsRead: () => {
@@ -68,7 +73,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
     });
   },
 
-  clearNotifications: () => set({ notifications: [], unreadCount: 0 }),
+  clearNotifications: () => set({ notifications: [], unreadCount: 0, error: null, isLoading: false }),
 
   getUnreadNotifications: () => {
     return get().notifications.filter((n) => !n.read);

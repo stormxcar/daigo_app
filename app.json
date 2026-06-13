@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "VF7 Booking",
-    "slug": "vf7-booking",
+    "name": "Daigo Booking",
+    "slug": "daigo-booking",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
@@ -10,19 +10,19 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#1d4ed8"
     },
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.vinfast.vf7booking"
+      "bundleIdentifier": "com.daigo.booking"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#1d4ed8"
       },
-      "package": "com.vinfast.vf7booking"
+      "package": "com.daigo.booking"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -35,6 +35,7 @@
         }
       ],
       "expo-secure-store",
+      "expo-web-browser",
       [
         "expo-location",
         {
@@ -42,7 +43,7 @@
         }
       ]
     ],
-    "scheme": "vf7booking",
-    "backgroundColor": "#ffffff"
+    "scheme": "daigobooking",
+    "backgroundColor": "#1d4ed8"
   }
 }

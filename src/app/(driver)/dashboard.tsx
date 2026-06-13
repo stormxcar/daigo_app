@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Text, TouchableOpacity, View } from 'react-native';
-import { BarChart3, Briefcase, Car, Newspaper, Wallet } from 'lucide-react-native';
+import { BarChart3, Briefcase, Car, LocateFixed, Newspaper, Wallet } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Card, CardSkeleton } from '@/components/BaseComponents';
@@ -8,6 +8,7 @@ import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { BlogPost, Booking, Vehicle } from '@/types';
+import { DeviceLocation, getCurrentDeviceLocation } from '@/services/deviceLocation';
 
 type RangeMode = 'day' | 'month' | 'year';
 
@@ -39,11 +40,17 @@ export default function DriverDashboard() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [mode, setMode] = useState<RangeMode>('day');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [driverLocation, setDriverLocation] = useState<DeviceLocation | null>(null);
 
-  const loadData = async () => {
+  const loadData = async (manualRefresh = false) => {
     if (!user) return;
     try {
-      setLoading(true);
+      if (manualRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       const [allBookings, driverVehicles, driverPosts] = await Promise.all([
         apiClient.getBookings({ driverId: user.id }),
         apiClient.getDriverVehicles(user.id),
@@ -52,10 +59,12 @@ export default function DriverDashboard() {
       setBookings(allBookings);
       setVehicles(driverVehicles);
       setPosts(driverPosts);
+      getCurrentDeviceLocation().then(setDriverLocation).catch(() => undefined);
     } catch (error: any) {
       Alert.alert('Không thể tải thống kê', error.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -92,13 +101,27 @@ export default function DriverDashboard() {
   ];
 
   return (
-    <Screen scroll padding>
+    <Screen scroll padding refreshing={refreshing || loading} onRefresh={() => loadData(true)}>
       <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: spacing.xs }}>
         Thống kê tài xế
       </Text>
       <Text style={{ color: colors.textSecondary, marginBottom: spacing.lg }}>
         Dữ liệu lấy trực tiếp từ booking, xe và bài viết trong database.
       </Text>
+
+      <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.primaryLight }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+            <LocateFixed size={22} color="white" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontWeight: '900' }}>GPS tài xế</Text>
+            <Text numberOfLines={2} style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+              {driverLocation?.label ?? 'Cho phép GPS để chỉ đường đến điểm đón chính xác hơn.'}
+            </Text>
+          </View>
+        </View>
+      </Card>
 
       {loading && (
         <>

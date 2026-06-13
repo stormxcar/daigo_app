@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Banknote, Car, Clock, Mail, MapPin, Navigation, Phone, Route, User, Users } from 'lucide-react-native';
@@ -6,23 +6,39 @@ import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Badge, Button, Card } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
-import { MapPreview } from '@/components/MapPreview';
+import { RealtimeTripMap } from '@/components/RealtimeTripMap';
 import { apiClient } from '@/services/api';
+import {
+  getDistanceMeters,
+  getDriverLocation,
+  startDriverLocationWatch,
+  subscribeDriverLocation,
+  upsertDriverLocation,
+} from '@/services/driverLocation';
 import { useAuthStore } from '@/stores/authStore';
-import { Booking } from '@/types';
+import { Booking, DriverLocation, TripPhase } from '@/types';
 
 export default function DriverBookingDetail() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { user } = useAuthStore();
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
+  const [tripPhase, setTripPhase] = useState<TripPhase>('pickup');
+  const [tracking, setTracking] = useState(false);
   const [loading, setLoading] = useState(false);
+  const watchRef = useRef<{ remove: () => void } | null>(null);
 
   const loadBooking = async () => {
     if (!id) return;
     try {
       const data = await apiClient.getBookingById(id);
       setBooking(data);
+      const location = await getDriverLocation(id).catch(() => null);
+      if (location) {
+        setDriverLocation(location);
+        setTripPhase(location.phase);
+      }
     } catch (error: any) {
       Alert.alert('Không thể tải chuyến đi', error.message);
     }
@@ -30,6 +46,19 @@ export default function DriverBookingDetail() {
 
   useEffect(() => {
     loadBooking();
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return undefined;
+    const unsubscribe = subscribeDriverLocation(id, (location) => {
+      setDriverLocation(location);
+      setTripPhase(location.phase);
+    });
+    return () => {
+      unsubscribe();
+      watchRef.current?.remove();
+      watchRef.current = null;
+    };
   }, [id]);
 
   const acceptBooking = async () => {
@@ -58,6 +87,89 @@ export default function DriverBookingDetail() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const startTrackingGps = async (phase: TripPhase = tripPhase) => {
+    if (!booking || !user) return;
+    if (booking.status !== 'Đã xác nhận') {
+      Alert.alert('Chưa thể chia sẻ GPS', 'Bạn cần xác nhận chuyến trước khi bắt đầu di chuyển.');
+      return;
+    }
+
+    try {
+      watchRef.current?.remove();
+      const subscription = await startDriverLocationWatch(booking.id, user.id, phase, (location) => {
+        setDriverLocation(location);
+        setTripPhase(location.phase);
+      });
+      watchRef.current = subscription;
+      setTracking(true);
+    } catch (error: any) {
+      Alert.alert('Không thể bật GPS realtime', error.message);
+    }
+  };
+
+  const markPickupReached = async () => {
+    if (!booking || !user || !driverLocation) return;
+    try {
+      const location = await upsertDriverLocation({
+        bookingId: booking.id,
+        driverId: user.id,
+        latitude: driverLocation.latitude,
+        longitude: driverLocation.longitude,
+        heading: driverLocation.heading,
+        speed: driverLocation.speed,
+        accuracy: driverLocation.accuracy,
+        phase: 'dropoff',
+      });
+      setDriverLocation(location);
+      setTripPhase('dropoff');
+      await startTrackingGps('dropoff');
+    } catch (error: any) {
+      Alert.alert('Không thể chuyển lộ trình', error.message);
+    }
+  };
+
+  const completeBooking = async () => {
+    if (!booking) return;
+    try {
+      setLoading(true);
+      watchRef.current?.remove();
+      watchRef.current = null;
+      setTracking(false);
+      const updated = await apiClient.completeBooking(booking.id);
+      setBooking(updated);
+      Alert.alert('Đã hoàn thành chuyến', 'Khách hàng sẽ nhận được thông báo hoàn thành.');
+    } catch (error: any) {
+      Alert.alert('Không thể hoàn thành chuyến', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmCompleteBooking = () => {
+    if (!booking) return;
+    const distanceToDropoff =
+      driverLocation && typeof booking.dropoffLat === 'number' && typeof booking.dropoffLng === 'number'
+        ? getDistanceMeters(
+            { latitude: driverLocation.latitude, longitude: driverLocation.longitude },
+            { latitude: booking.dropoffLat, longitude: booking.dropoffLng }
+          )
+        : null;
+
+    if (distanceToDropoff !== null && distanceToDropoff > 150) {
+      Alert.alert(
+        'GPS chưa sát điểm đến',
+        `Bạn còn cách điểm đến khoảng ${Math.round(distanceToDropoff)}m. Vẫn xác nhận hoàn thành chuyến?`,
+        [
+          { text: 'Chưa', style: 'cancel' },
+          { text: 'Vẫn hoàn thành', onPress: completeBooking },
+        ]
+      );
+      return;
+    }
+
+    completeBooking();
   };
 
   if (!booking) {
@@ -103,15 +215,35 @@ export default function DriverBookingDetail() {
 
       {hasMap && (
         <Card style={{ marginBottom: spacing.lg }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Bản đồ hành trình</Text>
-          <MapPreview
-            pickup={{ label: booking.pickupLocation, lat: booking.pickupLat!, lng: booking.pickupLng! }}
-            dropoff={{ label: booking.dropoffLocation, lat: booking.dropoffLat!, lng: booking.dropoffLng! }}
-            followUser
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>Bản đồ realtime</Text>
+          <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
+            {tripPhase === 'pickup' ? 'Đang đi đến điểm đón.' : 'Đang chở khách đến điểm đến.'}
+          </Text>
+          <RealtimeTripMap
+            pickup={{ label: booking.pickupLocation, latitude: booking.pickupLat!, longitude: booking.pickupLng! }}
+            dropoff={{ label: booking.dropoffLocation, latitude: booking.dropoffLat!, longitude: booking.dropoffLng! }}
+            driverLocation={driverLocation}
           />
           <Text style={{ color: colors.textSecondary, marginTop: spacing.md }}>
             <Route size={14} color={colors.textSecondary} /> {booking.distance ?? '--'} km
           </Text>
+          {booking.status === 'Đã xác nhận' && (
+            <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+              <Button
+                label={tracking ? 'Đang chia sẻ GPS realtime' : 'Bắt đầu chia sẻ GPS'}
+                onPress={() => startTrackingGps()}
+                variant={tracking ? 'outline' : 'primary'}
+              />
+              {tripPhase === 'pickup' && (
+                <Button
+                  label="Đã đón khách"
+                  onPress={markPickupReached}
+                  disabled={!driverLocation}
+                  variant="outline"
+                />
+              )}
+            </View>
+          )}
         </Card>
       )}
 
@@ -160,6 +292,9 @@ export default function DriverBookingDetail() {
         )}
         {booking.status !== 'Đã hủy' && booking.status !== 'Hoàn thành' && (
           <Button label="Hủy chuyến" onPress={cancelBooking} loading={loading} disabled={loading} variant="danger" style={{ flex: 1 }} />
+        )}
+        {booking.status === 'Đã xác nhận' && (
+          <Button label="Hoàn thành" onPress={confirmCompleteBooking} loading={loading} disabled={loading} style={{ flex: 1 }} />
         )}
       </View>
     </Screen>

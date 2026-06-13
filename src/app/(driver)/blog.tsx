@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, Edit3, Heart, MessageCircle, Plus, Share2, Trash2, X } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { Camera, Edit3, Heart, MessageCircle, MoreVertical, Play, Plus, Share2, Trash2, X } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, CardSkeleton, TextInput } from '@/components/BaseComponents';
@@ -16,9 +17,10 @@ export default function DriverBlog() {
   const { user } = useAuthStore();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [caption, setCaption] = useState('');
-  const [mediaUrl, setMediaUrl] = useState('');
-  const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [mediaTypes, setMediaTypes] = useState<('image' | 'video')[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [menuPostId, setMenuPostId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -43,8 +45,8 @@ export default function DriverBlog() {
 
   const resetForm = () => {
     setCaption('');
-    setMediaUrl('');
-    setMediaType('image');
+    setMediaUrls([]);
+    setMediaTypes([]);
     setEditingId(null);
     setShowForm(false);
   };
@@ -58,21 +60,27 @@ export default function DriverBlog() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
       quality: 0.85,
     });
-    if (result.canceled || !result.assets[0]) return;
+    if (result.canceled || result.assets.length === 0) return;
 
     try {
       setSaving(true);
-      const asset = result.assets[0];
-      const isVideo = asset.type === 'video';
-      const uploaded = await uploadMediaToCloudinary({
-        uri: asset.uri,
-        name: asset.fileName ?? `post-${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`,
-        type: asset.mimeType ?? (isVideo ? 'video/mp4' : 'image/jpeg'),
-      }, isVideo ? 'video' : 'image');
-      setMediaUrl(uploaded.secure_url);
-      setMediaType(isVideo ? 'video' : 'image');
+      const uploadedItems = await Promise.all(
+        result.assets.map(async (asset, index) => {
+          const isVideo = asset.type === 'video';
+          const uploaded = await uploadMediaToCloudinary({
+            uri: asset.uri,
+            name: asset.fileName ?? `post-${Date.now()}-${index}.${isVideo ? 'mp4' : 'jpg'}`,
+            type: asset.mimeType ?? (isVideo ? 'video/mp4' : 'image/jpeg'),
+          }, isVideo ? 'video' : 'image');
+          return { url: uploaded.secure_url, type: isVideo ? 'video' as const : 'image' as const };
+        })
+      );
+      setMediaUrls((current) => [...current, ...uploadedItems.map((item) => item.url)]);
+      setMediaTypes((current) => [...current, ...uploadedItems.map((item) => item.type)]);
     } catch (error: any) {
       Alert.alert('Không thể upload media', error.message);
     } finally {
@@ -82,7 +90,7 @@ export default function DriverBlog() {
 
   const savePost = async () => {
     if (!user) return;
-    if (!caption.trim() && !mediaUrl) {
+    if (!caption.trim() && mediaUrls.length === 0) {
       Alert.alert('Bài viết chưa hợp lệ', 'Vui lòng nhập nội dung hoặc upload media.');
       return;
     }
@@ -92,8 +100,8 @@ export default function DriverBlog() {
       const payload = {
         driverId: user.id,
         caption: caption.trim(),
-        mediaUrls: mediaUrl ? [mediaUrl] : [],
-        mediaTypes: mediaUrl ? [mediaType] : [],
+        mediaUrls,
+        mediaTypes,
       };
       if (editingId) {
         await apiClient.updateBlogPost(editingId, payload);
@@ -113,8 +121,9 @@ export default function DriverBlog() {
   const editPost = (post: BlogPost) => {
     setEditingId(post.id);
     setCaption(post.caption);
-    setMediaUrl(post.mediaUrls[0] ?? '');
-    setMediaType(post.mediaTypes[0] ?? 'image');
+    setMediaUrls(post.mediaUrls);
+    setMediaTypes(post.mediaTypes);
+    setMenuPostId(null);
     setShowForm(true);
   };
 
@@ -137,6 +146,15 @@ export default function DriverBlog() {
         },
       },
     ]);
+  };
+
+  const removeMedia = (index: number) => {
+    setMediaUrls((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setMediaTypes((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const openPost = (post: BlogPost) => {
+    router.push({ pathname: '/(driver)/blog-detail' as any, params: { id: post.id } });
   };
 
   return (
@@ -174,17 +192,40 @@ export default function DriverBlog() {
             disabled={saving}
             style={{ minHeight: 150, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md, overflow: 'hidden' }}
           >
-            {mediaUrl && mediaType === 'image' ? (
-              <Image source={{ uri: mediaUrl }} style={{ width: '100%', height: 180 }} />
-            ) : (
-              <View style={{ alignItems: 'center', gap: spacing.sm, padding: spacing.lg }}>
-                <Camera size={28} color={colors.primary} />
-                <Text style={{ color: colors.textSecondary, fontWeight: '700', textAlign: 'center' }}>
-                  {mediaUrl ? 'Video đã được upload' : 'Upload ảnh hoặc video'}
-                </Text>
-              </View>
-            )}
+            <View style={{ alignItems: 'center', gap: spacing.sm, padding: spacing.lg }}>
+              <Camera size={28} color={colors.primary} />
+              <Text style={{ color: colors.textSecondary, fontWeight: '700', textAlign: 'center' }}>
+                {mediaUrls.length > 0 ? 'Thêm ảnh hoặc video khác' : 'Upload nhiều ảnh hoặc video'}
+              </Text>
+            </View>
           </TouchableOpacity>
+          {mediaUrls.length > 0 && (
+            <FlatList
+              data={mediaUrls}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item, index) => `${item}-${index}`}
+              contentContainerStyle={{ gap: spacing.sm, marginBottom: spacing.md }}
+              renderItem={({ item, index }) => (
+                <View style={{ width: 112, height: 112, borderRadius: borderRadius.md, overflow: 'hidden', backgroundColor: colors.surfaceAlt }}>
+                  {mediaTypes[index] === 'image' ? (
+                    <Image source={{ uri: item }} style={{ width: '100%', height: '100%' }} />
+                  ) : (
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.xs }}>
+                      <Play size={24} color={colors.primary} />
+                      <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>Video</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => removeMedia(index)}
+                    style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.error, alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <X size={14} color="white" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            />
+          )}
           <Button label={editingId ? 'Lưu bài viết' : 'Đăng bài'} onPress={savePost} loading={saving} disabled={saving} />
         </Card>
       )}
@@ -204,24 +245,53 @@ export default function DriverBlog() {
                 {new Date(post.createdAt).toLocaleString('vi-VN')}
               </Text>
             </View>
+            <TouchableOpacity
+              onPress={() => setMenuPostId((current) => (current === post.id ? null : post.id))}
+              style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt }}
+            >
+              <MoreVertical size={20} color={colors.text} />
+            </TouchableOpacity>
           </View>
-          {!!post.caption && <Text style={{ color: colors.text, lineHeight: 22, marginBottom: spacing.md }}>{post.caption}</Text>}
-          {post.mediaUrls[0] && post.mediaTypes[0] === 'image' && (
-            <Image source={{ uri: post.mediaUrls[0] }} style={{ width: '100%', height: 190, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, marginBottom: spacing.md }} />
-          )}
-          {post.mediaUrls[0] && post.mediaTypes[0] === 'video' && (
-            <View style={{ padding: spacing.lg, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, marginBottom: spacing.md }}>
-              <Text style={{ color: colors.textSecondary }}>Video đã lưu trên Cloudinary</Text>
+          {menuPostId === post.id && (
+            <View style={{ alignSelf: 'flex-end', marginTop: -spacing.sm, marginBottom: spacing.md, padding: spacing.sm, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, gap: spacing.xs }}>
+              <TouchableOpacity onPress={() => editPost(post)} disabled={saving} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm }}>
+                <Edit3 size={16} color={colors.text} />
+                <Text style={{ color: colors.text, fontWeight: '700' }}>Sửa bài viết</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => deletePost(post)} disabled={saving} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm }}>
+                <Trash2 size={16} color={colors.error} />
+                <Text style={{ color: colors.error, fontWeight: '700' }}>Xóa bài viết</Text>
+              </TouchableOpacity>
             </View>
           )}
+          <TouchableOpacity activeOpacity={0.88} onPress={() => openPost(post)}>
+            {!!post.caption && <Text style={{ color: colors.text, lineHeight: 22, marginBottom: spacing.md }}>{post.caption}</Text>}
+            {post.mediaUrls.length > 0 && (
+              <FlatList
+                data={post.mediaUrls}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item, index) => `${post.id}-${item}-${index}`}
+                contentContainerStyle={{ gap: spacing.sm, marginBottom: spacing.md }}
+                renderItem={({ item, index }) => (
+                  post.mediaTypes[index] === 'image' ? (
+                    <Image source={{ uri: item }} style={{ width: 220, height: 170, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }} />
+                  ) : (
+                    <View style={{ width: 220, height: 170, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', gap: spacing.sm }}>
+                      <Play size={32} color={colors.primary} />
+                      <Text style={{ color: colors.textSecondary }}>Video Cloudinary</Text>
+                    </View>
+                  )
+                )}
+              />
+            )}
+          </TouchableOpacity>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
             <Text style={{ color: colors.textSecondary }}><Heart size={14} color={colors.error} /> {post.likes}</Text>
-            <Text style={{ color: colors.textSecondary }}><MessageCircle size={14} color={colors.info} /> {post.comments}</Text>
+            <TouchableOpacity onPress={() => openPost(post)}>
+              <Text style={{ color: colors.textSecondary }}><MessageCircle size={14} color={colors.info} /> {post.comments}</Text>
+            </TouchableOpacity>
             <Text style={{ color: colors.textSecondary }}><Share2 size={14} color={colors.primary} /> {post.shares}</Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <Button label="Sửa" onPress={() => editPost(post)} variant="secondary" size="sm" style={{ flex: 1 }} icon={<Edit3 size={16} color={colors.text} />} disabled={saving} />
-            <Button label="Xóa" onPress={() => deletePost(post)} variant="danger" size="sm" style={{ flex: 1 }} icon={<Trash2 size={16} color="white" />} disabled={saving} />
           </View>
         </Card>
       ))}

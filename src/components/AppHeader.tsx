@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Bell, ChevronLeft, Moon, Sun } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotifications } from '@/hooks/useNotifications';
+import { DAIGO_LOGO_URL } from '@/constants/branding';
 
 interface AppHeaderProps {
   title?: string;
@@ -14,6 +15,7 @@ interface AppHeaderProps {
   showNotifications?: boolean;
   notificationsHref?: string;
   backHref?: string;
+  showLogo?: boolean;
 }
 
 export function AppHeader({
@@ -22,12 +24,14 @@ export function AppHeader({
   showNotifications = true,
   notificationsHref = '/(customer)/notifications',
   backHref,
+  showLogo = false,
 }: AppHeaderProps) {
   const { colors, isDark, toggleTheme } = useTheme();
-  const { user } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const { unreadCount, fetchNotifications } = useNotifications(user?.id);
   const insets = useSafeAreaInsets();
   const pulse = useRef(new Animated.Value(1)).current;
+  const shouldShowNotifications = showNotifications && isAuthenticated && !!user?.id;
 
   useEffect(() => {
     fetchNotifications();
@@ -47,7 +51,7 @@ export function AppHeader({
         paddingTop: insets.top + spacing.sm,
         paddingHorizontal: spacing.lg,
         paddingBottom: spacing.md,
-        backgroundColor: colors.background,
+        backgroundColor: colors.primary,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
         ...shadows.xs,
@@ -82,29 +86,41 @@ export function AppHeader({
                 borderRadius: borderRadius.full,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: colors.surface,
+                backgroundColor: 'rgba(255,255,255,0.18)',
               }}
             >
-              <ChevronLeft size={22} color={colors.text} />
+              <ChevronLeft size={22} color="white" />
             </TouchableOpacity>
           )}
         </View>
 
-        <Text
-          numberOfLines={1}
-          style={{
-            flex: 1,
-            color: colors.text,
-            fontSize: fontSize.lg,
-            fontWeight: '700',
-            textAlign: 'center',
-          }}
-        >
-          {title}
-        </Text>
+        {/* Center: Logo or Title */}
+        {showLogo ? (
+          <Image
+            source={{ uri: DAIGO_LOGO_URL }}
+            style={{
+              flex: 1,
+              height: 34,
+              resizeMode: 'contain',
+            }}
+          />
+        ) : (
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              color: 'white',
+              fontSize: fontSize.lg,
+              fontWeight: '700',
+              textAlign: 'center',
+            }}
+          >
+            {title}
+          </Text>
+        )}
 
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {showNotifications && (
+          {shouldShowNotifications && (
             <TouchableOpacity
               onPress={() => router.push(notificationsHref as any)}
               activeOpacity={0.75}
@@ -114,10 +130,10 @@ export function AppHeader({
                 borderRadius: borderRadius.full,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: colors.surface,
+                backgroundColor: 'rgba(255,255,255,0.18)',
               }}
             >
-              <Bell size={20} color={colors.text} />
+              <Bell size={20} color="white" />
               {unreadCount > 0 && (
                 <Animated.View
                   style={{
@@ -150,13 +166,13 @@ export function AppHeader({
               borderRadius: borderRadius.full,
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: colors.surface,
+              backgroundColor: 'rgba(255,255,255,0.18)',
             }}
           >
             {isDark ? (
-              <Sun size={20} color={colors.warning} />
+              <Sun size={20} color="white" />
             ) : (
-              <Moon size={20} color={colors.text} />
+              <Moon size={20} color="white" />
             )}
           </TouchableOpacity>
         </View>

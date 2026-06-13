@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
-import { Calendar, Car, Clock, MapPin, Search, Users } from 'lucide-react-native';
+import { Calendar, Car, Clock, LocateFixed, MapPin, Search, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, TextInput } from '@/components/BaseComponents';
@@ -12,6 +12,7 @@ import { Vehicle } from '@/types';
 import { apiClient } from '@/services/api';
 import { getDistanceKm, LocationSuggestion, searchVietnamLocations } from '@/services/locations';
 import { MapPreview } from '@/components/MapPreview';
+import { getCurrentDeviceLocation } from '@/services/deviceLocation';
 
 type SortMode = 'price_asc' | 'price_desc' | 'seats_desc';
 
@@ -45,6 +46,7 @@ export default function BookingScreen() {
   const [pickupPoint, setPickupPoint] = useState<LocationSuggestion | null>(null);
   const [dropoffPoint, setDropoffPoint] = useState<LocationSuggestion | null>(null);
   const [locationLoading, setLocationLoading] = useState<'pickup' | 'dropoff' | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
 
   const passengerCount = Math.max(Number(passengers) || 1, 1);
   const distance = getDistanceKm(pickupPoint, dropoffPoint);
@@ -130,6 +132,26 @@ export default function BookingScreen() {
     setSelectedVehicleId(vehicles[0]?.id ?? null);
   };
 
+  const handleUseCurrentLocation = async () => {
+    try {
+      setGpsLoading(true);
+      const location = await getCurrentDeviceLocation();
+      const point = {
+        id: 'current-location',
+        label: location.label,
+        lat: location.lat,
+        lng: location.lng,
+      };
+      setPickupPoint(point);
+      setPickupLocation(point.label);
+      setPickupSuggestions([]);
+    } catch (error: any) {
+      Alert.alert('Không thể lấy vị trí', error.message);
+    } finally {
+      setGpsLoading(false);
+    }
+  };
+
   const handleCreateBooking = () => {
     if (!selectedVehicle) {
       Alert.alert('Chưa chọn xe', 'Vui lòng chọn một xe phù hợp trước khi đặt.');
@@ -162,6 +184,15 @@ export default function BookingScreen() {
             setPickupPoint(null);
           }}
           icon={<MapPin size={20} color={colors.primary} />}
+          style={{ marginBottom: spacing.md }}
+        />
+        <Button
+          label="Dùng vị trí hiện tại"
+          onPress={handleUseCurrentLocation}
+          loading={gpsLoading}
+          variant="outline"
+          size="sm"
+          icon={<LocateFixed size={16} color={colors.primary} />}
           style={{ marginBottom: spacing.md }}
         />
         {locationLoading === 'pickup' && <ActivityIndicator color={colors.primary} style={{ marginBottom: spacing.sm }} />}

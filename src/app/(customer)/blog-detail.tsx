@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Image, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { Heart, MessageCircle, Send, Share2 } from 'lucide-react-native';
+import { Heart, MessageCircle, Play, Send, Share2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, CardSkeleton, TextInput } from '@/components/BaseComponents';
@@ -121,11 +121,26 @@ export default function BlogDetailScreen() {
         <Text style={{ color: colors.text, fontSize: 16, lineHeight: 24, marginBottom: spacing.lg }}>
           {post.caption}
         </Text>
-        {post.mediaUrls[0] && post.mediaTypes[0] === 'image' && (
-          <Image
-            source={{ uri: post.mediaUrls[0] }}
-            style={{ width: '100%', height: 260, borderRadius: borderRadius.lg, marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}
-          />
+        {post.mediaUrls.length > 0 && (
+          <View style={{ gap: spacing.md, marginBottom: spacing.lg }}>
+            {post.mediaUrls.map((mediaUrl, index) => (
+              post.mediaTypes[index] === 'image' ? (
+                <Image
+                  key={`${mediaUrl}-${index}`}
+                  source={{ uri: mediaUrl }}
+                  style={{ width: '100%', height: 280, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}
+                />
+              ) : (
+                <View
+                  key={`${mediaUrl}-${index}`}
+                  style={{ width: '100%', height: 220, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', gap: spacing.sm }}
+                >
+                  <Play size={36} color={colors.primary} />
+                  <Text style={{ color: colors.textSecondary, fontWeight: '700' }}>Video đã lưu trên Cloudinary</Text>
+                </View>
+              )
+            ))}
+          </View>
         )}
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <TouchableOpacity onPress={toggleLike} disabled={loading} style={{ flex: 1, alignItems: 'center', padding: spacing.sm }}>

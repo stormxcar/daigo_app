@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Modal, Pressable, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Bell, Camera, ChevronRight, Info, LogOut, Mail, Phone, Shield, User } from 'lucide-react-native';
+import { Bell, Camera, ChevronRight, Info, LogOut, Mail, Phone, Shield, User, X } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Avatar, Button, Card, TextInput } from '@/components/BaseComponents';
@@ -14,8 +14,12 @@ import { useAuthStore } from '@/stores/authStore';
 import { useBooking } from '@/hooks/useBooking';
 import { apiClient } from '@/services/api';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
+import { DAIGO_LOGO_URL, APP_NAME, APP_TAGLINE } from '@/constants/branding';
 
 export default function ProfileScreen() {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<string | null>(null);
+
   const { colors, isDark, toggleTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
   const { setUser } = useAuthStore();
@@ -281,42 +285,88 @@ export default function ProfileScreen() {
         ))}
       </Card>
 
-      <Card style={{ marginBottom: spacing.lg }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
+      <View style={{ marginBottom: spacing.lg }}>
+        {/* About logo header */}
+        <View
+          style={{
+            alignItems: 'center',
+            paddingVertical: spacing.xl,
+            backgroundColor: colors.surface,
+            borderRadius: borderRadius.lg,
+            marginBottom: spacing.md,
+          }}
+        >
+          <Image
+            source={{ uri: DAIGO_LOGO_URL }}
+            style={{
+              width: 160,
+              height: 70,
+              resizeMode: 'contain',
+              marginBottom: spacing.md,
+            }}
+          />
           <View
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: borderRadius.full,
               backgroundColor: colors.primary,
-              alignItems: 'center',
-              justifyContent: 'center',
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.xs,
+              borderRadius: borderRadius.full,
+              marginBottom: spacing.sm,
             }}
           >
-            <Info size={22} color="white" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>
-              Về ứng dụng
-            </Text>
-            <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
-              VF7 Booking Mobile
+            <Text style={{ color: 'white', fontSize: 11, fontWeight: '700', letterSpacing: 0.8 }}>
+              VỀ ỨNG DỤNG
             </Text>
           </View>
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>
+            {APP_NAME}
+          </Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: spacing.xs }}>
+            {APP_TAGLINE}
+          </Text>
         </View>
-        <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
-          Ứng dụng đặt xe điện cao cấp giúp khách hàng tìm xe theo ngày, giờ, số người,
-          quản lý chuyến đi, trò chuyện với tài xế và nhận thông báo trạng thái chuyến đi.
+        <Card>
+          <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.md }}>
+            Ứng dụng đặt xe điện cao cấp giúp khách hàng tìm xe theo ngày, giờ, số người,
+            quản lý chuyến đi, trò chuyện với tài xế và nhận thông báo trạng thái chuyến đi.
+          </Text>
+          <View style={{ gap: spacing.sm }}>
+            {['Phiên bản 1.0.0', 'Hỗ trợ: support@daigobooking.vn', 'Hotline: 1900 8888', 'Website: https://daigobooking.vn', 'Chính sách bảo mật', 'Điều khoản dịch vụ', 'Công nghệ: React Native, Expo, Supabase'].map((text) => (
+              <TouchableOpacity key={text} onPress={() => { setSelectedItem(text); setModalVisible(true); }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                  <ChevronRight size={16} color={colors.primary} />
+                  <Text style={{ color: colors.text, fontSize: fontSize.sm }}>{text}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Card>
+      </View>
+
+{/* Modal for About App details */}
+<Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
+  <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setModalVisible(false)}>
+    <View style={{ width: '85%', backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
+        <Text style={{ color: colors.text, fontSize: fontSize.lg, fontWeight: '700' }}>{selectedItem}</Text>
+        <TouchableOpacity onPress={() => setModalVisible(false)}>
+          <X size={24} color={colors.text} />
+        </TouchableOpacity>
+      </View>
+      <ScrollView>
+        <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, lineHeight: 20 }}>
+          {selectedItem === 'Phiên bản 1.0.0' && 'Phiên bản hiện tại: 1.0.0'}
+          {selectedItem === 'Hỗ trợ: support@daigobooking.vn' && 'Liên hệ hỗ trợ qua email: support@daigobooking.vn'}
+          {selectedItem === 'Hotline: 1900 8888' && 'Gọi hotline: 1900 8888 (24/7)'}
+          {selectedItem === 'Website: https://daigobooking.vn' && 'Truy cập website: https://daigobooking.vn'}
+          {selectedItem === 'Chính sách bảo mật' && 'Xem chi tiết Chính sách bảo mật trong phần Cài đặt hoặc trên website.'}
+          {selectedItem === 'Điều khoản dịch vụ' && 'Xem chi tiết Điều khoản dịch vụ trong phần Cài đặt hoặc trên website.'}
+          {selectedItem === 'Công nghệ: React Native, Expo, Supabase' && 'Ứng dụng được xây dựng bằng React Native, Expo và Supabase.'}
         </Text>
-        <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
-          {['Phiên bản 1.0.0', 'Hỗ trợ: support@vf7booking.vn', 'Hotline: 1900 8888'].map((text) => (
-            <View key={text} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <ChevronRight size={16} color={colors.primary} />
-              <Text style={{ color: colors.text, fontSize: fontSize.sm }}>{text}</Text>
-            </View>
-          ))}
-        </View>
-      </Card>
+      </ScrollView>
+    </View>
+  </Pressable>
+</Modal>
 
       <TouchableOpacity
         onPress={handleLogout}

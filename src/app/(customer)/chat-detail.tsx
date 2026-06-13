@@ -17,7 +17,7 @@ export default function ChatDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { user } = useAuthStore();
-  const { conversations, setConversations, addMessage } = useChatStore();
+  const { conversations, setConversations, addMessage, markConversationAsRead } = useChatStore();
   const [text, setText] = useState('');
   const conversation = useMemo(() => conversations.find((item) => item.id === id), [conversations, id]);
 
@@ -28,23 +28,12 @@ export default function ChatDetailScreen() {
 
   useEffect(() => {
     if (!id || !user) return;
+    markConversationAsRead(id);
     apiClient
-      .markConversationMessagesAsRead(id, user.id)
-      .then(() => {
-        const current = conversations.find((item) => item.id === id);
-        if (current) {
-          setConversations(
-            conversations.map((item) =>
-              item.id === id
-                ? {
-                    ...item,
-                    unreadCount: 0,
-                    messages: item.messages.map((message) => ({ ...message, read: true })),
-                  }
-                : item
-            )
-          );
-        }
+      .markConversationThreadMessagesAsRead(id, user.id)
+      .then(async () => {
+        const latest = await apiClient.getConversations(user.id);
+        setConversations(latest);
       })
       .catch(() => undefined);
   }, [id, user?.id]);

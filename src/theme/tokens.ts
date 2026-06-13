@@ -3,32 +3,32 @@ export const colors = {
     // Backgrounds
     background: '#ffffff',
     surfaceBase: '#f8f9fa',
-    surface: '#f1f5f9',
-    surfaceAlt: '#e2e8f0',
+    surface: '#f0f4ff',
+    surfaceAlt: '#dbeafe',
 
     // Text
     text: '#1e293b',
     textSecondary: '#475569',
     textTertiary: '#94a3b8',
 
-    // Primary Brand Color (Xanh SM Green)
-    primary: '#22c55e',
-    primaryLight: '#4ade80',
-    primaryDark: '#16a34a',
+    // Primary Brand Color — Xanh Dương (Blue)
+    primary: '#2563eb',
+    primaryLight: '#60a5fa',
+    primaryDark: '#1d4ed8',
 
     // Semantic Colors
     success: '#10b981',
     warning: '#f59e0b',
     error: '#ef4444',
-    info: '#3b82f6',
+    info: '#6366f1',
 
     // Borders
-    border: '#e2e8f0',
-    borderLight: '#f1f5f9',
+    border: '#dbeafe',
+    borderLight: '#eff6ff',
 
     // Status
     statusPending: '#f59e0b',
-    statusConfirmed: '#3b82f6',
+    statusConfirmed: '#2563eb',
     statusCompleted: '#10b981',
     statusCancelled: '#ef4444',
   },
@@ -36,28 +36,28 @@ export const colors = {
     // Backgrounds
     background: '#0f172a',
     surfaceBase: '#1e293b',
-    surface: '#334155',
-    surfaceAlt: '#475569',
+    surface: '#1e3a5f',
+    surfaceAlt: '#1d3461',
 
     // Text
     text: '#f1f5f9',
     textSecondary: '#cbd5e1',
     textTertiary: '#94a3b8',
 
-    // Primary Brand Color
-    primary: '#22c55e',
-    primaryLight: '#4ade80',
-    primaryDark: '#16a34a',
+    // Primary Brand Color — Xanh Dương (Blue)
+    primary: '#3b82f6',
+    primaryLight: '#60a5fa',
+    primaryDark: '#2563eb',
 
     // Semantic Colors
     success: '#10b981',
     warning: '#f59e0b',
     error: '#ef4444',
-    info: '#3b82f6',
+    info: '#6366f1',
 
     // Borders
-    border: '#334155',
-    borderLight: '#475569',
+    border: '#1e3a5f',
+    borderLight: '#1e293b',
 
     // Status
     statusPending: '#f59e0b',

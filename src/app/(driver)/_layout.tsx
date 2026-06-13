@@ -17,11 +17,12 @@ import { useAuthStore } from '@/stores/authStore';
 export default function DriverLayout() {
   const { colors } = useTheme();
   const { isAuthenticated, user } = useAuthStore();
-  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail'];
+  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'blog-detail'];
   const backHrefByRoute: Record<string, string> = {
     notifications: '/(driver)/dashboard',
     'chat-detail': '/(driver)/chat',
     'booking-detail': '/(driver)/bookings',
+    'blog-detail': '/(driver)/blog',
   };
 
   useEffect(() => {
@@ -82,6 +83,7 @@ export default function DriverLayout() {
       <Tabs.Screen
         name="vehicles"
         options={{
+          href: null,
           title: 'Xe',
           tabBarIcon: ({ color, size }) => (
             <Car color={color} size={size} />
@@ -143,6 +145,13 @@ export default function DriverLayout() {
         options={{
           href: null,
           title: 'Chi tiết chuyến đi',
+        }}
+      />
+      <Tabs.Screen
+        name="blog-detail"
+        options={{
+          href: null,
+          title: 'Bài viết',
         }}
       />
     </Tabs>

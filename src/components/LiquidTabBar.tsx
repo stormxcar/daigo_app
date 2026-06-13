@@ -28,6 +28,9 @@ export function LiquidTabBar({
     'blog-detail',
     'chat-detail',
     'notification-detail',
+    'vehicles',
+    'faq',
+    'emergency',
   ];
   const currentRoute = state.routes[state.index];
 
@@ -38,7 +41,7 @@ export function LiquidTabBar({
   const routes = state.routes.filter((route: any) => {
     const options = descriptors[route.key]?.options;
     return !hiddenRoutes.includes(route.name) && options?.href !== null;
-  });
+  }).slice(0, 5);
 
   const runIconAnimation = (key: string) => {
     if (!animations[key]) {

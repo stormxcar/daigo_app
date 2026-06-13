@@ -1,5 +1,5 @@
 import React, { FC, ReactNode } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle, TextInput as RNTextInput, Image as RNImage, DimensionValue } from 'react-native';
+import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle, TextInput as RNTextInput, Image as RNImage, DimensionValue } from 'react-native';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, shadows, fontSize, lineHeight } from '@/theme/tokens';
 
@@ -82,10 +82,19 @@ export const Button: FC<ButtonProps> = ({
         style,
       ]}
     >
-      {icon && icon}
-      <Text style={{ color: textColor, fontWeight: '600', fontSize: fontSize.base }}>
-        {loading ? 'Loading...' : label}
-      </Text>
+      {loading ? (
+        <ActivityIndicator
+          size="small"
+          color={variant === 'outline' || variant === 'secondary' ? textColor : 'white'}
+        />
+      ) : (
+        <>
+          {icon && icon}
+          <Text style={{ color: textColor, fontWeight: '600', fontSize: fontSize.base }}>
+            {label}
+          </Text>
+        </>
+      )}
     </TouchableOpacity>
   );
 };

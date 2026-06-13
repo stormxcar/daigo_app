@@ -38,6 +38,7 @@ export default function CustomerLayout() {
             showBack={detailRoutes.includes(route.name)}
             showNotifications={!detailRoutes.includes(route.name)}
             backHref={backHrefByRoute[route.name]}
+            showLogo={route.name === 'home'}
           />
         ),
         tabBarActiveTintColor: colors.primary,
