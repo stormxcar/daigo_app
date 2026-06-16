@@ -88,7 +88,7 @@ export const MOCK_BOOKINGS: Booking[] = [
     distance: 30,
     createdAt: '2026-06-09T08:30:00Z',
     updatedAt: '2026-06-09T08:30:00Z',
-    status: 'Chờ xác nhận',
+    status: 'SEARCHING_DRIVER',
   },
   {
     id: 'BK-87211',
@@ -111,7 +111,7 @@ export const MOCK_BOOKINGS: Booking[] = [
     distance: 10,
     createdAt: '2026-06-08T10:15:00Z',
     updatedAt: '2026-06-08T10:15:00Z',
-    status: 'Đã xác nhận',
+    status: 'DRIVER_ACCEPTED',
   },
   {
     id: 'BK-86392',
@@ -134,7 +134,7 @@ export const MOCK_BOOKINGS: Booking[] = [
     distance: 50,
     createdAt: '2026-06-04T12:00:00Z',
     updatedAt: '2026-06-04T12:00:00Z',
-    status: 'Hoàn thành',
+    status: 'TRIP_COMPLETED',
   },
   {
     id: 'BK-85123',
@@ -157,7 +157,7 @@ export const MOCK_BOOKINGS: Booking[] = [
     distance: 18,
     createdAt: '2026-06-01T15:00:00Z',
     updatedAt: '2026-06-01T15:00:00Z',
-    status: 'Đã hủy',
+    status: 'CUSTOMER_CANCELLED',
   },
 ];
 

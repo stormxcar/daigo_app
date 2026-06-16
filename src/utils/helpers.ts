@@ -1,13 +1,37 @@
 import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import 'dayjs/locale/vi';
-
-dayjs.extend(relativeTime);
-dayjs.locale('vi');
 
 // Format date
 export const formatDate = (date: string | Date, format = 'DD/MM/YYYY'): string => {
   return dayjs(date).format(format);
+};
+
+export const formatVietnamDate = (date?: string | Date | null): string => {
+  if (!date) return '--';
+  return dayjs(date).format('DD/MM/YYYY');
+};
+
+export const isoDateToVietnamDate = (date?: string | null): string => {
+  if (!date) return '';
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return date;
+  return `${match[3]}/${match[2]}/${match[1]}`;
+};
+
+export const vietnamDateToIsoDate = (date: string): string | null => {
+  const trimmed = date.trim();
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const parsed = new Date(year, month - 1, day);
+
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) {
+    return null;
+  }
+
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
 
 // Format time
@@ -84,6 +108,16 @@ export const getBookingStatusInfo = (status: string): { label: string; color: st
     'Đã xác nhận': { label: 'Đã xác nhận', color: '#3b82f6' }, // info
     'Hoàn thành': { label: 'Hoàn thành', color: '#10b981' }, // success
     'Đã hủy': { label: 'Đã hủy', color: '#ef4444' }, // error
+    CREATED: { label: 'Đã tạo chuyến', color: '#64748b' },
+    SEARCHING_DRIVER: { label: 'Đang tìm tài xế', color: '#f59e0b' },
+    DRIVER_ACCEPTED: { label: 'Tài xế đã nhận', color: '#3b82f6' },
+    DRIVER_ARRIVING: { label: 'Tài xế đang tới', color: '#2563eb' },
+    DRIVER_ARRIVED: { label: 'Tài xế đã đến', color: '#8b5cf6' },
+    TRIP_STARTED: { label: 'Đang di chuyển', color: '#0ea5e9' },
+    TRIP_COMPLETED: { label: 'Hoàn thành', color: '#10b981' },
+    CUSTOMER_CANCELLED: { label: 'Khách đã hủy', color: '#ef4444' },
+    DRIVER_CANCELLED: { label: 'Tài xế đã hủy', color: '#ef4444' },
+    EXPIRED: { label: 'Đã hết hạn', color: '#64748b' },
   };
   return statusMap[status] || { label: status, color: '#64748b' };
 };
@@ -100,7 +134,19 @@ export const getVehicleStatusInfo = (status: string): { label: string; color: st
 
 // Time ago format
 export const timeAgo = (date: string | Date): string => {
-  return dayjs(date).fromNow();
+  const diffSeconds = Math.round((new Date(date).getTime() - Date.now()) / 1000);
+  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ['year', 60 * 60 * 24 * 365],
+    ['month', 60 * 60 * 24 * 30],
+    ['week', 60 * 60 * 24 * 7],
+    ['day', 60 * 60 * 24],
+    ['hour', 60 * 60],
+    ['minute', 60],
+    ['second', 1],
+  ];
+  const formatter = new Intl.RelativeTimeFormat('vi-VN', { numeric: 'auto' });
+  const [unit, seconds] = units.find(([, value]) => Math.abs(diffSeconds) >= value) ?? ['second', 1];
+  return formatter.format(Math.round(diffSeconds / seconds), unit);
 };
 
 // Truncate text

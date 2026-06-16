@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banknote, Car, CheckCircle2, Clock, MapPin, Navigation, Phone, Route, User } from 'lucide-react-native';
@@ -13,6 +14,7 @@ import { Booking, DriverLocation, Vehicle } from '@/types';
 import { MapPreview } from '@/components/MapPreview';
 import { RealtimeTripMap } from '@/components/RealtimeTripMap';
 import { getDriverLocation, subscribeDriverLocation } from '@/services/driverLocation';
+import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 
 export default function BookingDetailScreen() {
   const { colors } = useTheme();
@@ -99,17 +101,19 @@ export default function BookingDetailScreen() {
         estimatedPrice,
         distance,
       });
-      Alert.alert(
-        'Đặt xe thành công',
-        `Yêu cầu đặt ${vehicle.name} đã được lưu vào Supabase.`,
-        [
-          { text: 'Về trang chủ', onPress: () => router.replace('/(customer)/home') },
-          { text: 'Theo dõi chuyến', onPress: () => router.replace({ pathname: '/(customer)/booking-detail' as any, params: { id: created.id } }) },
-        ]
-      );
       setSubmitted(true);
+      Toast.show({
+        type: 'success',
+        text1: 'Đặt xe thành công',
+        text2: `Yêu cầu đặt ${vehicle.name} đã được lưu vào Supabase.`,
+      });
+      router.replace({ pathname: '/(customer)/booking-detail' as any, params: { id: created.id } });
     } catch (error: any) {
-      Alert.alert('Không thể đặt xe', error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.');
+      Toast.show({
+        type: 'error',
+        text1: 'Không thể đặt xe',
+        text2: error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.',
+      });
     } finally {
       setLoading(false);
     }
@@ -131,7 +135,7 @@ export default function BookingDetailScreen() {
             {booking.bookingCode ?? 'Chuyến đi'}
           </Text>
           <Text style={{ color: colors.textSecondary }}>
-            {booking.status} - {booking.time} - {booking.date}
+            {getBookingStatusInfo(booking.status).label} - {booking.time} - {formatVietnamDate(booking.date)}
           </Text>
         </Card>
 
@@ -147,6 +151,8 @@ export default function BookingDetailScreen() {
               pickup={{ label: booking.pickupLocation, latitude: booking.pickupLat!, longitude: booking.pickupLng! }}
               dropoff={{ label: booking.dropoffLocation, latitude: booking.dropoffLat!, longitude: booking.dropoffLng! }}
               driverLocation={driverLocation}
+              bookingStatus={booking.status}
+              showControls={false}
             />
           </Card>
         )}
@@ -158,7 +164,7 @@ export default function BookingDetailScreen() {
           {[
             { icon: <MapPin size={18} color={colors.primary} />, label: 'Điểm đón', value: booking.pickupLocation },
             { icon: <Navigation size={18} color={colors.error} />, label: 'Điểm đến', value: booking.dropoffLocation },
-            { icon: <Clock size={18} color={colors.info} />, label: 'Thời gian', value: `${booking.time} - ${booking.date}` },
+            { icon: <Clock size={18} color={colors.info} />, label: 'Thời gian', value: `${booking.time} - ${formatVietnamDate(booking.date)}` },
             { icon: <Car size={18} color={colors.primary} />, label: 'Tài xế', value: booking.driverName || 'Đang chờ xác nhận' },
           ].map((item) => (
             <View key={item.label} style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}>
@@ -183,7 +189,7 @@ export default function BookingDetailScreen() {
         {[
           { icon: <MapPin size={18} color={colors.primary} />, label: 'Điểm đón', value: params.pickupLocation || 'Chưa có' },
           { icon: <Navigation size={18} color={colors.error} />, label: 'Điểm đến', value: params.dropoffLocation || 'Chưa có' },
-          { icon: <Clock size={18} color={colors.info} />, label: 'Thời gian', value: `${params.time || '--:--'} - ${params.date || '--'}` },
+          { icon: <Clock size={18} color={colors.info} />, label: 'Thời gian', value: `${params.time || '--:--'} - ${formatVietnamDate(params.date)}` },
           { icon: <User size={18} color={colors.warning} />, label: 'Hành khách', value: `${passengers} người` },
         ].map((item) => (
           <View key={item.label} style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}>

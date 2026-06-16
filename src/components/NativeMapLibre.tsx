@@ -1,0 +1,55 @@
+import React from 'react';
+import { Text, View } from 'react-native';
+import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+
+type MapLibreModule = {
+  Camera: any;
+  GeoJSONSource: any;
+  Layer: any;
+  Map: any;
+  Marker: any;
+};
+
+let moduleCache: MapLibreModule | null | undefined;
+
+export function getNativeMapLibre(): MapLibreModule | null {
+  if (moduleCache !== undefined) return moduleCache;
+
+  try {
+    // Keep this dynamic. Static imports crash Expo Go / old APKs before routes can export.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const maplibre = require('@maplibre/maplibre-react-native');
+    moduleCache = {
+      Camera: maplibre.Camera,
+      GeoJSONSource: maplibre.GeoJSONSource,
+      Layer: maplibre.Layer,
+      Map: maplibre.Map,
+      Marker: maplibre.Marker,
+    };
+  } catch {
+    moduleCache = null;
+  }
+
+  return moduleCache;
+}
+
+export function NativeMapUnavailable({ height = 340 }: { height?: number | string }) {
+  return (
+    <View
+      style={{
+        minHeight: typeof height === 'number' ? height : 340,
+        padding: spacing.lg,
+        borderRadius: borderRadius.lg,
+        backgroundColor: '#dbeafe',
+        justifyContent: 'center',
+      }}
+    >
+      <Text style={{ color: '#1e293b', fontSize: fontSize.base, fontWeight: '900', marginBottom: spacing.sm }}>
+        Bản đồ native chưa có trong bản app hiện tại
+      </Text>
+      <Text style={{ color: '#475569', fontSize: fontSize.sm, lineHeight: 20 }}>
+        Hãy cài APK/development build mới sau khi thêm @maplibre/maplibre-react-native. Expo Go hoặc APK cũ sẽ thiếu module MLRNCameraModule.
+      </Text>
+    </View>
+  );
+}

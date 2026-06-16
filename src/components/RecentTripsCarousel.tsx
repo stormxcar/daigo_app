@@ -5,7 +5,9 @@ import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Card } from '@/components/BaseComponents';
 import { Booking } from '@/types';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
-import { Route } from 'lucide-react-native';
+import { Badge } from '@/components/BaseComponents';
+import { Car, MapPin, Navigation, Route, User } from 'lucide-react-native';
+import { formatCurrency, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 
 export const RecentTripsCarousel: React.FC<{
   trips: Booking[];
@@ -27,7 +29,7 @@ export const RecentTripsCarousel: React.FC<{
         contentContainerStyle={{ gap: spacing.md }}
         renderItem={({ item }) => (
           <TouchableOpacity activeOpacity={0.84} onPress={() => onTripPress?.(item)}>
-            <Card style={{ width: 228, padding: spacing.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border }}>
+            <Card style={{ width: 286, padding: spacing.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border }}>
               {item.vehicle?.image?.startsWith('http') ? (
                 <Image
                   source={{ uri: item.vehicle.image }}
@@ -38,14 +40,30 @@ export const RecentTripsCarousel: React.FC<{
                   <IllustrationBlock height={80} tone="success" icon={<Route size={20} color="white" />} />
                 </View>
               )}
-              <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: colors.text }}>
-                {item.time} - {new Date(item.date).toLocaleDateString('vi-VN')}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm, alignItems: 'center', marginBottom: spacing.xs }}>
+                <Text style={{ fontSize: fontSize.sm, fontWeight: '900', color: colors.text, flex: 1 }}>
+                  {item.bookingCode ?? 'Chuyến đi'}
+                </Text>
+                <Badge label={getBookingStatusInfo(item.status).label} variant={item.status === 'TRIP_COMPLETED' ? 'success' : 'info'} />
+              </View>
+              <Text style={{ fontSize: fontSize.xs, fontWeight: '700', color: colors.textSecondary, marginBottom: spacing.sm }}>
+                {item.time} - {formatVietnamDate(item.date)}
               </Text>
-              <Text numberOfLines={2} style={{ fontSize: fontSize.xs, color: colors.textSecondary }}>
-                {item.pickupLocation} → {item.dropoffLocation}
-              </Text>
-              <Text style={{ fontSize: fontSize.xs, color: colors.textSecondary, marginTop: spacing.xs }}>
-                Giá: {item.estimatedPrice.toLocaleString('vi-VN')}đ
+              {[
+                { icon: <MapPin size={13} color={colors.primary} />, text: item.pickupLocation },
+                { icon: <Navigation size={13} color={colors.error} />, text: item.dropoffLocation },
+                { icon: <Car size={13} color={colors.primary} />, text: item.vehicle?.name ?? 'Chưa có xe' },
+                { icon: <User size={13} color={colors.info} />, text: item.driverName || 'Đang chờ tài xế' },
+              ].map((row, index) => (
+                <View key={index} style={{ flexDirection: 'row', gap: spacing.xs, alignItems: 'center', marginTop: spacing.xs }}>
+                  {row.icon}
+                  <Text numberOfLines={1} style={{ flex: 1, fontSize: fontSize.xs, color: colors.textSecondary }}>
+                    {row.text}
+                  </Text>
+                </View>
+              ))}
+              <Text style={{ fontSize: fontSize.sm, color: colors.primary, fontWeight: '900', marginTop: spacing.sm }}>
+                {formatCurrency(item.actualPrice ?? item.estimatedPrice)}
               </Text>
             </Card>
           </TouchableOpacity>

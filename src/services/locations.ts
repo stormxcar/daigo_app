@@ -3,13 +3,97 @@ export interface LocationSuggestion {
   label: string;
   lat: number;
   lng: number;
+  provider?: 'goong' | 'nominatim';
 }
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
+const GOONG_API_URL = 'https://rsapi.goong.io';
+const LOCATION_CACHE_TTL = 5 * 60 * 1000;
+
+const locationCache = new Map<string, { expiresAt: number; results: LocationSuggestion[] }>();
+
+type GoongPrediction = {
+  place_id: string;
+  description: string;
+  structured_formatting?: {
+    main_text?: string;
+    secondary_text?: string;
+  };
+};
+
+async function getGoongPlaceDetail(placeId: string) {
+  const apiKey = process.env.EXPO_PUBLIC_GOONG_API_KEY;
+  if (!apiKey) return null;
+
+  const params = new URLSearchParams({
+    place_id: placeId,
+    api_key: apiKey,
+  });
+
+  const response = await fetch(`${GOONG_API_URL}/Place/Detail?${params.toString()}`);
+  if (!response.ok) return null;
+  const data = await response.json();
+  const location = data.result?.geometry?.location;
+  if (typeof location?.lat !== 'number' || typeof location?.lng !== 'number') return null;
+
+  return {
+    lat: location.lat,
+    lng: location.lng,
+  };
+}
+
+async function searchGoongLocations(query: string): Promise<LocationSuggestion[]> {
+  const apiKey = process.env.EXPO_PUBLIC_GOONG_API_KEY;
+  if (!apiKey) return [];
+
+  const params = new URLSearchParams({
+    input: query,
+    api_key: apiKey,
+  });
+
+  const response = await fetch(`${GOONG_API_URL}/Place/AutoComplete?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error('Không thể tải gợi ý địa điểm từ Goong');
+  }
+
+  const data = await response.json();
+  const predictions = (data.predictions ?? []) as GoongPrediction[];
+  const limitedPredictions = predictions.slice(0, 6);
+
+  const suggestions = await Promise.all(
+    limitedPredictions.map(async (item) => {
+      const detail = await getGoongPlaceDetail(item.place_id).catch(() => null);
+      if (!detail) return null;
+
+      const suggestion: LocationSuggestion = {
+        id: item.place_id,
+        label: item.description,
+        lat: detail.lat,
+        lng: detail.lng,
+        provider: 'goong',
+      };
+      return suggestion;
+    })
+  );
+
+  return suggestions.filter((item): item is NonNullable<typeof item> => Boolean(item));
+}
 
 export async function searchVietnamLocations(query: string): Promise<LocationSuggestion[]> {
   const trimmed = query.trim();
-  if (trimmed.length < 2) return [];
+  if (trimmed.length < 3) return [];
+
+  const cacheKey = trimmed.toLocaleLowerCase('vi-VN');
+  const cached = locationCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.results;
+  }
+
+  const goongResults = await searchGoongLocations(trimmed);
+  if (goongResults.length > 0) {
+    locationCache.set(cacheKey, { expiresAt: Date.now() + LOCATION_CACHE_TTL, results: goongResults });
+    return goongResults;
+  }
 
   const params = new URLSearchParams({
     q: trimmed,
@@ -41,12 +125,16 @@ export async function searchVietnamLocations(query: string): Promise<LocationSug
     lon: string;
   }>;
 
-  return data.map((item) => ({
+  const results: LocationSuggestion[] = data.map((item) => ({
     id: String(item.place_id),
     label: item.display_name,
     lat: Number(item.lat),
     lng: Number(item.lon),
+    provider: 'nominatim' as const,
   }));
+
+  locationCache.set(cacheKey, { expiresAt: Date.now() + LOCATION_CACHE_TTL, results });
+  return results;
 }
 
 export function getDistanceKm(from?: LocationSuggestion | null, to?: LocationSuggestion | null) {
@@ -64,4 +152,3 @@ export function getDistanceKm(from?: LocationSuggestion | null, to?: LocationSug
 
   return Math.max(1, Math.round(earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))));
 }
-

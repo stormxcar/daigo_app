@@ -36,10 +36,16 @@ export interface Vehicle {
 }
 
 export type BookingStatus =
-  | 'Chờ xác nhận'
-  | 'Đã xác nhận'
-  | 'Hoàn thành'
-  | 'Đã hủy';
+  | 'CREATED'
+  | 'SEARCHING_DRIVER'
+  | 'DRIVER_ACCEPTED'
+  | 'DRIVER_ARRIVING'
+  | 'DRIVER_ARRIVED'
+  | 'TRIP_STARTED'
+  | 'TRIP_COMPLETED'
+  | 'CUSTOMER_CANCELLED'
+  | 'DRIVER_CANCELLED'
+  | 'EXPIRED';
 
 export interface Booking {
   id: string;
@@ -69,6 +75,15 @@ export interface Booking {
   createdAt: string;
   updatedAt: string;
   status: BookingStatus;
+  locked?: boolean;
+  acceptedAt?: string;
+  arrivingAt?: string;
+  arrivedAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  cancelledAt?: string;
+  cancelledBy?: 'CUSTOMER' | 'DRIVER' | 'SYSTEM';
+  cancelReason?: string;
 }
 
 export type TripPhase = 'pickup' | 'dropoff';

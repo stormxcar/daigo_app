@@ -3,12 +3,13 @@ import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { BarChart3, Briefcase, Car, LocateFixed, Newspaper, Wallet } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { Card, CardSkeleton } from '@/components/BaseComponents';
+import { Button, Card, CardSkeleton } from '@/components/BaseComponents';
 import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { BlogPost, Booking, Vehicle } from '@/types';
 import { DeviceLocation, getCurrentDeviceLocation } from '@/services/deviceLocation';
+import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 
 type RangeMode = 'day' | 'month' | 'year';
 
@@ -42,6 +43,9 @@ export default function DriverDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [driverLocation, setDriverLocation] = useState<DeviceLocation | null>(null);
+  const [isOnline, setIsOnline] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<string>('PENDING');
+  const [onlineLoading, setOnlineLoading] = useState(false);
 
   const loadData = async (manualRefresh = false) => {
     if (!user) return;
@@ -51,14 +55,17 @@ export default function DriverDashboard() {
       } else {
         setLoading(true);
       }
-      const [allBookings, driverVehicles, driverPosts] = await Promise.all([
+      const [allBookings, driverVehicles, driverPosts, driverStatus] = await Promise.all([
         apiClient.getBookings({ driverId: user.id }),
         apiClient.getDriverVehicles(user.id),
         apiClient.getBlogPosts(1, 20, { driverId: user.id }),
+        apiClient.getDriverStatus(user.id),
       ]);
       setBookings(allBookings);
       setVehicles(driverVehicles);
       setPosts(driverPosts);
+      setIsOnline(!!driverStatus?.is_online);
+      setVerificationStatus(driverStatus?.verification_status ?? 'PENDING');
       getCurrentDeviceLocation().then(setDriverLocation).catch(() => undefined);
     } catch (error: any) {
       Alert.alert('Không thể tải thống kê', error.message);
@@ -72,9 +79,25 @@ export default function DriverDashboard() {
     loadData();
   }, [user?.id]);
 
+  const toggleOnline = async () => {
+    if (!user) return;
+    try {
+      setOnlineLoading(true);
+      const location = await getCurrentDeviceLocation().catch(() => driverLocation);
+      const updated = await apiClient.setDriverOnline(user.id, !isOnline, location ?? undefined);
+      setIsOnline(updated.is_online);
+      setVerificationStatus(updated.verification_status);
+      if (location) setDriverLocation(location);
+    } catch (error: any) {
+      Alert.alert('Không thể cập nhật trạng thái tài xế', error.message);
+    } finally {
+      setOnlineLoading(false);
+    }
+  };
+
   const stats = useMemo(() => {
-    const completed = bookings.filter((booking) => booking.status === 'Hoàn thành');
-    const active = bookings.filter((booking) => booking.status === 'Chờ xác nhận' || booking.status === 'Đã xác nhận');
+    const completed = bookings.filter((booking) => booking.status === BOOKING_STATUS.TRIP_COMPLETED);
+    const active = bookings.filter((booking) => ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
     const revenue = completed.reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
     return { completed: completed.length, active: active.length, revenue };
   }, [bookings]);
@@ -119,8 +142,18 @@ export default function DriverDashboard() {
             <Text numberOfLines={2} style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
               {driverLocation?.label ?? 'Cho phép GPS để chỉ đường đến điểm đón chính xác hơn.'}
             </Text>
+            <Text style={{ color: isOnline ? colors.success : colors.textTertiary, fontWeight: '800', marginTop: spacing.xs }}>
+              {isOnline ? 'Đang online nhận chuyến' : 'Đang offline'} - {verificationStatus}
+            </Text>
           </View>
         </View>
+        <Button
+          label={isOnline ? 'Tắt nhận chuyến' : 'Bật online'}
+          onPress={toggleOnline}
+          loading={onlineLoading}
+          variant={isOnline ? 'outline' : 'primary'}
+          style={{ marginTop: spacing.md }}
+        />
       </Card>
 
       {loading && (

@@ -9,12 +9,14 @@ interface LiquidTabBarProps {
   state: any;
   descriptors: any;
   navigation: any;
+  maxTabs?: number;
 }
 
 export function LiquidTabBar({
   state,
   descriptors,
   navigation,
+  maxTabs = 5,
 }: LiquidTabBarProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -28,7 +30,6 @@ export function LiquidTabBar({
     'blog-detail',
     'chat-detail',
     'notification-detail',
-    'vehicles',
     'faq',
     'emergency',
   ];
@@ -41,7 +42,7 @@ export function LiquidTabBar({
   const routes = state.routes.filter((route: any) => {
     const options = descriptors[route.key]?.options;
     return !hiddenRoutes.includes(route.name) && options?.href !== null;
-  }).slice(0, 5);
+  }).slice(0, maxTabs);
 
   const runIconAnimation = (key: string) => {
     if (!animations[key]) {

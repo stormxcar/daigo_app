@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { router } from 'expo-router';
 import { Calendar, Car, Clock, LocateFixed, MapPin, Search, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
@@ -13,6 +14,8 @@ import { apiClient } from '@/services/api';
 import { getDistanceKm, LocationSuggestion, searchVietnamLocations } from '@/services/locations';
 import { MapPreview } from '@/components/MapPreview';
 import { getCurrentDeviceLocation } from '@/services/deviceLocation';
+import { TERMINAL_BOOKING_STATUSES } from '@/constants';
+import { isoDateToVietnamDate, vietnamDateToIsoDate } from '@/utils/helpers';
 
 type SortMode = 'price_asc' | 'price_desc' | 'seats_desc';
 
@@ -28,7 +31,7 @@ export default function BookingScreen() {
   const { isAuthenticated, user } = useAuthStore();
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
-  const [date, setDate] = useState('2026-06-12');
+  const [dateInput, setDateInput] = useState(isoDateToVietnamDate(new Date().toISOString().slice(0, 10)));
   const [time, setTime] = useState('09:00');
   const [passengers, setPassengers] = useState('2');
   const [maxPrice, setMaxPrice] = useState('');
@@ -49,6 +52,7 @@ export default function BookingScreen() {
   const [gpsLoading, setGpsLoading] = useState(false);
 
   const passengerCount = Math.max(Number(passengers) || 1, 1);
+  const bookingDate = vietnamDateToIsoDate(dateInput);
   const distance = getDistanceKm(pickupPoint, dropoffPoint);
 
   const loadVehicles = () => {
@@ -66,7 +70,10 @@ export default function BookingScreen() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (!pickupLocation || pickupPoint?.label === pickupLocation) return;
+      if (pickupLocation.trim().length < 3 || pickupPoint?.label === pickupLocation) {
+        setPickupSuggestions([]);
+        return;
+      }
       setLocationLoading('pickup');
       searchVietnamLocations(pickupLocation)
         .then(setPickupSuggestions)
@@ -79,7 +86,10 @@ export default function BookingScreen() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (!dropoffLocation || dropoffPoint?.label === dropoffLocation) return;
+      if (dropoffLocation.trim().length < 3 || dropoffPoint?.label === dropoffLocation) {
+        setDropoffSuggestions([]);
+        return;
+      }
       setLocationLoading('dropoff');
       searchVietnamLocations(dropoffLocation)
         .then(setDropoffSuggestions)
@@ -112,8 +122,13 @@ export default function BookingScreen() {
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
 
   const handleSearch = async () => {
-    if (!pickupPoint || !dropoffPoint || !date || !time || !passengers) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đón, điểm đến, ngày, giờ và số người.');
+    if (!pickupPoint || !dropoffPoint || !dateInput || !time || !passengers) {
+      Toast.show({ type: 'error', text1: 'Thiếu thông tin', text2: 'Vui lòng nhập điểm đón, điểm đến, ngày, giờ và số người.' });
+      return;
+    }
+
+    if (!bookingDate) {
+      Toast.show({ type: 'error', text1: 'Ngày chưa hợp lệ', text2: 'Vui lòng nhập theo định dạng dd/MM/yyyy.' });
       return;
     }
 
@@ -121,7 +136,8 @@ export default function BookingScreen() {
       const bookings = await apiClient.getBookings();
       setBookedVehicleIds(
         bookings
-          .filter((booking) => booking.date === date && booking.time === time && booking.status !== 'Đã hủy')
+          .filter((booking) => booking.date === bookingDate && booking.time === time)
+          .filter((booking) => !TERMINAL_BOOKING_STATUSES.includes(booking.status as any))
           .map((booking) => booking.vehicleId)
       );
     } catch {
@@ -154,14 +170,32 @@ export default function BookingScreen() {
 
   const handleCreateBooking = () => {
     if (!selectedVehicle) {
-      Alert.alert('Chưa chọn xe', 'Vui lòng chọn một xe phù hợp trước khi đặt.');
+      Toast.show({ type: 'error', text1: 'Chưa chọn xe', text2: 'Vui lòng chọn một xe phù hợp trước khi đặt.' });
       return;
     }
 
-    Alert.alert(
-      'Đã gửi yêu cầu đặt xe',
-      `Xe ${selectedVehicle.name} sẽ đón ${passengerCount} hành khách lúc ${time} ngày ${date}.`
-    );
+    if (!pickupPoint || !dropoffPoint || !bookingDate) {
+      Toast.show({ type: 'error', text1: 'Thông tin chưa hợp lệ', text2: 'Vui lòng kiểm tra điểm đón, điểm đến và ngày đi.' });
+      return;
+    }
+
+    router.push({
+      pathname: '/(customer)/booking-detail' as any,
+      params: {
+        vehicleId: selectedVehicle.id,
+        pickupLocation,
+        dropoffLocation,
+        date: bookingDate,
+        time,
+        passengers: String(passengerCount),
+        note,
+        pickupLat: String(pickupPoint.lat),
+        pickupLng: String(pickupPoint.lng),
+        dropoffLat: String(dropoffPoint.lat),
+        dropoffLng: String(dropoffPoint.lng),
+        distance: String(distance),
+      },
+    });
   };
 
   if (!isAuthenticated) {
@@ -240,6 +274,17 @@ export default function BookingScreen() {
             <MapPreview
               pickup={{ label: pickupLocation, lat: pickupPoint.lat, lng: pickupPoint.lng }}
               dropoff={{ label: dropoffLocation, lat: dropoffPoint.lat, lng: dropoffPoint.lng }}
+              selectable
+              onPickupChange={(point) => {
+                setPickupPoint({ id: 'map-pickup', label: point.label, lat: point.lat, lng: point.lng });
+                setPickupLocation(point.label);
+                setPickupSuggestions([]);
+              }}
+              onDropoffChange={(point) => {
+                setDropoffPoint({ id: 'map-dropoff', label: point.label, lat: point.lat, lng: point.lng });
+                setDropoffLocation(point.label);
+                setDropoffSuggestions([]);
+              }}
             />
           </View>
         )}
@@ -247,9 +292,9 @@ export default function BookingScreen() {
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
           <TextInput
             label="Ngày"
-            placeholder="YYYY-MM-DD"
-            value={date}
-            onChangeText={setDate}
+            placeholder="dd/MM/yyyy"
+            value={dateInput}
+            onChangeText={setDateInput}
             icon={<Calendar size={18} color={colors.textSecondary} />}
             style={{ flex: 1, marginBottom: spacing.md }}
           />
@@ -358,7 +403,7 @@ export default function BookingScreen() {
             Xe phù hợp
           </Text>
           <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: spacing.md }}>
-            {vehicles.length} xe khớp ngày {date}, giờ {time}, {passengerCount} hành khách
+            {vehicles.length} xe khớp ngày {dateInput}, giờ {time}, {passengerCount} hành khách
             {distance ? `, khoảng ${distance} km` : ''}
           </Text>
 
@@ -370,6 +415,10 @@ export default function BookingScreen() {
               <TouchableOpacity
                 key={vehicle.id}
                 onPress={() => {
+                  if (!bookingDate) {
+                    Toast.show({ type: 'error', text1: 'Ngày chưa hợp lệ', text2: 'Vui lòng nhập theo định dạng dd/MM/yyyy.' });
+                    return;
+                  }
                   setSelectedVehicleId(vehicle.id);
                   router.push({
                     pathname: '/(customer)/booking-detail' as any,
@@ -377,7 +426,7 @@ export default function BookingScreen() {
                       vehicleId: vehicle.id,
                       pickupLocation,
                       dropoffLocation,
-                      date,
+                      date: bookingDate,
                       time,
                       passengers: String(passengerCount),
                       note,
@@ -451,7 +500,7 @@ export default function BookingScreen() {
           )}
 
           <Button
-            label="Gửi yêu cầu đặt xe"
+            label="Xem chi tiết và xác nhận"
             onPress={handleCreateBooking}
             disabled={!selectedVehicle}
           />

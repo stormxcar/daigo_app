@@ -1,5 +1,6 @@
 import * as WebBrowser from 'expo-web-browser';
 import { AuthCredentials, AuthResponse, BlogComment, BlogPost, Booking, ChatConversation, Message, NotificationItem, RegisterData, User, Vehicle } from '@/types';
+import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { supabase } from './supabase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -36,6 +37,17 @@ type ProfileRow = {
   role: User['role'];
   created_at: string;
   updated_at: string;
+};
+
+type DriverRow = {
+  id: string;
+  profile_id: string;
+  is_online: boolean;
+  verification_status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+  rating: number;
+  current_latitude: number | null;
+  current_longitude: number | null;
+  updated_location_at: string | null;
 };
 
 const mapProfile = (row: ProfileRow): User => ({
@@ -103,6 +115,15 @@ const mapBooking = (row: any): Booking => {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     status: row.status,
+    locked: row.locked ?? false,
+    acceptedAt: row.accepted_at ?? undefined,
+    arrivingAt: row.arriving_at ?? undefined,
+    arrivedAt: row.arrived_at ?? undefined,
+    startedAt: row.started_at ?? undefined,
+    completedAt: row.completed_at ?? undefined,
+    cancelledAt: row.cancelled_at ?? undefined,
+    cancelledBy: row.cancelled_by ?? undefined,
+    cancelReason: row.cancel_reason ?? undefined,
   } as Booking;
 };
 
@@ -285,6 +306,54 @@ class ApiClient {
     return (data as VehicleRow[]).map(mapVehicle);
   }
 
+  async getDriverStatus(profileId: string): Promise<DriverRow | null> {
+    const { data, error } = await supabase
+      .from('drivers')
+      .select('*')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+    if (error) throw error;
+    return data as DriverRow | null;
+  }
+
+  async setDriverOnline(profileId: string, isOnline: boolean, location?: { lat: number; lng: number }): Promise<DriverRow> {
+    const existing = await this.getDriverStatus(profileId);
+    if (!existing) {
+      const { data, error } = await supabase
+        .from('drivers')
+        .insert({
+          profile_id: profileId,
+          is_online: isOnline,
+          verification_status: 'PENDING',
+          current_latitude: location?.lat,
+          current_longitude: location?.lng,
+          updated_location_at: location ? new Date().toISOString() : null,
+        })
+        .select('*')
+        .single();
+      if (error) throw error;
+      return data as DriverRow;
+    }
+
+    if (isOnline && existing.verification_status !== 'APPROVED') {
+      throw new Error('Bạn chưa được duyệt tài khoản tài xế.');
+    }
+
+    const { data, error } = await supabase
+      .from('drivers')
+      .update({
+        is_online: isOnline,
+        current_latitude: location?.lat ?? existing.current_latitude,
+        current_longitude: location?.lng ?? existing.current_longitude,
+        updated_location_at: location ? new Date().toISOString() : existing.updated_location_at,
+      })
+      .eq('profile_id', profileId)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data as DriverRow;
+  }
+
   async getVehicleById(id: string): Promise<Vehicle> {
     const { data, error } = await supabase
       .from('vehicles')
@@ -368,15 +437,29 @@ class ApiClient {
     return mapBooking(data);
   }
 
+  async getActiveBooking(userId: string, role: User['role'] = 'customer'): Promise<Booking | null> {
+    let query = supabase
+      .from('bookings')
+      .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
+      .in('status', [...ACTIVE_BOOKING_STATUSES])
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    query = role === 'driver' ? query.eq('driver_id', userId) : query.eq('customer_id', userId);
+
+    const { data, error } = await query.maybeSingle();
+    if (error) throw error;
+    return data ? mapBooking(data) : null;
+  }
+
   async createBooking(data: Partial<Booking> & { pickupLat?: number; pickupLng?: number; dropoffLat?: number; dropoffLng?: number }): Promise<Booking> {
-    let selectedDriverId = data.driverId || data.vehicle?.driverId || null;
-    if (!selectedDriverId && data.vehicleId) {
-      const { data: vehicleRow } = await supabase
-        .from('vehicles')
-        .select('driver_id')
-        .eq('id', data.vehicleId)
-        .maybeSingle();
-      selectedDriverId = vehicleRow?.driver_id ?? null;
+    if (!data.customerId) {
+      throw new Error('Bạn cần đăng nhập để đặt xe.');
+    }
+
+    const activeBooking = await this.getActiveBooking(data.customerId, 'customer');
+    if (activeBooking) {
+      throw new Error('Bạn đang có một chuyến xe đang hoạt động. Vui lòng hoàn thành hoặc hủy chuyến hiện tại trước khi đặt chuyến mới.');
     }
 
     const { data: inserted, error } = await supabase
@@ -384,7 +467,9 @@ class ApiClient {
       .insert({
         customer_id: data.customerId,
         vehicle_id: data.vehicleId,
-        driver_id: selectedDriverId,
+        driver_id: null,
+        status: BOOKING_STATUS.SEARCHING_DRIVER,
+        vehicle_type: data.vehicle?.name,
         pickup_location: data.pickupLocation,
         pickup_lat: data.pickupLat,
         pickup_lng: data.pickupLng,
@@ -405,43 +490,19 @@ class ApiClient {
     await supabase.from('conversations').insert({
       booking_id: inserted.id,
       customer_id: data.customerId,
-      driver_id: selectedDriverId,
+      driver_id: null,
     });
 
     await this.createNotificationSafely({
       userId: data.customerId ?? '',
-      title: 'Đặt lịch xe thành công',
-      content: `Yêu cầu đặt xe ${inserted.booking_code} đã được gửi.`,
+      title: 'Đã tạo chuyến, đang tìm tài xế',
+      content: 'Đã tạo chuyến. Hệ thống đang tìm tài xế phù hợp.',
       type: 'booking_success',
       read: false,
       relatedBookingId: inserted.id,
       createdAt: new Date().toISOString(),
       time: 'Vừa xong',
     });
-
-    const driverReceiverIds = new Set<string>();
-    if (selectedDriverId) {
-      driverReceiverIds.add(selectedDriverId);
-    } else {
-      const { data: drivers } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('role', 'driver');
-      (drivers ?? []).forEach((driver: any) => driverReceiverIds.add(driver.id));
-    }
-
-    for (const driverId of driverReceiverIds) {
-      await this.createNotificationSafely({
-        userId: driverId,
-        title: 'Có chuyến đi mới',
-        content: `Khách hàng đặt chuyến từ ${inserted.pickup_location} đến ${inserted.dropoff_location}.`,
-        type: 'booking_update',
-        read: false,
-        relatedBookingId: inserted.id,
-        createdAt: new Date().toISOString(),
-        time: 'Vừa xong',
-      });
-    }
 
     return mapBooking(inserted);
   }
@@ -454,6 +515,14 @@ class ApiClient {
         driver_id: data.driverId || undefined,
         actual_price: data.actualPrice,
         note: data.note,
+        locked: data.locked,
+        arriving_at: data.arrivingAt,
+        arrived_at: data.arrivedAt,
+        started_at: data.startedAt,
+        completed_at: data.completedAt,
+        cancelled_at: data.cancelledAt,
+        cancelled_by: data.cancelledBy,
+        cancel_reason: data.cancelReason,
       })
       .eq('id', id)
       .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
@@ -463,7 +532,16 @@ class ApiClient {
   }
 
   async cancelBooking(id: string): Promise<Booking> {
-    const booking = await this.updateBooking(id, { status: 'Đã hủy' });
+    const bookingBefore = await this.getBookingById(id);
+    if ([BOOKING_STATUS.TRIP_STARTED, BOOKING_STATUS.TRIP_COMPLETED].includes(bookingBefore.status as any)) {
+      throw new Error('Không thể hủy chuyến khi chuyến đi đã bắt đầu.');
+    }
+
+    const booking = await this.updateBooking(id, {
+      status: BOOKING_STATUS.CUSTOMER_CANCELLED,
+      cancelledBy: 'CUSTOMER',
+      cancelledAt: new Date().toISOString(),
+    });
     const receiverId = booking.customerId;
     if (receiverId) {
       await this.createNotificationSafely({
@@ -481,7 +559,19 @@ class ApiClient {
   }
 
   async completeBooking(id: string): Promise<Booking> {
-    const booking = await this.updateBooking(id, { status: 'Hoàn thành' });
+    const booking = await this.updateBooking(id, {
+      status: BOOKING_STATUS.TRIP_COMPLETED,
+      completedAt: new Date().toISOString(),
+    });
+    await supabase.from('trip_history').insert({
+      booking_id: booking.id,
+      customer_id: booking.customerId,
+      driver_id: booking.driverId || null,
+      pickup_address: booking.pickupLocation,
+      dropoff_address: booking.dropoffLocation,
+      started_at: booking.startedAt,
+      completed_at: booking.completedAt ?? new Date().toISOString(),
+    });
     await this.createNotificationSafely({
       userId: booking.customerId,
       title: 'Chuyến đi đã hoàn thành',
@@ -495,19 +585,90 @@ class ApiClient {
     return booking;
   }
 
-  async acceptBooking(id: string, driverId: string): Promise<Booking> {
-    const booking = await this.updateBooking(id, { status: 'Đã xác nhận', driverId });
-    await supabase.from('conversations').update({ driver_id: driverId }).eq('booking_id', id);
+  async markDriverArriving(id: string): Promise<Booking> {
+    const booking = await this.updateBooking(id, {
+      status: BOOKING_STATUS.DRIVER_ARRIVING,
+      arrivingAt: new Date().toISOString(),
+    });
     await this.createNotificationSafely({
       userId: booking.customerId,
-      title: 'Tài xế đã xác nhận chuyến đi',
-      content: `Chuyến đi từ ${booking.pickupLocation} đến ${booking.dropoffLocation} đã được tài xế xác nhận.`,
-      type: 'driver_confirm',
+      title: 'Tài xế đang tới',
+      content: 'Tài xế đang di chuyển đến điểm đón.',
+      type: 'booking_update',
       read: false,
       relatedBookingId: booking.id,
       createdAt: new Date().toISOString(),
       time: 'Vừa xong',
     });
+    return booking;
+  }
+
+  async markDriverArrived(id: string): Promise<Booking> {
+    const booking = await this.updateBooking(id, {
+      status: BOOKING_STATUS.DRIVER_ARRIVED,
+      arrivedAt: new Date().toISOString(),
+    });
+    await this.createNotificationSafely({
+      userId: booking.customerId,
+      title: 'Tài xế đã đến điểm đón',
+      content: 'Tài xế đã đến điểm đón. Vui lòng ra xe.',
+      type: 'booking_update',
+      read: false,
+      relatedBookingId: booking.id,
+      createdAt: new Date().toISOString(),
+      time: 'Vừa xong',
+    });
+    return booking;
+  }
+
+  async startTrip(id: string): Promise<Booking> {
+    const booking = await this.updateBooking(id, {
+      status: BOOKING_STATUS.TRIP_STARTED,
+      startedAt: new Date().toISOString(),
+    });
+    await this.createNotificationSafely({
+      userId: booking.customerId,
+      title: 'Chuyến đi đã bắt đầu',
+      content: 'Chuyến đi của bạn đã bắt đầu.',
+      type: 'booking_update',
+      read: false,
+      relatedBookingId: booking.id,
+      createdAt: new Date().toISOString(),
+      time: 'Vừa xong',
+    });
+    return booking;
+  }
+
+  async cancelBookingByDriver(id: string, reason?: string): Promise<Booking> {
+    const bookingBefore = await this.getBookingById(id);
+    if ([BOOKING_STATUS.TRIP_STARTED, BOOKING_STATUS.TRIP_COMPLETED].includes(bookingBefore.status as any)) {
+      throw new Error('Không thể hủy chuyến khi chuyến đi đã bắt đầu.');
+    }
+
+    const booking = await this.updateBooking(id, {
+      status: BOOKING_STATUS.DRIVER_CANCELLED,
+      cancelledBy: 'DRIVER',
+      cancelReason: reason,
+      cancelledAt: new Date().toISOString(),
+    });
+    await this.createNotificationSafely({
+      userId: booking.customerId,
+      title: 'Tài xế đã hủy chuyến',
+      content: 'Tài xế đã hủy chuyến. Bạn có thể đặt lại chuyến mới.',
+      type: 'driver_cancel',
+      read: false,
+      relatedBookingId: booking.id,
+      createdAt: new Date().toISOString(),
+      time: 'Vừa xong',
+    });
+    return booking;
+  }
+
+  async acceptBooking(id: string, driverId: string): Promise<Booking> {
+    const { data, error } = await supabase.rpc('accept_booking', { p_booking_id: id });
+    if (error) throw error;
+    const booking = await this.getBookingById(data.id);
+    await supabase.from('conversations').update({ driver_id: driverId }).eq('booking_id', id);
     return booking;
   }
 
@@ -680,18 +841,6 @@ class ApiClient {
     } else {
       const { error } = await supabase.from('blog_likes').insert({ post_id: postId, user_id: userId });
       if (error) throw error;
-      if (postBefore.driverId !== userId) {
-        await this.createNotificationSafely({
-          userId: postBefore.driverId,
-          title: 'Bài viết có lượt thích mới',
-          content: `${postBefore.driverName ? 'Khách hàng' : 'Có người'} vừa thả tim bài viết của bạn.`,
-          type: 'blog_interaction',
-          read: false,
-          relatedPostId: postId,
-          createdAt: new Date().toISOString(),
-          time: 'Vừa xong',
-        });
-      }
     }
 
     return this.getBlogPostById(postId);
@@ -723,19 +872,6 @@ class ApiClient {
       .select('*, profiles!blog_comments_author_id_fkey(full_name, avatar_url)')
       .single();
     if (error) throw error;
-    const post = await this.getBlogPostById(postId);
-    if (post.driverId !== authorId) {
-      await this.createNotificationSafely({
-        userId: post.driverId,
-        title: parentCommentId ? 'Có trả lời bình luận mới' : 'Có bình luận mới',
-        content: `${data.profiles?.full_name ?? 'Khách hàng'} vừa bình luận về bài viết của bạn.`,
-        type: 'blog_interaction',
-        read: false,
-        relatedPostId: postId,
-        createdAt: new Date().toISOString(),
-        time: 'Vừa xong',
-      });
-    }
     return {
       id: data.id,
       postId: data.post_id,
@@ -751,19 +887,6 @@ class ApiClient {
   async shareBlogPost(postId: string, userId: string): Promise<BlogPost> {
     const { error } = await supabase.from('blog_shares').insert({ post_id: postId, user_id: userId });
     if (error) throw error;
-    const post = await this.getBlogPostById(postId);
-    if (post.driverId !== userId) {
-      await this.createNotificationSafely({
-        userId: post.driverId,
-        title: 'Bài viết được chia sẻ',
-        content: 'Một khách hàng vừa chia sẻ bài viết của bạn.',
-        type: 'blog_interaction',
-        read: false,
-        relatedPostId: postId,
-        createdAt: new Date().toISOString(),
-        time: 'Vừa xong',
-      });
-    }
     return this.getBlogPostById(postId);
   }
 

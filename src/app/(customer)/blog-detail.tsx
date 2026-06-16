@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, Text, TouchableOpacity, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { Image, Text, TouchableOpacity, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import Toast from 'react-native-toast-message';
 import { Heart, MessageCircle, Play, Send, Share2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
@@ -42,44 +43,58 @@ export default function BlogDetailScreen() {
     loadPost();
   }, [id]);
 
+  const requireAuth = (action: string) => {
+    if (user) return true;
+    Toast.show({
+      type: 'warning',
+      text1: 'Bạn cần đăng nhập',
+      text2: `Vui lòng đăng nhập để ${action}.`,
+    });
+    router.push('/(auth)/login');
+    return false;
+  };
+
   const toggleLike = async () => {
-    if (!post || !user || loading) return;
+    if (!post || loading) return;
+    if (!requireAuth('thích bài viết')) return;
     try {
       setLoading(true);
-      const updated = await apiClient.toggleBlogLike(post.id, user.id);
+      const updated = await apiClient.toggleBlogLike(post.id, user!.id);
       setPost(updated);
     } catch (error: any) {
-      Alert.alert('Không thể thả tim', error.message);
+      Toast.show({ type: 'error', text1: 'Không thể thả tim', text2: error.message });
     } finally {
       setLoading(false);
     }
   };
 
   const submitComment = async () => {
-    if (!post || !user || !commentText.trim() || loading) return;
+    if (!post || !commentText.trim() || loading) return;
+    if (!requireAuth('bình luận bài viết')) return;
     try {
       setLoading(true);
-      const comment = await apiClient.createBlogComment(post.id, user.id, commentText.trim(), replyTo?.id);
+      const comment = await apiClient.createBlogComment(post.id, user!.id, commentText.trim(), replyTo?.id);
       setComments((current) => [...current, comment]);
       setCommentText('');
       setReplyTo(null);
       setPost(await apiClient.getBlogPostById(post.id));
     } catch (error: any) {
-      Alert.alert('Không thể bình luận', error.message);
+      Toast.show({ type: 'error', text1: 'Không thể bình luận', text2: error.message });
     } finally {
       setLoading(false);
     }
   };
 
   const sharePost = async () => {
-    if (!post || !user || loading) return;
+    if (!post || loading) return;
+    if (!requireAuth('chia sẻ bài viết')) return;
     try {
       setLoading(true);
-      const updated = await apiClient.shareBlogPost(post.id, user.id);
+      const updated = await apiClient.shareBlogPost(post.id, user!.id);
       setPost(updated);
-      Alert.alert('Đã chia sẻ', 'Lượt chia sẻ đã được lưu vào database.');
+      Toast.show({ type: 'success', text1: 'Đã chia sẻ', text2: 'Lượt chia sẻ đã được lưu vào database.' });
     } catch (error: any) {
-      Alert.alert('Không thể chia sẻ', error.message);
+      Toast.show({ type: 'error', text1: 'Không thể chia sẻ', text2: error.message });
     } finally {
       setLoading(false);
     }
@@ -169,7 +184,13 @@ export default function BlogDetailScreen() {
                   <Text style={{ color: colors.text, fontWeight: '800' }}>{comment.authorName}</Text>
                   <Text style={{ color: colors.text, marginTop: spacing.xs, lineHeight: 20 }}>{comment.text}</Text>
                 </View>
-                <TouchableOpacity onPress={() => setReplyTo(comment)} style={{ alignSelf: 'flex-start', paddingVertical: spacing.xs }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!requireAuth('trả lời bình luận')) return;
+                    setReplyTo(comment);
+                  }}
+                  style={{ alignSelf: 'flex-start', paddingVertical: spacing.xs }}
+                >
                   <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: '800' }}>Trả lời</Text>
                 </TouchableOpacity>
 

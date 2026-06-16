@@ -10,6 +10,7 @@ import { useTheme } from '@/theme';
 import { spacing, fontSize, borderRadius, shadows } from '@/theme/tokens';
 import { Card } from './BaseComponents';
 import { Star, MapPin, Clock, Users, DollarSign, Phone, MessageCircle } from 'lucide-react-native';
+import { getBookingStatusInfo } from '@/utils/helpers';
 
 interface VehicleCardProps {
   id: string;
@@ -223,15 +224,7 @@ export const BookingCard: FC<BookingCardProps> = ({
   onPress,
 }) => {
   const { colors } = useTheme();
-
-  const statusColor =
-    status === 'Chờ xác nhận'
-      ? colors.warning
-      : status === 'Đã xác nhận'
-        ? colors.info
-        : status === 'Hoàn thành'
-          ? colors.success
-          : colors.error;
+  const statusInfo = getBookingStatusInfo(status);
 
   return (
     <Card onPress={onPress} pressable={!!onPress} style={{ marginVertical: spacing.md }}>
@@ -244,11 +237,11 @@ export const BookingCard: FC<BookingCardProps> = ({
             paddingVertical: spacing.xs,
             paddingHorizontal: spacing.sm,
             borderRadius: borderRadius.full,
-            backgroundColor: statusColor,
+            backgroundColor: statusInfo.color,
           }}
         >
           <Text style={{ fontSize: 11, fontWeight: '600', color: 'white' }}>
-            {status}
+            {statusInfo.label}
           </Text>
         </View>
       </View>

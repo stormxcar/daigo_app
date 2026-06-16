@@ -123,6 +123,8 @@ export default function HomeScreen() {
     }
   };
 
+const isLoggedIn = !!user?.id;
+
 const promotions = useMemo(() => {
   const postPromotions = blogPosts.slice(0, 3).map((post) => ({
     id: post.id,
@@ -151,13 +153,13 @@ const promotions = useMemo(() => {
 
   const quickActions = [
   { label: 'Đặt xe', icon: 'Car', route: '/(customer)/booking' },
-  { label: 'Lịch sử', icon: 'CalendarClock', route: '/(customer)/profile' },
+  ...(isLoggedIn ? [{ label: 'Lịch sử', icon: 'CalendarClock', route: '/(customer)/profile' } as const] : []),
   { label: 'Tin mới', icon: 'Star', route: '/(customer)/blog' },
   { label: 'Thông báo', icon: 'ShieldCheck', route: '/(customer)/notifications' },
 ] as const;
 const availableVehicles = vehicles.filter((vehicle) => vehicle.status === 'Sẵn sàng');
 const recommendedVehicles = availableVehicles.length > 0 ? availableVehicles : vehicles;
-const recentTrips = bookings.slice(0, 6);
+const recentTrips = isLoggedIn ? bookings.slice(0, 6) : [];
 
   return (
     <Screen scroll padding refreshing={refreshing || isLoading} onRefresh={refreshHome}>
@@ -262,37 +264,41 @@ const recentTrips = bookings.slice(0, 6);
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => router.push('/(customer)/profile')}
-          style={{
-            padding: spacing.lg,
-            backgroundColor: colors.surface,
-            borderRadius: borderRadius.lg,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.md,
-          }}
-        >
-          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.info, justifyContent: 'center', alignItems: 'center' }}>
-            <CalendarClock size={24} color="white" />
-          </View>
-          <View>
-            <Text style={{ fontWeight: '800', color: colors.text, marginBottom: 4 }}>Lịch sử chuyến đi</Text>
-            <Text style={{ fontSize: 12, color: colors.textSecondary }}>Xem lại các chuyến đã đặt</Text>
-          </View>
-        </TouchableOpacity>
+        {isLoggedIn && (
+          <TouchableOpacity
+            onPress={() => router.push('/(customer)/profile')}
+            style={{
+              padding: spacing.lg,
+              backgroundColor: colors.surface,
+              borderRadius: borderRadius.lg,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.md,
+            }}
+          >
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.info, justifyContent: 'center', alignItems: 'center' }}>
+              <CalendarClock size={24} color="white" />
+            </View>
+            <View>
+              <Text style={{ fontWeight: '800', color: colors.text, marginBottom: 4 }}>Lịch sử chuyến đi</Text>
+              <Text style={{ fontSize: 12, color: colors.textSecondary }}>Xem lại các chuyến đã đặt</Text>
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
       {/* New premium sections */}
       {promotions.length > 0 && <PromoBanner promotions={promotions} />}
       <QuickActionRow actions={quickActions} />
       <NearbyMapCard vehicles={recommendedVehicles} currentLocation={currentLocation} onPress={() => router.push('/(customer)/booking')} />
       <RecommendedVehicleCarousel vehicles={recommendedVehicles} onVehiclePress={() => router.push('/(customer)/booking')} />
-      <RecentTripsCarousel
-        trips={recentTrips}
-        onTripPress={(booking) =>
-          router.push({ pathname: '/(customer)/booking-detail' as any, params: { id: booking.id } })
-        }
-      />
+      {isLoggedIn && (
+        <RecentTripsCarousel
+          trips={recentTrips}
+          onTripPress={(booking) =>
+            router.push({ pathname: '/(customer)/booking-detail' as any, params: { id: booking.id } })
+          }
+        />
+      )}
       <NewsUpdatesList
         posts={blogPosts}
         onPostPress={(post) =>

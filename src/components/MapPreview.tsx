@@ -1,11 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Location from 'expo-location';
-import { Expand, LocateFixed, MapPin, Minimize, X } from 'lucide-react-native';
-import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
+import { Crosshair, Expand, LocateFixed, MapPin, Minimize } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { DrivingRoute, getDrivingRoute, LatLng } from '@/services/mapRouteService';
+import { getNativeMapLibre, NativeMapUnavailable } from '@/components/NativeMapLibre';
 
 interface MapPoint {
   label: string;
@@ -19,140 +21,135 @@ interface MapPreviewProps {
   height?: number;
   followUser?: boolean;
   showControls?: boolean;
+  selectable?: boolean;
+  onPickupChange?: (point: MapPoint) => void;
+  onDropoffChange?: (point: MapPoint) => void;
 }
 
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+type SelectMode = 'pickup' | 'dropoff';
 
-const createMapHtml = (pickup: MapPoint, dropoff: MapPoint, userLocation?: { lat: number; lng: number }) => {
-  const userMarker = userLocation
-    ? `
-      const userMarker = L.circleMarker([${userLocation.lat}, ${userLocation.lng}], {
-        radius: 8,
-        color: '#2563eb',
-        weight: 3,
-        fillColor: '#60a5fa',
-        fillOpacity: 0.95
-      }).addTo(map).bindPopup('Vị trí hiện tại');
-    `
-    : '';
+const toLatLng = (point: MapPoint): LatLng => ({ latitude: point.lat, longitude: point.lng });
+const toLngLat = (point: LatLng): [number, number] => [point.longitude, point.latitude];
 
-  return `
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style>
-      html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #eef2f7; touch-action: pan-x pan-y; }
-      .leaflet-control-attribution { font-size: 10px; }
-      .pin {
-        width: 30px;
-        height: 30px;
-        border-radius: 18px 18px 18px 4px;
-        transform: rotate(-45deg);
-        border: 3px solid white;
-        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.25);
-      }
-      .pin span {
-        display: block;
-        transform: rotate(45deg);
-        color: white;
-        font: 800 12px system-ui;
-        text-align: center;
-        line-height: 24px;
-      }
-      .pickup { background: #2563eb; }
-      .dropoff { background: #ef4444; }
-      .leaflet-control-zoom { border: none !important; }
-      .leaflet-control-zoom a {
-        width: 36px !important; height: 36px !important;
-        line-height: 36px !important;
-        border-radius: 8px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
-        margin-bottom: 4px !important;
-        font-size: 18px !important;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="map"></div>
-    <script>
-      const pickup = [${pickup.lat}, ${pickup.lng}];
-      const dropoff = [${dropoff.lat}, ${dropoff.lng}];
-      const map = L.map('map', { zoomControl: true, gestureHandling: false });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap'
-      }).addTo(map);
-
-      const pickupIcon = L.divIcon({ className: '', html: '<div class="pin pickup"><span>A</span></div>', iconSize: [34, 34], iconAnchor: [17, 30] });
-      const dropoffIcon = L.divIcon({ className: '', html: '<div class="pin dropoff"><span>B</span></div>', iconSize: [34, 34], iconAnchor: [17, 30] });
-      L.marker(pickup, { icon: pickupIcon }).addTo(map).bindPopup('${escapeHtml(pickup.label)}');
-      L.marker(dropoff, { icon: dropoffIcon }).addTo(map).bindPopup('${escapeHtml(dropoff.label)}');
-      ${userMarker}
-
-      const bounds = L.latLngBounds([pickup, dropoff${userLocation ? `, [${userLocation.lat}, ${userLocation.lng}]` : ''}]);
-      map.fitBounds(bounds, { padding: [36, 36] });
-
-      fetch('https://router.project-osrm.org/route/v1/driving/${pickup.lng},${pickup.lat};${dropoff.lng},${dropoff.lat}?overview=full&geometries=geojson')
-        .then((response) => response.json())
-        .then((data) => {
-          const route = data.routes && data.routes[0];
-          if (!route) {
-            L.polyline([pickup, dropoff], { color: '#2563eb', weight: 5, opacity: 0.75, dashArray: '8 8' }).addTo(map);
-            return;
-          }
-          const coordinates = route.geometry.coordinates.map((item) => [item[1], item[0]]);
-          L.polyline(coordinates, { color: '#2563eb', weight: 6, opacity: 0.86 }).addTo(map);
-          map.fitBounds(L.latLngBounds(coordinates), { padding: [34, 34] });
-          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'route',
-            distance: route.distance,
-            duration: route.duration
-          }));
-        })
-        .catch(() => {
-          L.polyline([pickup, dropoff], { color: '#2563eb', weight: 5, opacity: 0.75, dashArray: '8 8' }).addTo(map);
-        });
-    </script>
-  </body>
-</html>`;
+const goongStyleUrl = () => {
+  const mapKey = process.env.EXPO_PUBLIC_GOONG_MAP_KEY;
+  if (!mapKey) return null;
+  return `https://tiles.goong.io/assets/goong_map_web.json?api_key=${encodeURIComponent(mapKey)}`;
 };
 
-export function MapPreview({ pickup, dropoff, height = 340, followUser = false, showControls = true }: MapPreviewProps) {
+const fallbackMapStyle = {
+  version: 8,
+  sources: {},
+  layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#eef2f7' } }],
+} as any;
+
+const getBounds = (points: LatLng[]): [number, number, number, number] => {
+  const lngs = points.map((point) => point.longitude);
+  const lats = points.map((point) => point.latitude);
+  return [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
+};
+
+const routeFeature = (route: DrivingRoute | null) => ({
+  type: 'FeatureCollection',
+  features: route?.coordinates?.length
+    ? [
+        {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: route.coordinates.map(toLngLat),
+          },
+        },
+      ]
+    : [],
+});
+
+async function reverseGoongLocation(point: LatLng) {
+  const apiKey = process.env.EXPO_PUBLIC_GOONG_API_KEY;
+  if (!apiKey) return 'Vị trí đã chọn';
+
+  const params = new URLSearchParams({
+    latlng: `${point.latitude},${point.longitude}`,
+    api_key: apiKey,
+  });
+
+  const response = await fetch(`https://rsapi.goong.io/Geocode?${params.toString()}`);
+  if (!response.ok) return 'Vị trí đã chọn';
+  const data = await response.json();
+  return data.results?.[0]?.formatted_address || 'Vị trí đã chọn';
+}
+
+function PinMarker({ label, color }: { label: string; color: string }) {
+  return (
+    <View style={[styles.pin, { backgroundColor: color }]}>
+      <Text style={styles.pinText}>{label}</Text>
+    </View>
+  );
+}
+
+export function MapPreview({
+  pickup,
+  dropoff,
+  height = 340,
+  followUser = false,
+  showControls = true,
+  selectable = false,
+  onPickupChange,
+  onDropoffChange,
+}: MapPreviewProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const webViewRef = useRef<WebView | null>(null);
-  const fullscreenWebViewRef = useRef<WebView | null>(null);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | undefined>();
-  const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
+  const nativeMap = getNativeMapLibre();
+  const compactCameraRef = useRef<any>(null);
+  const fullscreenCameraRef = useRef<any>(null);
+  const [userLocation, setUserLocation] = useState<LatLng | null>(null);
+  const [route, setRoute] = useState<DrivingRoute | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [selectMode, setSelectMode] = useState<SelectMode>('pickup');
 
-  const html = useMemo(() => createMapHtml(pickup, dropoff, userLocation), [pickup, dropoff, userLocation]);
+  const styleUrl = goongStyleUrl();
+  const Camera = nativeMap?.Camera;
+  const GeoJSONSource = nativeMap?.GeoJSONSource;
+  const Layer = nativeMap?.Layer;
+  const Map = nativeMap?.Map;
+  const Marker = nativeMap?.Marker;
+  const pickupPoint = toLatLng(pickup);
+  const dropoffPoint = toLatLng(dropoff);
+  const routeGeoJSON = useMemo(() => routeFeature(route), [route?.encodedPolyline]);
+  const fitPoints = route?.coordinates?.length
+    ? route.coordinates
+    : [pickupPoint, dropoffPoint, ...(userLocation ? [userLocation] : [])];
+
+  const fitMap = useCallback((camera: any, animated = true) => {
+    if (!camera || fitPoints.length < 2) return;
+    camera.fitBounds(getBounds(fitPoints), {
+      padding: { top: 48, right: 42, bottom: 58, left: 42 },
+      duration: animated ? 650 : 0,
+      easing: 'ease',
+    });
+  }, [route?.encodedPolyline, pickup.lat, pickup.lng, dropoff.lat, dropoff.lng, userLocation?.latitude, userLocation?.longitude]);
 
   const requestLocation = async () => {
     try {
       setLocating(true);
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
-        Alert.alert('Chưa bật GPS', 'Vui lòng cấp quyền vị trí để hiển thị vị trí hiện tại trên bản đồ.');
+        Toast.show({ type: 'error', text1: 'Chưa bật GPS', text2: 'Vui lòng cấp quyền vị trí.' });
         return;
       }
       const servicesEnabled = await Location.hasServicesEnabledAsync();
       if (!servicesEnabled) {
-        Alert.alert('GPS đang tắt', 'Vui lòng bật dịch vụ vị trí trên điện thoại rồi thử lại.');
+        Toast.show({ type: 'error', text1: 'GPS đang tắt', text2: 'Vui lòng bật dịch vụ vị trí.' });
         return;
       }
       const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      setUserLocation({ lat: location.coords.latitude, lng: location.coords.longitude });
+      const point = { latitude: location.coords.latitude, longitude: location.coords.longitude };
+      setUserLocation(point);
+      compactCameraRef.current?.flyTo({ center: toLngLat(point), zoom: 15, duration: 650, easing: 'ease' });
+      fullscreenCameraRef.current?.flyTo({ center: toLngLat(point), zoom: 15, duration: 650, easing: 'ease' });
     } catch (error: any) {
       Alert.alert('Không thể lấy vị trí', error.message || 'Vui lòng kiểm tra GPS và thử lại.');
     } finally {
@@ -160,43 +157,127 @@ export function MapPreview({ pickup, dropoff, height = 340, followUser = false, 
     }
   };
 
+  const handleMapPress = async (event: any) => {
+    if (!selectable) return;
+    const [longitude, latitude] = event.nativeEvent.lngLat as [number, number];
+    const point = { latitude, longitude };
+    const label = await reverseGoongLocation(point).catch(() => 'Vị trí đã chọn');
+    const nextPoint = { label, lat: latitude, lng: longitude };
+
+    if (selectMode === 'pickup') onPickupChange?.(nextPoint);
+    if (selectMode === 'dropoff') onDropoffChange?.(nextPoint);
+
+    Toast.show({
+      type: 'success',
+      text1: selectMode === 'pickup' ? 'Đã chọn điểm đón' : 'Đã chọn điểm đến',
+      text2: label,
+    });
+  };
+
+  useEffect(() => {
+    getDrivingRoute(pickupPoint, dropoffPoint)
+      .then((nextRoute) => {
+        setRoute(nextRoute);
+        setRouteError(null);
+      })
+      .catch((error) => {
+        setRoute(null);
+        setRouteError(error.message || 'Không thể tải lộ trình Goong.');
+      });
+  }, [pickup.lat, pickup.lng, dropoff.lat, dropoff.lng]);
+
+  useEffect(() => {
+    if (route) {
+      fitMap(compactCameraRef.current, false);
+      fitMap(fullscreenCameraRef.current, false);
+    }
+  }, [route?.encodedPolyline]);
+
   useEffect(() => {
     if (followUser) requestLocation();
   }, [followUser]);
 
-  const onMessage = (event: any) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'route') setRouteInfo({ distance: data.distance, duration: data.duration });
-    } catch {
-      undefined;
-    }
-  };
+  const mapView = (cameraRef: React.RefObject<any>, mapHeight: number | string) => (
+    <View style={{ height: mapHeight as number, backgroundColor: colors.surfaceAlt }}>
+      {nativeMap && Camera && GeoJSONSource && Layer && Map && Marker ? (
+        <Map
+          mapStyle={styleUrl ?? fallbackMapStyle}
+          style={StyleSheet.absoluteFill}
+          androidView="texture"
+          compass
+          attribution
+          logo={false}
+          dragPan
+          touchZoom
+          touchRotate
+          touchPitch
+          onPress={handleMapPress}
+        >
+          <Camera
+            ref={cameraRef}
+            initialViewState={{
+              bounds: getBounds([pickupPoint, dropoffPoint]),
+              padding: { top: 48, right: 42, bottom: 58, left: 42 },
+              zoom: 13,
+            }}
+          />
+          {route && (
+            <GeoJSONSource id="preview-route-source" data={routeGeoJSON as any}>
+              <Layer
+                id="preview-route-outline"
+                type="line"
+                style={{
+                  lineColor: '#ffffff',
+                  lineWidth: 10,
+                  lineOpacity: 0.82,
+                  lineJoin: 'round',
+                  lineCap: 'round',
+                } as any}
+              />
+              <Layer
+                id="preview-route-line"
+                type="line"
+                style={{
+                  lineColor: colors.primary,
+                  lineWidth: 6,
+                  lineOpacity: 0.95,
+                  lineJoin: 'round',
+                  lineCap: 'round',
+                } as any}
+              />
+            </GeoJSONSource>
+          )}
+          <Marker id="preview-pickup" lngLat={toLngLat(pickupPoint)} anchor="bottom">
+            <PinMarker label="A" color={colors.primary} />
+          </Marker>
+          <Marker id="preview-dropoff" lngLat={toLngLat(dropoffPoint)} anchor="bottom">
+            <PinMarker label="B" color={colors.error} />
+          </Marker>
+          {userLocation && (
+            <Marker id="preview-user" lngLat={toLngLat(userLocation)} anchor="center">
+              <View style={[styles.userDot, { borderColor: colors.surface }]} />
+            </Marker>
+          )}
+        </Map>
+      ) : (
+        <NativeMapUnavailable height={mapHeight} />
+      )}
 
-  const mapWebView = (ref: React.RefObject<WebView | null>, mapHeight: number | string) => (
-    <WebView
-      ref={ref}
-      originWhitelist={['*']}
-      source={{ html }}
-      javaScriptEnabled
-      domStorageEnabled
-      geolocationEnabled
-      nestedScrollEnabled
-      scrollEnabled
-      mixedContentMode="always"
-      onMessage={onMessage}
-      style={{ width: '100%', height: mapHeight as number, backgroundColor: colors.surfaceAlt }}
-    />
+      <TouchableOpacity
+        onPress={() => fitMap(cameraRef.current)}
+        activeOpacity={0.82}
+        style={[styles.centerBtn, { backgroundColor: colors.surface }]}
+      >
+        <Crosshair size={18} color={colors.primary} />
+      </TouchableOpacity>
+    </View>
   );
 
   return (
     <>
-      {/* ─── Compact map card ─── */}
       <View style={[styles.container, { backgroundColor: colors.surfaceAlt }]}>
         <View style={{ position: 'relative' }}>
-          {mapWebView(webViewRef, height)}
-
-          {/* Expand button — overlay on map top-right */}
+          {mapView(compactCameraRef, height)}
           <TouchableOpacity
             onPress={() => setFullscreen(true)}
             activeOpacity={0.85}
@@ -206,8 +287,29 @@ export function MapPreview({ pickup, dropoff, height = 340, followUser = false, 
           </TouchableOpacity>
         </View>
 
-        {/* Info bar */}
         <View style={[styles.infoBar, { backgroundColor: colors.surface }]}>
+          {selectable && (
+            <View style={styles.modeRow}>
+              {[
+                { label: 'Chọn điểm đón', value: 'pickup' as SelectMode },
+                { label: 'Chọn điểm đến', value: 'dropoff' as SelectMode },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  onPress={() => setSelectMode(item.value)}
+                  style={[
+                    styles.modeBtn,
+                    { backgroundColor: selectMode === item.value ? colors.primary : colors.surfaceAlt },
+                  ]}
+                >
+                  <Text style={{ color: selectMode === item.value ? 'white' : colors.text, fontWeight: '700', fontSize: fontSize.xs }}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           <View style={styles.locationRow}>
             {[
               { label: 'Đón', value: pickup.label, color: colors.primary },
@@ -223,12 +325,16 @@ export function MapPreview({ pickup, dropoff, height = 340, followUser = false, 
             ))}
           </View>
 
-          {routeInfo && (
+          {route && (
             <View style={[styles.routeChip, { backgroundColor: colors.primary }]}>
               <Text style={styles.routeText}>
-                {(routeInfo.distance / 1000).toFixed(1)} km · {Math.ceil(routeInfo.duration / 60)} phút
+                {(route.distanceMeters / 1000).toFixed(1)} km{route.duration ? ` · ${route.duration}` : ''}
               </Text>
             </View>
+          )}
+          {routeError && <Text style={{ color: colors.warning, fontSize: fontSize.xs }}>{routeError}</Text>}
+          {!styleUrl && (
+            <Text style={{ color: colors.warning, fontSize: fontSize.xs }}>Thiếu EXPO_PUBLIC_GOONG_MAP_KEY nên chưa tải được nền Goong.</Text>
           )}
 
           {showControls && (
@@ -239,51 +345,33 @@ export function MapPreview({ pickup, dropoff, height = 340, followUser = false, 
               activeOpacity={0.85}
             >
               <LocateFixed size={15} color="white" />
-              <Text style={styles.gpsBtnText}>
-                {locating ? 'Đang lấy GPS...' : 'Vị trí của tôi'}
-              </Text>
+              <Text style={styles.gpsBtnText}>{locating ? 'Đang lấy GPS...' : 'Vị trí của tôi'}</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* ─── Fullscreen Modal ─── */}
       <Modal
         visible={fullscreen}
         animationType="slide"
         statusBarTranslucent
+        presentationStyle="fullScreen"
         onRequestClose={() => setFullscreen(false)}
       >
-        <View style={[styles.fullscreenContainer, { paddingTop: insets.top, backgroundColor: '#0f172a' }]}>
-          {/* Fullscreen header */}
+        <View style={[styles.fullscreenContainer, { paddingTop: insets.top, backgroundColor: colors.background }]}>
           <View style={[styles.fullscreenHeader, { backgroundColor: colors.primary }]}>
             <View style={styles.locationRow}>
-              {[
-                { label: 'Đón', value: pickup.label, color: '#93c5fd' },
-                { label: 'Đến', value: dropoff.label, color: '#fca5a5' },
-              ].map((item) => (
-                <View key={item.label} style={styles.locationItem}>
-                  <MapPin size={13} color={item.color} />
-                  <Text numberOfLines={1} style={[styles.locationText, { color: 'white', flex: 1 }]}>
-                    <Text style={{ color: item.color, fontWeight: '700' }}>{item.label}: </Text>
-                    {item.value}
-                  </Text>
-                </View>
-              ))}
+              <Text numberOfLines={1} style={{ color: 'white', fontWeight: '800' }}>Bản đồ Goong</Text>
+              {route && (
+                <Text style={styles.fullscreenRouteText}>
+                  {(route.distanceMeters / 1000).toFixed(1)} km{route.duration ? ` · ${route.duration}` : ''}
+                </Text>
+              )}
             </View>
-
-            {routeInfo && (
-              <Text style={styles.fullscreenRouteText}>
-                {(routeInfo.distance / 1000).toFixed(1)} km · {Math.ceil(routeInfo.duration / 60)} phút
-              </Text>
-            )}
           </View>
 
-          {/* Full map */}
           <View style={{ flex: 1 }}>
-            {mapWebView(fullscreenWebViewRef, '100%')}
-
-            {/* Minimize + GPS buttons overlay */}
+            {mapView(fullscreenCameraRef, '100%')}
             <View style={styles.overlayButtons}>
               {showControls && (
                 <TouchableOpacity
@@ -315,6 +403,28 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     overflow: 'hidden',
   },
+  pin: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'white',
+    ...shadows.md,
+  },
+  pinText: {
+    color: 'white',
+    fontWeight: '900',
+    fontSize: fontSize.sm,
+  },
+  userDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 3,
+    backgroundColor: '#2563eb',
+  },
   expandBtn: {
     position: 'absolute',
     top: 10,
@@ -324,16 +434,34 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    ...shadows.md,
     zIndex: 10,
+  },
+  centerBtn: {
+    position: 'absolute',
+    right: spacing.md,
+    bottom: spacing.md,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.md,
   },
   infoBar: {
     padding: spacing.md,
     gap: spacing.sm,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  modeBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.full,
   },
   locationRow: {
     gap: spacing.xs,
@@ -378,13 +506,11 @@ const styles = StyleSheet.create({
   fullscreenHeader: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    gap: spacing.xs,
   },
   fullscreenRouteText: {
     color: 'rgba(255,255,255,0.85)',
     fontSize: fontSize.xs,
     fontWeight: '600',
-    marginTop: spacing.xs,
   },
   overlayButtons: {
     position: 'absolute',
@@ -398,10 +524,6 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
+    ...shadows.lg,
   },
 });

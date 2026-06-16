@@ -127,17 +127,21 @@ export async function startDriverLocationWatch(
       distanceInterval: 5,
     },
     async (position) => {
-      const location = await upsertDriverLocation({
-        bookingId,
-        driverId,
-        phase,
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        heading: position.coords.heading,
-        speed: position.coords.speed,
-        accuracy: position.coords.accuracy,
-      });
-      onChange(location);
+      try {
+        const location = await upsertDriverLocation({
+          bookingId,
+          driverId,
+          phase,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          heading: position.coords.heading,
+          speed: position.coords.speed,
+          accuracy: position.coords.accuracy,
+        });
+        onChange(location);
+      } catch (error) {
+        console.warn('Không thể cập nhật GPS tài xế', error);
+      }
     }
   );
 }

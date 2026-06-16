@@ -1,11 +1,15 @@
-import React, { useMemo } from 'react';
-import { Text, View } from 'react-native';
-import { WebView } from 'react-native-webview';
-import { MapPin, Navigation } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Toast from 'react-native-toast-message';
+import { Car, Crosshair, Expand, LocateFixed, MapPin, Navigation, Route } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { Button } from '@/components/BaseComponents';
+import { BOOKING_STATUS, TERMINAL_BOOKING_STATUSES } from '@/constants';
 import { DriverLocation } from '@/types';
 import { getDistanceMeters } from '@/services/driverLocation';
+import { DrivingRoute, getDrivingRoute, LatLng } from '@/services/mapRouteService';
+import { getNativeMapLibre, NativeMapUnavailable } from '@/components/NativeMapLibre';
 
 interface MapPoint {
   label: string;
@@ -17,184 +21,312 @@ interface RealtimeTripMapProps {
   pickup: MapPoint;
   dropoff: MapPoint;
   driverLocation?: DriverLocation | null;
+  bookingStatus?: string;
   height?: number;
+  expanded?: boolean;
+  showControls?: boolean;
+  onExpand?: () => void;
+  onOpenExternalMap?: () => void;
 }
 
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+const pointToLatLng = (point: MapPoint): LatLng => ({
+  latitude: point.latitude,
+  longitude: point.longitude,
+});
 
-const createMapHtml = (pickup: MapPoint, dropoff: MapPoint, driverLocation?: DriverLocation | null) => {
-  const driverMarker = driverLocation
-    ? `
-      const driverEl = document.createElement('div');
-      driverEl.className = 'driver-marker';
-      driverEl.innerHTML = '<span>TX</span>';
-      new maplibregl.Marker({ element: driverEl })
-        .setLngLat([${driverLocation.longitude}, ${driverLocation.latitude}])
-        .setPopup(new maplibregl.Popup({ offset: 18 }).setText('Tài xế đang di chuyển'))
-        .addTo(map);
-    `
-    : '';
-  const coordinates = [
-    ...(driverLocation ? [[driverLocation.longitude, driverLocation.latitude]] : []),
-    [pickup.longitude, pickup.latitude],
-    [dropoff.longitude, dropoff.latitude],
-  ];
+const locationToLatLng = (location: DriverLocation): LatLng => ({
+  latitude: location.latitude,
+  longitude: location.longitude,
+});
 
-  return `
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
-    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-    <style>
-      html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #eef2f7; touch-action: none; }
-      .maplibregl-ctrl-attrib { font-size: 10px; }
-      .pin {
-        width: 30px;
-        height: 30px;
-        border-radius: 18px 18px 18px 4px;
-        transform: rotate(-45deg);
-        border: 3px solid white;
-        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.25);
-      }
-      .pin span {
-        display: block;
-        transform: rotate(45deg);
-        color: white;
-        font: 800 12px system-ui;
-        text-align: center;
-        line-height: 24px;
-      }
-      .pickup { background: #2563eb; }
-      .dropoff { background: #ef4444; }
-      .driver-marker {
-        width: 38px;
-        height: 38px;
-        border-radius: 19px;
-        display: grid;
-        place-items: center;
-        background: #16a34a;
-        border: 3px solid white;
-        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28);
-      }
-      .driver-marker span { color: white; font: 900 11px system-ui; }
-    </style>
-  </head>
-  <body>
-    <div id="map"></div>
-    <script>
-      const pickup = [${pickup.longitude}, ${pickup.latitude}];
-      const dropoff = [${dropoff.longitude}, ${dropoff.latitude}];
-      const map = new maplibregl.Map({
-        container: 'map',
-        center: pickup,
-        zoom: 12,
-        dragPan: true,
-        scrollZoom: true,
-        touchZoomRotate: true,
-        doubleClickZoom: true,
-        attributionControl: true,
-        style: {
-          version: 8,
-          sources: {
-            carto: {
-              type: 'raster',
-              tiles: [
-                'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-                'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-                'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
-              ],
-              tileSize: 256,
-              attribution: '&copy; OpenStreetMap &copy; CARTO'
-            }
-          },
-          layers: [{ id: 'carto', type: 'raster', source: 'carto' }]
-        }
-      });
-      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+const toLngLat = (point: LatLng): [number, number] => [point.longitude, point.latitude];
 
-      function makePin(className, label) {
-        const el = document.createElement('div');
-        el.className = 'pin ' + className;
-        el.innerHTML = '<span>' + label + '</span>';
-        return el;
-      }
+const isTerminalStatus = (status?: string) =>
+  !!status && TERMINAL_BOOKING_STATUSES.includes(status as any);
 
-      new maplibregl.Marker({ element: makePin('pickup', 'A') })
-        .setLngLat(pickup)
-        .setPopup(new maplibregl.Popup({ offset: 18 }).setText('${escapeHtml(pickup.label)}'))
-        .addTo(map);
+const shouldRouteToDropoff = (status?: string) => status === BOOKING_STATUS.TRIP_STARTED;
 
-      new maplibregl.Marker({ element: makePin('dropoff', 'B') })
-        .setLngLat(dropoff)
-        .setPopup(new maplibregl.Popup({ offset: 18 }).setText('${escapeHtml(dropoff.label)}'))
-        .addTo(map);
-
-      ${driverMarker}
-
-      map.on('load', () => {
-        map.addSource('route', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            geometry: { type: 'LineString', coordinates: ${JSON.stringify(coordinates)} }
-          }
-        });
-        map.addLayer({
-          id: 'route-line',
-          type: 'line',
-          source: 'route',
-          paint: {
-            'line-color': '#2563eb',
-            'line-width': 5,
-            'line-opacity': 0.88
-          },
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
-          }
-        });
-        const bounds = coordinates.reduce((box, coord) => box.extend(coord), new maplibregl.LngLatBounds(coordinates[0], coordinates[0]));
-        map.fitBounds(bounds, { padding: 44, maxZoom: 16 });
-      });
-    </script>
-  </body>
-</html>`;
+const goongStyleUrl = () => {
+  const mapKey = process.env.EXPO_PUBLIC_GOONG_MAP_KEY;
+  if (!mapKey) return null;
+  return `https://tiles.goong.io/assets/goong_map_web.json?api_key=${encodeURIComponent(mapKey)}`;
 };
+
+const fallbackMapStyle = {
+  version: 8,
+  sources: {},
+  layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#dbeafe' } }],
+} as any;
+
+const distanceToRouteMeters = (point: LatLng, route: LatLng[]) => {
+  if (route.length === 0) return Infinity;
+  return Math.min(...route.map((routePoint) => getDistanceMeters(point, routePoint)));
+};
+
+const getBounds = (points: LatLng[]): [number, number, number, number] => {
+  const lngs = points.map((point) => point.longitude);
+  const lats = points.map((point) => point.latitude);
+  return [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
+};
+
+const routeFeature = (route: DrivingRoute | null) => ({
+  type: 'FeatureCollection',
+  features: route?.coordinates?.length
+    ? [
+        {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: route.coordinates.map(toLngLat),
+          },
+        },
+      ]
+    : [],
+});
+
+function PinMarker({ label, color }: { label: string; color: string }) {
+  return (
+    <View style={[styles.pin, { backgroundColor: color }]}>
+      <Text style={styles.pinText}>{label}</Text>
+    </View>
+  );
+}
+
+function DriverMarker({ heading }: { heading?: number | null }) {
+  return (
+    <View style={[styles.driverMarker, { transform: [{ rotate: `${heading ?? 0}deg` }] }]}>
+      <Car size={18} color="white" />
+    </View>
+  );
+}
 
 export function RealtimeTripMap({
   pickup,
   dropoff,
   driverLocation,
+  bookingStatus,
   height = 540,
+  expanded = false,
+  showControls = true,
+  onExpand,
+  onOpenExternalMap,
 }: RealtimeTripMapProps) {
   const { colors } = useTheme();
-  const driverPoint = driverLocation
-    ? { latitude: driverLocation.latitude, longitude: driverLocation.longitude }
-    : null;
-  const html = useMemo(() => createMapHtml(pickup, dropoff, driverLocation), [pickup, dropoff, driverLocation]);
-  const distanceToPickup = driverPoint ? getDistanceMeters(driverPoint, pickup) : null;
-  const distanceToDropoff = driverPoint ? getDistanceMeters(driverPoint, dropoff) : null;
+  const nativeMap = getNativeMapLibre();
+  const cameraRef = useRef<any>(null);
+  const lastRouteOriginRef = useRef<LatLng | null>(null);
+  const lastRouteAtRef = useRef(0);
+  const [route, setRoute] = useState<DrivingRoute | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [followDriver, setFollowDriver] = useState(false);
+
+  const styleUrl = goongStyleUrl();
+  const Camera = nativeMap?.Camera;
+  const GeoJSONSource = nativeMap?.GeoJSONSource;
+  const Layer = nativeMap?.Layer;
+  const Map = nativeMap?.Map;
+  const Marker = nativeMap?.Marker;
+  const pickupPoint = pointToLatLng(pickup);
+  const dropoffPoint = pointToLatLng(dropoff);
+  const driverPoint = driverLocation ? locationToLatLng(driverLocation) : null;
+  const hasActiveDriverRoute = !!driverPoint && !isTerminalStatus(bookingStatus);
+  const routeOrigin = hasActiveDriverRoute ? driverPoint : pickupPoint;
+  const routeDestination = hasActiveDriverRoute
+    ? shouldRouteToDropoff(bookingStatus)
+      ? dropoffPoint
+      : pickupPoint
+    : dropoffPoint;
+  const distanceToPickup = driverPoint ? getDistanceMeters(driverPoint, pickupPoint) : null;
+  const distanceToDropoff = driverPoint ? getDistanceMeters(driverPoint, dropoffPoint) : null;
+
+  const routeGeoJSON = useMemo(() => routeFeature(route), [route?.encodedPolyline]);
+
+  const fitRoute = useCallback((animated = true) => {
+    const fitPoints = route?.coordinates?.length
+      ? route.coordinates
+      : [pickupPoint, dropoffPoint, ...(driverPoint ? [driverPoint] : [])];
+    if (fitPoints.length < 2) return;
+    cameraRef.current?.fitBounds(getBounds(fitPoints), {
+      padding: { top: 56, right: 42, bottom: expanded ? 96 : 64, left: 42 },
+      duration: animated ? 650 : 0,
+      easing: 'ease',
+    });
+  }, [route?.encodedPolyline, pickupPoint.latitude, pickupPoint.longitude, dropoffPoint.latitude, dropoffPoint.longitude, driverPoint?.latitude, driverPoint?.longitude, expanded]);
+
+  const centerOnDriver = useCallback(() => {
+    if (!driverPoint) {
+      Toast.show({ type: 'info', text1: 'Chưa có GPS tài xế', text2: 'Hãy bật chia sẻ GPS realtime để bám theo vị trí tài xế.' });
+      return;
+    }
+    setFollowDriver(true);
+    cameraRef.current?.flyTo({
+      center: toLngLat(driverPoint),
+      zoom: 16,
+      pitch: 45,
+      bearing: driverLocation?.heading ?? 0,
+      duration: 650,
+      easing: 'ease',
+    });
+  }, [driverPoint?.latitude, driverPoint?.longitude, driverLocation?.heading]);
+
+  const loadRoute = useCallback(async (reason: 'initial' | 'manual' | 'deviation' | 'status' = 'initial') => {
+    try {
+      setRouteLoading(true);
+      setRouteError(null);
+      if (reason === 'deviation' && driverPoint) {
+        Toast.show({
+          type: 'info',
+          text1: 'Bạn đang đi lệch lộ trình',
+          text2: 'Hệ thống đang tính lại đường đi bằng Goong.',
+        });
+      }
+
+      const nextRoute = await getDrivingRoute(routeOrigin, routeDestination);
+      setRoute(nextRoute);
+      lastRouteOriginRef.current = routeOrigin;
+      lastRouteAtRef.current = Date.now();
+
+      if (reason === 'manual' || reason === 'deviation') {
+        Toast.show({ type: 'success', text1: 'Đã cập nhật lộ trình Goong' });
+      }
+    } catch (error: any) {
+      setRoute(null);
+      setRouteError(error.message || 'Không thể tải lộ trình Goong. Vui lòng thử lại.');
+      Toast.show({
+        type: 'error',
+        text1: 'Không thể tải lộ trình Goong',
+        text2: error.message,
+      });
+    } finally {
+      setRouteLoading(false);
+    }
+  }, [driverPoint, routeOrigin.latitude, routeOrigin.longitude, routeDestination.latitude, routeDestination.longitude]);
+
+  useEffect(() => {
+    setRoute(null);
+    loadRoute('status');
+  }, [bookingStatus, routeOrigin.latitude, routeOrigin.longitude, routeDestination.latitude, routeDestination.longitude]);
+
+  useEffect(() => {
+    if (route) fitRoute(false);
+  }, [route?.encodedPolyline]);
+
+  useEffect(() => {
+    if (!driverPoint || isTerminalStatus(bookingStatus)) return;
+    if (followDriver) {
+      cameraRef.current?.flyTo({
+        center: toLngLat(driverPoint),
+        zoom: 16,
+        pitch: 45,
+        bearing: driverLocation?.heading ?? 0,
+        duration: 500,
+        easing: 'linear',
+      });
+    }
+
+    if (!route) {
+      loadRoute('initial');
+      return;
+    }
+
+    const lastOrigin = lastRouteOriginRef.current;
+    const movedSinceRoute = lastOrigin ? getDistanceMeters(lastOrigin, driverPoint) : Infinity;
+    const routeAge = Date.now() - lastRouteAtRef.current;
+    const deviation = distanceToRouteMeters(driverPoint, route.coordinates);
+
+    if (deviation > 90 || movedSinceRoute > 350 || routeAge > 60_000) {
+      loadRoute(deviation > 90 ? 'deviation' : 'initial');
+    }
+  }, [driverPoint?.latitude, driverPoint?.longitude, driverLocation?.heading]);
 
   return (
     <View style={{ borderRadius: borderRadius.lg, overflow: 'hidden', backgroundColor: colors.surfaceAlt }}>
-      <WebView
-        originWhitelist={['*']}
-        source={{ html }}
-        javaScriptEnabled
-        domStorageEnabled
-        nestedScrollEnabled
-        scrollEnabled
-        mixedContentMode="always"
-        style={{ width: '100%', height, backgroundColor: colors.surfaceAlt }}
-      />
+      <View style={{ height, backgroundColor: colors.surfaceAlt }}>
+        {nativeMap && Camera && GeoJSONSource && Layer && Map && Marker ? (
+          <Map
+            mapStyle={styleUrl ?? fallbackMapStyle}
+            style={StyleSheet.absoluteFill}
+            androidView="texture"
+            compass
+            attribution
+            logo={false}
+            dragPan
+            touchZoom
+            touchRotate
+            touchPitch
+            onPress={() => setFollowDriver(false)}
+          >
+            <Camera
+              ref={cameraRef}
+              initialViewState={{
+                bounds: getBounds([pickupPoint, dropoffPoint]),
+                padding: { top: 56, right: 42, bottom: 64, left: 42 },
+                zoom: 13,
+              }}
+            />
+
+            {route && (
+              <GeoJSONSource id="route-source" data={routeGeoJSON as any}>
+                <Layer
+                  id="route-outline"
+                  type="line"
+                  style={{
+                    lineColor: '#ffffff',
+                    lineWidth: 10,
+                    lineOpacity: 0.86,
+                    lineJoin: 'round',
+                    lineCap: 'round',
+                  } as any}
+                />
+                <Layer
+                  id="route-line"
+                  type="line"
+                  style={{
+                    lineColor: colors.primary,
+                    lineWidth: 6,
+                    lineOpacity: 0.96,
+                    lineJoin: 'round',
+                    lineCap: 'round',
+                  } as any}
+                />
+              </GeoJSONSource>
+            )}
+
+            <Marker id="pickup" lngLat={toLngLat(pickupPoint)} anchor="bottom">
+              <PinMarker label="A" color={colors.primary} />
+            </Marker>
+            <Marker id="dropoff" lngLat={toLngLat(dropoffPoint)} anchor="bottom">
+              <PinMarker label="B" color={colors.error} />
+            </Marker>
+            {driverPoint && (
+              <Marker id="driver" lngLat={toLngLat(driverPoint)} anchor="center">
+                <DriverMarker heading={driverLocation?.heading} />
+              </Marker>
+            )}
+          </Map>
+        ) : (
+          <NativeMapUnavailable height={height} />
+        )}
+
+        <View style={styles.mapButtons}>
+          <TouchableOpacity
+            onPress={() => fitRoute(true)}
+            activeOpacity={0.82}
+            style={[styles.floatingButton, { backgroundColor: colors.surface }]}
+          >
+            <Crosshair size={18} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={centerOnDriver}
+            activeOpacity={0.82}
+            style={[styles.floatingButton, { backgroundColor: followDriver ? colors.primary : colors.surface }]}
+          >
+            <LocateFixed size={18} color={followDriver ? 'white' : colors.primary} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <View style={{ padding: spacing.md, gap: spacing.sm }}>
         <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
@@ -209,12 +341,95 @@ export function RealtimeTripMap({
             Đến: {dropoff.label}
           </Text>
         </View>
-        <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
-          {driverPoint
-            ? `Tài xế cách điểm đón ${Math.round(distanceToPickup ?? 0)}m, cách điểm đến ${Math.round(distanceToDropoff ?? 0)}m.`
-            : 'Đang chờ tài xế bật chia sẻ GPS.'}
+        <Text style={{ color: routeError ? colors.warning : colors.textSecondary, fontSize: fontSize.sm }}>
+          {routeError ||
+            (driverPoint
+              ? `Cách điểm đón ${Math.round(distanceToPickup ?? 0)}m, cách điểm đến ${Math.round(distanceToDropoff ?? 0)}m.`
+              : 'Đang chờ tài xế bật chia sẻ GPS realtime.')}
         </Text>
+        {route && (
+          <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
+            Lộ trình Goong: {(route.distanceMeters / 1000).toFixed(1)} km{route.duration ? ` - ${route.duration}` : ''}
+          </Text>
+        )}
+        {!styleUrl && (
+          <Text style={{ color: colors.warning, fontSize: fontSize.sm }}>
+            Chưa cấu hình EXPO_PUBLIC_GOONG_MAP_KEY nên chưa tải được nền Goong.
+          </Text>
+        )}
+
+        {showControls && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm }}>
+            <Button
+              label={expanded ? 'Thu gọn' : 'Mở rộng'}
+              onPress={onExpand ?? (() => undefined)}
+              size="sm"
+              variant="outline"
+              icon={<Expand size={16} color={colors.primary} />}
+              style={{ flexGrow: 1 }}
+            />
+            <Button
+              label={routeLoading ? 'Đang tải...' : 'Tải lộ trình Goong'}
+              onPress={() => loadRoute('manual')}
+              size="sm"
+              loading={routeLoading}
+              icon={<Route size={16} color="white" />}
+              style={{ flexGrow: 1 }}
+            />
+            <Button
+              label="Mở app bản đồ"
+              onPress={onOpenExternalMap ?? (() => undefined)}
+              size="sm"
+              variant="secondary"
+              icon={<Car size={16} color={colors.text} />}
+              style={{ flexGrow: 1 }}
+            />
+          </View>
+        )}
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  pin: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'white',
+    ...shadows.md,
+  },
+  pinText: {
+    color: 'white',
+    fontWeight: '900',
+    fontSize: fontSize.sm,
+  },
+  driverMarker: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'white',
+    backgroundColor: '#10b981',
+    ...shadows.lg,
+  },
+  mapButtons: {
+    position: 'absolute',
+    right: spacing.md,
+    bottom: spacing.md,
+    gap: spacing.sm,
+  },
+  floatingButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.md,
+  },
+});

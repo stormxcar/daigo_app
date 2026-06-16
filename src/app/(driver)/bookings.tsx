@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import { Briefcase } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
@@ -11,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { apiClient } from '@/services/api';
 import { supabase } from '@/services/supabase';
 import { Booking } from '@/types';
+import { BOOKING_STATUS, TERMINAL_BOOKING_STATUSES } from '@/constants';
 
 export default function DriverBookings() {
   const { colors } = useTheme();
@@ -19,15 +21,20 @@ export default function DriverBookings() {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(8);
+  const [dismissedOfferId, setDismissedOfferId] = useState<string | null>(null);
+  const offerSheetRef = React.useRef<BottomSheetModal>(null);
 
   const visibleBookings = useMemo(
     () =>
       bookings.filter(
         (booking) =>
-          booking.status === 'Chờ xác nhận' ||
+          booking.status === BOOKING_STATUS.SEARCHING_DRIVER ||
           booking.driverId === user?.id
       ),
     [bookings, user?.id]
+  );
+  const pendingOffer = visibleBookings.find(
+    (booking) => booking.status === BOOKING_STATUS.SEARCHING_DRIVER && booking.id !== dismissedOfferId
   );
 
   const fetchBookings = async () => {
@@ -56,12 +63,21 @@ export default function DriverBookings() {
     };
   }, [user?.id]);
 
+  useEffect(() => {
+    if (pendingOffer) {
+      offerSheetRef.current?.present();
+    } else {
+      offerSheetRef.current?.dismiss();
+    }
+  }, [pendingOffer?.id]);
+
   const handleAccept = async (bookingId: string) => {
     if (!user) return;
 
     try {
       setLoadingId(bookingId);
       await apiClient.acceptBooking(bookingId, user.id);
+      offerSheetRef.current?.dismiss();
       await fetchBookings();
     } catch (error: any) {
       Alert.alert('Không thể xác nhận chuyến', error.message);
@@ -113,7 +129,7 @@ export default function DriverBookings() {
             </View>
           )}
           <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
-            {booking.status === 'Chờ xác nhận' && (
+            {booking.status === BOOKING_STATUS.SEARCHING_DRIVER && (
               <Button
                 label="Xác nhận"
                 onPress={() => handleAccept(booking.id)}
@@ -122,7 +138,7 @@ export default function DriverBookings() {
                 style={{ flex: 1 }}
               />
             )}
-            {booking.status !== 'Đã hủy' && booking.status !== 'Hoàn thành' && (
+            {!TERMINAL_BOOKING_STATUSES.includes(booking.status as any) && (
               <Button
                 label="Hủy"
                 onPress={() => handleCancel(booking.id)}
@@ -150,6 +166,55 @@ export default function DriverBookings() {
           variant="outline"
         />
       )}
+
+      <BottomSheetModal
+        ref={offerSheetRef}
+        snapPoints={['46%']}
+        enablePanDownToClose
+        onDismiss={() => pendingOffer && setDismissedOfferId(pendingOffer.id)}
+        backgroundStyle={{ backgroundColor: colors.surface }}
+        handleIndicatorStyle={{ backgroundColor: colors.border }}
+      >
+        {pendingOffer && (
+          <BottomSheetView style={{ padding: spacing.lg, gap: spacing.md }}>
+            <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>
+              Bạn có chuyến mới
+            </Text>
+            <Text style={{ color: colors.textSecondary }}>
+              {pendingOffer.bookingCode ?? 'Booking'} - {pendingOffer.passengers} khách
+            </Text>
+            <View style={{ padding: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt, gap: spacing.sm }}>
+              <Text style={{ color: colors.text, fontWeight: '800' }}>Điểm đón</Text>
+              <Text style={{ color: colors.textSecondary }}>{pendingOffer.pickupLocation}</Text>
+              <Text style={{ color: colors.text, fontWeight: '800', marginTop: spacing.sm }}>Điểm đến</Text>
+              <Text style={{ color: colors.textSecondary }}>{pendingOffer.dropoffLocation}</Text>
+              {!!pendingOffer.note && (
+                <>
+                  <Text style={{ color: colors.text, fontWeight: '800', marginTop: spacing.sm }}>Ghi chú</Text>
+                  <Text style={{ color: colors.textSecondary }}>{pendingOffer.note}</Text>
+                </>
+              )}
+            </View>
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <Button
+                label="Nhận chuyến"
+                onPress={() => handleAccept(pendingOffer.id)}
+                loading={loadingId === pendingOffer.id}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="Bỏ qua"
+                onPress={() => {
+                  setDismissedOfferId(pendingOffer.id);
+                  offerSheetRef.current?.dismiss();
+                }}
+                variant="outline"
+                style={{ flex: 1 }}
+              />
+            </View>
+          </BottomSheetView>
+        )}
+      </BottomSheetModal>
     </Screen>
   );
 }

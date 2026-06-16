@@ -69,7 +69,7 @@ export default function DriverLayout() {
           marginTop: 4,
         },
       }}
-      tabBar={(props: any) => <LiquidTabBar {...props} />}
+      tabBar={(props: any) => <LiquidTabBar {...props} maxTabs={6} />}
     >
       <Tabs.Screen
         name="dashboard"
@@ -83,7 +83,6 @@ export default function DriverLayout() {
       <Tabs.Screen
         name="vehicles"
         options={{
-          href: null,
           title: 'Xe',
           tabBarIcon: ({ color, size }) => (
             <Car color={color} size={size} />

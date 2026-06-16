@@ -1,9 +1,12 @@
 import React, { useEffect } from "react";
 import * as Linking from "expo-linking";
 import { Stack } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { apiClient } from "@/services/api";
 import { supabase } from "@/services/supabase";
 import { useAuthStore } from "@/stores/authStore";
+import { AppToast } from "@/components/AppToast";
 
 export default function RootLayout() {
   useEffect(() => {
@@ -58,15 +61,20 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        gestureEnabled: true,
-      }}
-    >
-      <Stack.Screen name="(auth)" options={{ animation: "none" }} />
-      <Stack.Screen name="(customer)" options={{ animation: "none" }} />
-      <Stack.Screen name="(driver)" options={{ animation: "none" }} />
-    </Stack>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <BottomSheetModalProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            gestureEnabled: true,
+          }}
+        >
+          <Stack.Screen name="(auth)" options={{ animation: "none" }} />
+          <Stack.Screen name="(customer)" options={{ animation: "none" }} />
+          <Stack.Screen name="(driver)" options={{ animation: "none" }} />
+        </Stack>
+        <AppToast />
+      </BottomSheetModalProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
+import Toast from 'react-native-toast-message';
 import { Heart, MessageCircle, Share2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
@@ -33,22 +34,33 @@ export default function BlogScreen() {
     setPosts((current) => current.map((post) => (post.id === updated.id ? updated : post)));
   };
 
+  const requireAuth = (action: string) => {
+    if (user) return true;
+    Toast.show({
+      type: 'warning',
+      text1: 'Bạn cần đăng nhập',
+      text2: `Vui lòng đăng nhập để ${action}.`,
+    });
+    router.push('/(auth)/login');
+    return false;
+  };
+
   const toggleLike = async (post: BlogPost) => {
-    if (!user) return;
+    if (!requireAuth('thích bài viết')) return;
     try {
-      updatePost(await apiClient.toggleBlogLike(post.id, user.id));
+      updatePost(await apiClient.toggleBlogLike(post.id, user!.id));
     } catch (error: any) {
-      Alert.alert('Không thể thả tim', error.message);
+      Toast.show({ type: 'error', text1: 'Không thể thả tim', text2: error.message });
     }
   };
 
   const sharePost = async (post: BlogPost) => {
-    if (!user) return;
+    if (!requireAuth('chia sẻ bài viết')) return;
     try {
-      updatePost(await apiClient.shareBlogPost(post.id, user.id));
-      Alert.alert('Đã chia sẻ', 'Lượt chia sẻ đã được lưu.');
+      updatePost(await apiClient.shareBlogPost(post.id, user!.id));
+      Toast.show({ type: 'success', text1: 'Đã chia sẻ', text2: 'Lượt chia sẻ đã được lưu.' });
     } catch (error: any) {
-      Alert.alert('Không thể chia sẻ', error.message);
+      Toast.show({ type: 'error', text1: 'Không thể chia sẻ', text2: error.message });
     }
   };
 
@@ -103,10 +115,16 @@ export default function BlogScreen() {
                 <Heart size={14} color={post.liked ? colors.error : colors.textSecondary} fill={post.liked ? colors.error : 'transparent'} />
                 <Text style={{ color: colors.textSecondary }}>{post.likes}</Text>
               </TouchableOpacity>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (!requireAuth('bình luận bài viết')) return;
+                  router.push({ pathname: '/(customer)/blog-detail' as any, params: { id: post.id } });
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
+              >
                 <MessageCircle size={14} color={colors.info} />
                 <Text style={{ color: colors.textSecondary }}>{post.comments}</Text>
-              </View>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => sharePost(post)} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
                 <Share2 size={14} color={colors.primary} />
                 <Text style={{ color: colors.textSecondary }}>{post.shares}</Text>
