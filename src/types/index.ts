@@ -134,6 +134,7 @@ export interface Message {
 
 export interface ChatConversation {
   id: string;
+  threadIds?: string[];
   participantId: string;
   participantName: string;
   participantPhone?: string;

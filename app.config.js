@@ -42,6 +42,16 @@ module.exports = {
           'Ứng dụng cần vị trí của bạn để hiển thị GPS và lộ trình chuyến đi trên bản đồ.',
       },
     ],
+    [
+      'expo-media-library',
+      {
+        photosPermission: 'Ứng dụng cần quyền truy cập thư viện ảnh để lưu ảnh bài viết về thiết bị.',
+        savePhotosPermission: 'Ứng dụng cần quyền lưu ảnh bài viết vào thư viện ảnh của bạn.',
+        isAccessMediaLocationEnabled: true,
+        isAudioEnabled: false,
+      },
+    ],
+    'expo-screen-orientation',
     '@maplibre/maplibre-react-native',
   ],
   scheme: 'daigobooking',

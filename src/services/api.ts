@@ -885,8 +885,6 @@ class ApiClient {
   }
 
   async shareBlogPost(postId: string, userId: string): Promise<BlogPost> {
-    const { error } = await supabase.from('blog_shares').insert({ post_id: postId, user_id: userId });
-    if (error) throw error;
     return this.getBlogPostById(postId);
   }
 
@@ -915,6 +913,7 @@ class ApiClient {
 
       return {
         id: row.id,
+        threadIds: [row.id],
         participantId: participant?.id ?? '',
         participantName: participant?.full_name ?? 'Tài xế sẽ xác nhận',
         participantPhone: participant?.phone ?? undefined,
@@ -946,6 +945,7 @@ class ApiClient {
       grouped.set(key, {
         ...existing,
         id: keepCurrentId ? conversation.id : existing.id,
+        threadIds: Array.from(new Set([...(existing.threadIds ?? [existing.id]), ...(conversation.threadIds ?? [conversation.id])])),
         unreadCount: existing.unreadCount + conversation.unreadCount,
         messages: mergedMessages,
         lastMessage: lastMessage?.text ?? existing.lastMessage,

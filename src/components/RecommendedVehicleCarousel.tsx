@@ -15,7 +15,7 @@ export const RecommendedVehicleCarousel: React.FC<{
   if (vehicles.length === 0) return null;
 
   return (
-    <View style={{ marginBottom: spacing.xl }}>
+    <View style={{ marginBottom: spacing.xl , paddingHorizontal: spacing.md}}>
       <Text style={{ fontSize: fontSize.base, fontWeight: '800', color: colors.text, marginBottom: spacing.md }}>
         Gợi ý xe
       </Text>

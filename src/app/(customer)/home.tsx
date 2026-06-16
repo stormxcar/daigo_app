@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { CalendarClock, Car, LocateFixed, MapPin, Phone, ShieldCheck, Star } from 'lucide-react-native';
@@ -162,15 +162,16 @@ const recommendedVehicles = availableVehicles.length > 0 ? availableVehicles : v
 const recentTrips = isLoggedIn ? bookings.slice(0, 6) : [];
 
   return (
-    <Screen scroll padding refreshing={refreshing || isLoading} onRefresh={refreshHome}>
+    <Screen scroll refreshing={refreshing || isLoading} onRefresh={refreshHome}>
       {/* ─── GREETING + LOGO SECTION (Grab pattern) ─── */}
-      <View style={{ marginBottom: spacing.xl }}>
+      <View style={{ marginBottom: spacing.xl, paddingHorizontal: spacing.md }}>
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
             marginBottom: spacing.sm,
+            marginTop: spacing.sm,
           }}
         >
           <View style={{ flex: 1 }}>
@@ -197,7 +198,7 @@ const recentTrips = isLoggedIn ? bookings.slice(0, 6) : [];
         </View>
       </View>
 
-      <Card style={{ marginBottom: spacing.xl, backgroundColor: colors.primary, borderRadius: borderRadius.xl }}>
+      <Card style={{ marginBottom: spacing.xl, backgroundColor: colors.primary}}>
         <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center', marginBottom: spacing.md }}>
           <View style={{ width: 48, height: 48, borderRadius: borderRadius.full, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
             <ShieldCheck size={24} color="white" />
@@ -217,7 +218,7 @@ const recentTrips = isLoggedIn ? bookings.slice(0, 6) : [];
         />
       </Card>
 
-      <Text style={{ fontSize: 18, fontWeight: '900', color: colors.text, marginBottom: spacing.md }}>
+      <Text style={{ fontSize: 18, fontWeight: '900', color: colors.text, marginBottom: spacing.md, paddingHorizontal: spacing.md }}>
         Xe và tài xế khả dụng
       </Text>
 
@@ -240,7 +241,7 @@ const recentTrips = isLoggedIn ? bookings.slice(0, 6) : [];
       )}
 
       <View style={{ marginBottom: spacing.xl }}>
-        <Text style={{ fontSize: 18, fontWeight: '900', color: colors.text, marginBottom: spacing.md }}>
+        <Text style={{ fontSize: 18, fontWeight: '900', color: colors.text, marginBottom: spacing.md, paddingHorizontal: spacing.md }}>
           Hành động nhanh
         </Text>
         <TouchableOpacity

@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-native';
-import Toast from 'react-native-toast-message';
+﻿import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
-import { Calendar, Car, Clock, LocateFixed, MapPin, Search, Users } from 'lucide-react-native';
+import { Calendar, Car, ChevronDown, ChevronUp, Clock, LocateFixed, MapPin, Search, SlidersHorizontal, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, TextInput } from '@/components/BaseComponents';
@@ -16,14 +15,18 @@ import { MapPreview } from '@/components/MapPreview';
 import { getCurrentDeviceLocation } from '@/services/deviceLocation';
 import { TERMINAL_BOOKING_STATUSES } from '@/constants';
 import { isoDateToVietnamDate, vietnamDateToIsoDate } from '@/utils/helpers';
+import { showError, showSuccess } from '@/utils/toast';
 
-type SortMode = 'price_asc' | 'price_desc' | 'seats_desc';
+type SortMode = 'price_asc' | 'price_desc' | 'seats_desc' | 'seats_asc' | 'brand_asc' | 'name_asc';
 
 const quickTimes = ['07:00', '09:00', '12:00', '15:00', '18:00', '20:00'];
 const sortOptions: { label: string; value: SortMode }[] = [
   { label: 'Giá thấp', value: 'price_asc' },
   { label: 'Giá cao', value: 'price_desc' },
   { label: 'Nhiều chỗ', value: 'seats_desc' },
+  { label: 'Ít chỗ', value: 'seats_asc' },
+  { label: 'Hãng A-Z', value: 'brand_asc' },
+  { label: 'Tên A-Z', value: 'name_asc' },
 ];
 
 export default function BookingScreen() {
@@ -34,10 +37,15 @@ export default function BookingScreen() {
   const [dateInput, setDateInput] = useState(isoDateToVietnamDate(new Date().toISOString().slice(0, 10)));
   const [time, setTime] = useState('09:00');
   const [passengers, setPassengers] = useState('2');
+  const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
+  const [minSeats, setMinSeats] = useState('');
+  const [brandFilter, setBrandFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'Sẵn sàng' | 'Đang bận' | 'Bảo trì'>('all');
   const [note, setNote] = useState('');
   const [onlyAvailable, setOnlyAvailable] = useState(true);
   const [sortMode, setSortMode] = useState<SortMode>('price_asc');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const [vehiclesData, setVehiclesData] = useState<Vehicle[]>([]);
@@ -60,7 +68,7 @@ export default function BookingScreen() {
     apiClient
       .getVehicles()
       .then(setVehiclesData)
-      .catch((error) => Alert.alert('Không thể tải xe', error.message))
+      .catch((error) => showError('Không thể tải xe', error.message))
       .finally(() => setIsLoadingVehicles(false));
   };
 
@@ -107,28 +115,49 @@ export default function BookingScreen() {
 
   const vehicles = useMemo(() => {
     const priceLimit = Number(maxPrice) || Infinity;
+    const priceMin = Number(minPrice) || 0;
+    const seatsMin = Number(minSeats) || passengerCount;
 
     return vehiclesData
       .filter((vehicle) => vehicle.seats >= passengerCount)
-      .filter((vehicle) => vehicle.pricePerKm <= priceLimit)
+      .filter((vehicle) => vehicle.seats >= seatsMin)
+      .filter((vehicle) => vehicle.pricePerKm >= priceMin && vehicle.pricePerKm <= priceLimit)
+      .filter((vehicle) => brandFilter === 'all' || vehicle.brand === brandFilter)
+      .filter((vehicle) => statusFilter === 'all' || vehicle.status === statusFilter)
       .filter((vehicle) => !onlyAvailable || vehicleAvailability(vehicle))
       .sort((a, b) => {
         if (sortMode === 'price_desc') return b.pricePerKm - a.pricePerKm;
         if (sortMode === 'seats_desc') return b.seats - a.seats;
+        if (sortMode === 'seats_asc') return a.seats - b.seats;
+        if (sortMode === 'brand_asc') return a.brand.localeCompare(b.brand);
+        if (sortMode === 'name_asc') return a.name.localeCompare(b.name);
         return a.pricePerKm - b.pricePerKm;
       });
-  }, [vehiclesData, passengerCount, maxPrice, onlyAvailable, sortMode, bookedVehicleIds]);
+  }, [vehiclesData, passengerCount, minSeats, minPrice, maxPrice, brandFilter, statusFilter, onlyAvailable, sortMode, bookedVehicleIds]);
 
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
+  const brandOptions = useMemo(
+    () => Array.from(new Set(vehiclesData.map((vehicle) => vehicle.brand).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [vehiclesData]
+  );
+  const activeFilterCount = [
+    minPrice,
+    maxPrice,
+    minSeats,
+    brandFilter !== 'all' ? brandFilter : '',
+    statusFilter !== 'all' ? statusFilter : '',
+    onlyAvailable ? 'available' : '',
+    sortMode !== 'price_asc' ? sortMode : '',
+  ].filter(Boolean).length;
 
   const handleSearch = async () => {
     if (!pickupPoint || !dropoffPoint || !dateInput || !time || !passengers) {
-      Toast.show({ type: 'error', text1: 'Thiếu thông tin', text2: 'Vui lòng nhập điểm đón, điểm đến, ngày, giờ và số người.' });
+      showError('Thiếu thông tin', 'Vui lòng nhập điểm đón, điểm đến, ngày, giờ và số người.');
       return;
     }
 
     if (!bookingDate) {
-      Toast.show({ type: 'error', text1: 'Ngày chưa hợp lệ', text2: 'Vui lòng nhập theo định dạng dd/MM/yyyy.' });
+      showError('Ngày chưa hợp lệ', 'Vui lòng nhập theo định dạng dd/MM/yyyy.');
       return;
     }
 
@@ -146,6 +175,7 @@ export default function BookingScreen() {
 
     setSearched(true);
     setSelectedVehicleId(vehicles[0]?.id ?? null);
+    showSuccess('Đã tìm xe phù hợp', `${vehicles.length} xe khớp với thông tin chuyến đi.`);
   };
 
   const handleUseCurrentLocation = async () => {
@@ -162,7 +192,7 @@ export default function BookingScreen() {
       setPickupLocation(point.label);
       setPickupSuggestions([]);
     } catch (error: any) {
-      Alert.alert('Không thể lấy vị trí', error.message);
+      showError('Không thể lấy vị trí', error.message);
     } finally {
       setGpsLoading(false);
     }
@@ -170,12 +200,12 @@ export default function BookingScreen() {
 
   const handleCreateBooking = () => {
     if (!selectedVehicle) {
-      Toast.show({ type: 'error', text1: 'Chưa chọn xe', text2: 'Vui lòng chọn một xe phù hợp trước khi đặt.' });
+      showError('Chưa chọn xe', 'Vui lòng chọn một xe phù hợp trước khi đặt.');
       return;
     }
 
     if (!pickupPoint || !dropoffPoint || !bookingDate) {
-      Toast.show({ type: 'error', text1: 'Thông tin chưa hợp lệ', text2: 'Vui lòng kiểm tra điểm đón, điểm đến và ngày đi.' });
+      showError('Thông tin chưa hợp lệ', 'Vui lòng kiểm tra điểm đón, điểm đến và ngày đi.');
       return;
     }
 
@@ -203,7 +233,7 @@ export default function BookingScreen() {
   }
 
   return (
-    <Screen scroll padding refreshing={isLoadingVehicles} onRefresh={loadVehicles}>
+    <Screen scroll refreshing={isLoadingVehicles} onRefresh={loadVehicles}>
       <Card style={{ marginBottom: spacing.lg }}>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: spacing.md }}>
           Tìm chuyến đi
@@ -337,57 +367,201 @@ export default function BookingScreen() {
           ))}
         </View>
 
-        <View style={{ flexDirection: 'row', gap: spacing.md }}>
-          <TextInput
-            label="Số người"
-            placeholder="2"
-            value={passengers}
-            onChangeText={setPassengers}
-            keyboardType="numeric"
-            icon={<Users size={18} color={colors.textSecondary} />}
-            style={{ flex: 1, marginBottom: spacing.md }}
-          />
-          <TextInput
-            label="Giá tối đa/km"
-            placeholder="20000"
-            value={maxPrice}
-            onChangeText={setMaxPrice}
-            keyboardType="numeric"
-            style={{ flex: 1, marginBottom: spacing.md }}
-          />
-        </View>
+        <TextInput
+          label="Số người"
+          placeholder="2"
+          value={passengers}
+          onChangeText={setPassengers}
+          keyboardType="numeric"
+          icon={<Users size={18} color={colors.textSecondary} />}
+          style={{ marginBottom: spacing.md }}
+        />
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg }}>
-          <TouchableOpacity
-            onPress={() => setOnlyAvailable((value) => !value)}
-            style={{
-              paddingVertical: spacing.sm,
-              paddingHorizontal: spacing.md,
-              borderRadius: borderRadius.full,
-              backgroundColor: onlyAvailable ? colors.primary : colors.surfaceAlt,
-            }}
-          >
-            <Text style={{ color: onlyAvailable ? 'white' : colors.text, fontWeight: '600' }}>
-              Xe trống đúng giờ
-            </Text>
-          </TouchableOpacity>
-          {sortOptions.map((option) => (
+        <TouchableOpacity
+          onPress={() => setFiltersExpanded((value) => !value)}
+          activeOpacity={0.84}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: spacing.md,
+            borderRadius: borderRadius.lg,
+            backgroundColor: colors.surfaceAlt,
+            marginBottom: spacing.md,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <SlidersHorizontal size={18} color={colors.primary} />
+            <Text style={{ color: colors.text, fontWeight: '900' }}>Bộ lọc và sắp xếp</Text>
+            {activeFilterCount > 0 && (
+              <View style={{ minWidth: 22, height: 22, borderRadius: borderRadius.full, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: 'white', fontSize: fontSize.xs, fontWeight: '900' }}>{activeFilterCount}</Text>
+              </View>
+            )}
+          </View>
+          {filtersExpanded ? <ChevronUp size={18} color={colors.text} /> : <ChevronDown size={18} color={colors.text} />}
+        </TouchableOpacity>
+
+        {filtersExpanded ? (
+          <View style={{ marginBottom: spacing.lg }}>
+            <View style={{ flexDirection: 'row', gap: spacing.md }}>
+              <TextInput
+                label="Giá từ/km"
+                placeholder="10000"
+                value={minPrice}
+                onChangeText={setMinPrice}
+                keyboardType="numeric"
+                style={{ flex: 1, marginBottom: spacing.md }}
+              />
+              <TextInput
+                label="Giá đến/km"
+                placeholder="20000"
+                value={maxPrice}
+                onChangeText={setMaxPrice}
+                keyboardType="numeric"
+                style={{ flex: 1, marginBottom: spacing.md }}
+              />
+            </View>
+            <TextInput
+              label="Số ghế tối thiểu"
+              placeholder="4"
+              value={minSeats}
+              onChangeText={setMinSeats}
+              keyboardType="numeric"
+              style={{ marginBottom: spacing.md }}
+            />
+
+            <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.sm }}>Trạng thái xe</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
+              {(['all', 'Sẵn sàng', 'Đang bận', 'Bảo trì'] as const).map((status) => (
+                <TouchableOpacity
+                  key={status}
+                  onPress={() => setStatusFilter(status)}
+                  style={{
+                    paddingVertical: spacing.sm,
+                    paddingHorizontal: spacing.md,
+                    borderRadius: borderRadius.full,
+                    backgroundColor: statusFilter === status ? colors.primary : colors.surfaceAlt,
+                  }}
+                >
+                  <Text style={{ color: statusFilter === status ? 'white' : colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
+                    {status === 'all' ? 'Tất cả' : status}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.sm }}>Hãng xe</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
+              {['all', ...brandOptions].map((brand) => (
+                <TouchableOpacity
+                  key={brand}
+                  onPress={() => setBrandFilter(brand)}
+                  style={{
+                    paddingVertical: spacing.sm,
+                    paddingHorizontal: spacing.md,
+                    borderRadius: borderRadius.full,
+                    backgroundColor: brandFilter === brand ? colors.primary : colors.surfaceAlt,
+                  }}
+                >
+                  <Text style={{ color: brandFilter === brand ? 'white' : colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
+                    {brand === 'all' ? 'Tất cả hãng' : brand}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.sm }}>Sắp xếp</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
+              {sortOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  onPress={() => setSortMode(option.value)}
+                  style={{
+                    paddingVertical: spacing.sm,
+                    paddingHorizontal: spacing.md,
+                    borderRadius: borderRadius.full,
+                    backgroundColor: sortMode === option.value ? colors.primary : colors.surfaceAlt,
+                  }}
+                >
+                  <Text style={{ color: sortMode === option.value ? 'white' : colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <TouchableOpacity
+                onPress={() => setOnlyAvailable((value) => !value)}
+                style={{
+                  flex: 1,
+                  paddingVertical: spacing.md,
+                  paddingHorizontal: spacing.md,
+                  borderRadius: borderRadius.lg,
+                  alignItems: 'center',
+                  backgroundColor: onlyAvailable ? colors.primary : colors.surfaceAlt,
+                }}
+              >
+                <Text style={{ color: onlyAvailable ? 'white' : colors.text, fontWeight: '800' }}>
+                  Xe trống đúng giờ
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setMinPrice('');
+                  setMaxPrice('');
+                  setMinSeats('');
+                  setBrandFilter('all');
+                  setStatusFilter('all');
+                  setOnlyAvailable(true);
+                  setSortMode('price_asc');
+                }}
+                style={{
+                  paddingVertical: spacing.md,
+                  paddingHorizontal: spacing.md,
+                  borderRadius: borderRadius.lg,
+                  alignItems: 'center',
+                  backgroundColor: colors.surfaceAlt,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: '800' }}>Đặt lại</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg }}>
             <TouchableOpacity
-              key={option.value}
-              onPress={() => setSortMode(option.value)}
+              onPress={() => setOnlyAvailable((value) => !value)}
               style={{
                 paddingVertical: spacing.sm,
                 paddingHorizontal: spacing.md,
                 borderRadius: borderRadius.full,
-                backgroundColor: sortMode === option.value ? colors.primary : colors.surfaceAlt,
+                backgroundColor: onlyAvailable ? colors.primary : colors.surfaceAlt,
               }}
             >
-              <Text style={{ color: sortMode === option.value ? 'white' : colors.text, fontWeight: '600' }}>
-                {option.label}
+              <Text style={{ color: onlyAvailable ? 'white' : colors.text, fontWeight: '600' }}>
+                Xe trống đúng giờ
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
+            {sortOptions.slice(0, 3).map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                onPress={() => setSortMode(option.value)}
+                style={{
+                  paddingVertical: spacing.sm,
+                  paddingHorizontal: spacing.md,
+                  borderRadius: borderRadius.full,
+                  backgroundColor: sortMode === option.value ? colors.primary : colors.surfaceAlt,
+                }}
+              >
+                <Text style={{ color: sortMode === option.value ? 'white' : colors.text, fontWeight: '600' }}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         <Button
           label="Tìm xe phù hợp"
@@ -416,7 +590,7 @@ export default function BookingScreen() {
                 key={vehicle.id}
                 onPress={() => {
                   if (!bookingDate) {
-                    Toast.show({ type: 'error', text1: 'Ngày chưa hợp lệ', text2: 'Vui lòng nhập theo định dạng dd/MM/yyyy.' });
+                    showError('Ngày chưa hợp lệ', 'Vui lòng nhập theo định dạng dd/MM/yyyy.');
                     return;
                   }
                   setSelectedVehicleId(vehicle.id);

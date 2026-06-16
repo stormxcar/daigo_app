@@ -7,6 +7,7 @@ import { apiClient } from "@/services/api";
 import { supabase } from "@/services/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { AppToast } from "@/components/AppToast";
+import { showError, showSuccess } from "@/utils/toast";
 
 export default function RootLayout() {
   useEffect(() => {
@@ -36,12 +37,16 @@ export default function RootLayout() {
       if (!code) return;
 
       const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (error) return;
+      if (error) {
+        showError("Không thể hoàn tất đăng nhập", error.message);
+        return;
+      }
 
       const user = await apiClient.getCurrentUser();
       const { data } = await supabase.auth.getSession();
       if (user && data.session) {
         useAuthStore.getState().restoreSession(user, data.session.access_token);
+        showSuccess("Đăng nhập thành công", "Bạn đã quay lại ứng dụng Daigo Booking.");
       }
     };
 

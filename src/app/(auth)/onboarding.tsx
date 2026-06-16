@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -18,6 +18,7 @@ import { useTheme } from '@/theme';
 import { borderRadius, spacing, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 import { DAIGO_LOGO_URL, LOTTIE_ONBOARDING } from '@/constants/branding';
+import { CalendarClock, CarFront, ShieldCheck } from 'lucide-react-native';
 
 interface OnboardingStep {
   title: string;
@@ -26,6 +27,38 @@ interface OnboardingStep {
   lottieUrl: string;
   highlight: string;
   gradientColors: [string, string];
+  icon: React.ReactNode;
+}
+
+function RemoteLottie({ uri, fallback }: { uri: string; fallback: React.ReactNode }) {
+  const [animation, setAnimation] = useState<object | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    fetch(uri)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Lottie ${response.status}`);
+        return response.json();
+      })
+      .then((json) => {
+        if (mounted) setAnimation(json);
+      })
+      .catch(() => {
+        if (mounted) setFailed(true);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [uri]);
+
+  if (!animation || failed) {
+    return <View style={styles.fallbackIllustration}>{fallback}</View>;
+  }
+
+  return <LottieView source={animation as any} autoPlay loop style={styles.lottie} />;
 }
 
 export default function OnboardingScreen() {
@@ -43,6 +76,7 @@ export default function OnboardingScreen() {
       lottieUrl: LOTTIE_ONBOARDING[0],
       highlight: 'Nhanh chóng',
       gradientColors: ['#1d4ed8', '#2563eb'],
+      icon: <CarFront size={92} color="white" strokeWidth={1.6} />,
     },
     {
       title: 'Lịch trình linh hoạt',
@@ -51,6 +85,7 @@ export default function OnboardingScreen() {
       lottieUrl: LOTTIE_ONBOARDING[1],
       highlight: 'Linh hoạt',
       gradientColors: ['#1e40af', '#2563eb'],
+      icon: <CalendarClock size={92} color="white" strokeWidth={1.6} />,
     },
     {
       title: 'Tài xế chuyên nghiệp',
@@ -59,6 +94,7 @@ export default function OnboardingScreen() {
       lottieUrl: LOTTIE_ONBOARDING[2],
       highlight: 'An toàn',
       gradientColors: ['#1e3a8a', '#2563eb'],
+      icon: <ShieldCheck size={92} color="white" strokeWidth={1.6} />,
     },
   ];
 
@@ -119,12 +155,7 @@ export default function OnboardingScreen() {
                   colors={item.gradientColors}
                   style={styles.lottieGradient}
                 >
-                  <LottieView
-                    source={{ uri: item.lottieUrl }}
-                    autoPlay
-                    loop
-                    style={styles.lottie}
-                  />
+                  <RemoteLottie uri={item.lottieUrl} fallback={item.icon} />
                 </LinearGradient>
               </View>
 
@@ -245,6 +276,12 @@ const styles = StyleSheet.create({
   lottie: {
     width: 180,
     height: 180,
+  },
+  fallbackIllustration: {
+    width: 180,
+    height: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   badge: {
     paddingHorizontal: spacing.md,

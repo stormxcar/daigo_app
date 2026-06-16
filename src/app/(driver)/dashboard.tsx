@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { BarChart3, Briefcase, Car, LocateFixed, Newspaper, Wallet } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { BlogPost, Booking, Vehicle } from '@/types';
 import { DeviceLocation, getCurrentDeviceLocation } from '@/services/deviceLocation';
 import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
+import { showError, showSuccess } from '@/utils/toast';
 
 type RangeMode = 'day' | 'month' | 'year';
 
@@ -68,7 +69,7 @@ export default function DriverDashboard() {
       setVerificationStatus(driverStatus?.verification_status ?? 'PENDING');
       getCurrentDeviceLocation().then(setDriverLocation).catch(() => undefined);
     } catch (error: any) {
-      Alert.alert('Không thể tải thống kê', error.message);
+      showError('Không thể tải thống kê', error.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -88,8 +89,9 @@ export default function DriverDashboard() {
       setIsOnline(updated.is_online);
       setVerificationStatus(updated.verification_status);
       if (location) setDriverLocation(location);
+      showSuccess(updated.is_online ? 'Đã bật nhận chuyến' : 'Đã tắt nhận chuyến', 'Trạng thái tài xế đã được cập nhật.');
     } catch (error: any) {
-      Alert.alert('Không thể cập nhật trạng thái tài xế', error.message);
+      showError('Không thể cập nhật trạng thái tài xế', error.message);
     } finally {
       setOnlineLoading(false);
     }
@@ -124,13 +126,15 @@ export default function DriverDashboard() {
   ];
 
   return (
-    <Screen scroll padding refreshing={refreshing || loading} onRefresh={() => loadData(true)}>
-      <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: spacing.xs }}>
-        Thống kê tài xế
-      </Text>
-      <Text style={{ color: colors.textSecondary, marginBottom: spacing.lg }}>
-        Dữ liệu lấy trực tiếp từ booking, xe và bài viết trong database.
-      </Text>
+    <Screen scroll refreshing={refreshing || loading} onRefresh={() => loadData(true)}>
+      <View style={{ paddingHorizontal: spacing.lg }}>
+        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: spacing.xs, marginTop: spacing.md }}>
+          Thống kê tài xế
+        </Text>
+        <Text style={{ color: colors.textSecondary, marginBottom: spacing.lg }}>
+          Dữ liệu lấy trực tiếp từ booking, xe và bài viết trong database.
+        </Text>
+      </View>
 
       <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.primaryLight }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>

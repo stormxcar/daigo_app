@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -7,10 +7,26 @@ import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, CardSkeleton, TextInput } from '@/components/BaseComponents';
 import { EmptyState, Screen } from '@/components/ScreenComponents';
+import { SearchFilterBar } from '@/components/SearchFilterBar';
 import { apiClient } from '@/services/api';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
 import { useAuthStore } from '@/stores/authStore';
 import { BlogPost } from '@/types';
+import { showError, showSuccess, showWarning } from '@/utils/toast';
+import { BlogMediaGrid } from '@/components/BlogMediaGrid';
+
+const BLOG_FILTERS = [
+  { key: 'all', label: 'Tất cả' },
+  { key: 'image', label: '📷 Có ảnh' },
+  { key: 'video', label: '🎬 Có video' },
+];
+
+const BLOG_SORTS = [
+  { key: 'newest', label: 'Mới nhất' },
+  { key: 'oldest', label: 'Cũ nhất' },
+  { key: 'mostLiked', label: 'Nhiều tim nhất' },
+  { key: 'mostComments', label: 'Nhiều bình luận' },
+];
 
 export default function DriverBlog() {
   const { colors } = useTheme();
@@ -23,8 +39,16 @@ export default function DriverBlog() {
   const [menuPostId, setMenuPostId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ active: boolean; percent: number; label: string }>({
+    active: false,
+    percent: 0,
+    label: '',
+  });
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(8);
+  const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [activeSort, setActiveSort] = useState('newest');
 
   const loadPosts = async () => {
     if (!user) return;
@@ -33,7 +57,7 @@ export default function DriverBlog() {
       const data = await apiClient.getBlogPosts(1, 30, { driverId: user.id });
       setPosts(data);
     } catch (error: any) {
-      Alert.alert('Không thể tải bài viết', error.message);
+      showError('Không thể tải bài viết', error.message);
     } finally {
       setLoading(false);
     }
@@ -42,6 +66,21 @@ export default function DriverBlog() {
   useEffect(() => {
     loadPosts();
   }, [user?.id]);
+
+  const filteredPosts = useMemo(() => {
+    let result = [...posts];
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter((p) => p.caption?.toLowerCase().includes(q));
+    }
+    if (activeFilter === 'image') result = result.filter((p) => p.mediaTypes?.includes('image'));
+    if (activeFilter === 'video') result = result.filter((p) => p.mediaTypes?.includes('video'));
+    if (activeSort === 'newest') result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    if (activeSort === 'oldest') result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    if (activeSort === 'mostLiked') result.sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0));
+    if (activeSort === 'mostComments') result.sort((a, b) => (b.comments ?? 0) - (a.comments ?? 0));
+    return result;
+  }, [posts, search, activeFilter, activeSort]);
 
   const resetForm = () => {
     setCaption('');
@@ -54,7 +93,7 @@ export default function DriverBlog() {
   const pickMedia = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Cần quyền truy cập thư viện', 'Vui lòng cho phép ứng dụng chọn ảnh hoặc video.');
+      showWarning('Cần quyền truy cập thư viện', 'Vui lòng cho phép ứng dụng chọn ảnh hoặc video.');
       return;
     }
 
@@ -68,30 +107,46 @@ export default function DriverBlog() {
 
     try {
       setSaving(true);
-      const uploadedItems = await Promise.all(
-        result.assets.map(async (asset, index) => {
-          const isVideo = asset.type === 'video';
-          const uploaded = await uploadMediaToCloudinary({
-            uri: asset.uri,
-            name: asset.fileName ?? `post-${Date.now()}-${index}.${isVideo ? 'mp4' : 'jpg'}`,
-            type: asset.mimeType ?? (isVideo ? 'video/mp4' : 'image/jpeg'),
-          }, isVideo ? 'video' : 'image');
-          return { url: uploaded.secure_url, type: isVideo ? 'video' as const : 'image' as const };
-        })
-      );
+      setUploadProgress({ active: true, percent: 0, label: `Chuẩn bị upload ${result.assets.length} tệp...` });
+      const uploadedItems: { url: string; type: 'image' | 'video' }[] = [];
+
+      for (let index = 0; index < result.assets.length; index += 1) {
+        const asset = result.assets[index];
+        const isVideo = asset.type === 'video';
+        const label = `${isVideo ? 'Video' : 'Ảnh'} ${index + 1}/${result.assets.length}`;
+        setUploadProgress({
+          active: true,
+          percent: Math.round((index / result.assets.length) * 100),
+          label: `Đang upload ${label}`,
+        });
+        const uploaded = await uploadMediaToCloudinary({
+          uri: asset.uri,
+          name: asset.fileName ?? `post-${Date.now()}-${index}.${isVideo ? 'mp4' : 'jpg'}`,
+          type: asset.mimeType ?? (isVideo ? 'video/mp4' : 'image/jpeg'),
+        }, isVideo ? 'video' : 'image');
+        uploadedItems.push({ url: uploaded.secure_url, type: isVideo ? 'video' : 'image' });
+        setUploadProgress({
+          active: true,
+          percent: Math.round(((index + 1) / result.assets.length) * 100),
+          label: `Đã upload ${label}`,
+        });
+      }
+
       setMediaUrls((current) => [...current, ...uploadedItems.map((item) => item.url)]);
       setMediaTypes((current) => [...current, ...uploadedItems.map((item) => item.type)]);
+      showSuccess('Đã upload media', `${uploadedItems.length} tệp đã được thêm vào bài viết.`);
     } catch (error: any) {
-      Alert.alert('Không thể upload media', error.message);
+      showError('Không thể upload media', error.message);
     } finally {
       setSaving(false);
+      setTimeout(() => setUploadProgress({ active: false, percent: 0, label: '' }), 700);
     }
   };
 
   const savePost = async () => {
     if (!user) return;
     if (!caption.trim() && mediaUrls.length === 0) {
-      Alert.alert('Bài viết chưa hợp lệ', 'Vui lòng nhập nội dung hoặc upload media.');
+      showError('Bài viết chưa hợp lệ', 'Vui lòng nhập nội dung hoặc upload media.');
       return;
     }
 
@@ -110,9 +165,9 @@ export default function DriverBlog() {
       }
       await loadPosts();
       resetForm();
-      Alert.alert('Đã lưu bài viết', 'Bài viết đã được cập nhật trong database.');
+      showSuccess('Đã lưu bài viết', 'Bài viết đã được cập nhật trong database.');
     } catch (error: any) {
-      Alert.alert('Không thể lưu bài viết', error.message);
+      showError('Không thể lưu bài viết', error.message);
     } finally {
       setSaving(false);
     }
@@ -138,8 +193,9 @@ export default function DriverBlog() {
             setSaving(true);
             await apiClient.deleteBlogPost(post.id);
             await loadPosts();
+            showSuccess('Đã xóa bài viết', 'Bài viết đã được xóa khỏi database.');
           } catch (error: any) {
-            Alert.alert('Không thể xóa bài viết', error.message);
+            showError('Không thể xóa bài viết', error.message);
           } finally {
             setSaving(false);
           }
@@ -158,8 +214,8 @@ export default function DriverBlog() {
   };
 
   return (
-    <Screen scroll padding refreshing={loading} onRefresh={loadPosts}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg }}>
+    <Screen scroll refreshing={loading} onRefresh={loadPosts}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg, paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
         <View>
           <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800' }}>Tin tức của tôi</Text>
           <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>{posts.length} bài viết từ database</Text>
@@ -171,6 +227,22 @@ export default function DriverBlog() {
         >
           {showForm ? <X size={22} color="white" /> : <Plus size={22} color="white" />}
         </TouchableOpacity>
+      </View>
+
+      <View style={{ paddingHorizontal: spacing.lg }}>
+        <SearchFilterBar
+          searchValue={search}
+          onSearchChange={setSearch}
+          placeholder="Tìm nội dung bài viết..."
+          filters={BLOG_FILTERS}
+          activeFilter={activeFilter}
+          onFilterChange={setActiveFilter}
+          sortOptions={BLOG_SORTS}
+          activeSort={activeSort}
+          onSortChange={(key) => setActiveSort(key || 'newest')}
+          resultCount={loading ? undefined : filteredPosts.length}
+          resultLabel="bài viết"
+        />
       </View>
 
       {showForm && (
@@ -199,32 +271,37 @@ export default function DriverBlog() {
               </Text>
             </View>
           </TouchableOpacity>
+          {uploadProgress.active && (
+            <View style={{ marginBottom: spacing.md }}>
+              <View style={{ height: 10, borderRadius: 5, backgroundColor: colors.surfaceAlt, overflow: 'hidden', marginBottom: spacing.xs }}>
+                <View style={{ width: `${uploadProgress.percent}%`, height: '100%', backgroundColor: colors.primary }} />
+              </View>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
+                {uploadProgress.label} - {uploadProgress.percent}%
+              </Text>
+            </View>
+          )}
           {mediaUrls.length > 0 && (
-            <FlatList
-              data={mediaUrls}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item, index) => `${item}-${index}`}
-              contentContainerStyle={{ gap: spacing.sm, marginBottom: spacing.md }}
-              renderItem={({ item, index }) => (
-                <View style={{ width: 112, height: 112, borderRadius: borderRadius.md, overflow: 'hidden', backgroundColor: colors.surfaceAlt }}>
-                  {mediaTypes[index] === 'image' ? (
-                    <Image source={{ uri: item }} style={{ width: '100%', height: '100%' }} />
-                  ) : (
-                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.xs }}>
-                      <Play size={24} color={colors.primary} />
-                      <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>Video</Text>
-                    </View>
-                  )}
+            <View style={{ marginBottom: spacing.md, gap: spacing.sm }}>
+              <BlogMediaGrid urls={mediaUrls} types={mediaTypes} height={220} />
+              <FlatList
+                data={mediaUrls}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item, index) => `${item}-${index}`}
+                contentContainerStyle={{ gap: spacing.sm }}
+                renderItem={({ index }) => (
                   <TouchableOpacity
                     onPress={() => removeMedia(index)}
-                    style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.error, alignItems: 'center', justifyContent: 'center' }}
+                    style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: borderRadius.full, backgroundColor: colors.error }}
                   >
-                    <X size={14} color="white" />
+                    <Text style={{ color: 'white', fontWeight: '800', fontSize: fontSize.xs }}>
+                      Xóa tệp {index + 1}
+                    </Text>
                   </TouchableOpacity>
-                </View>
-              )}
-            />
+                )}
+              />
+            </View>
           )}
           <Button label={editingId ? 'Lưu bài viết' : 'Đăng bài'} onPress={savePost} loading={saving} disabled={saving} />
         </Card>
@@ -235,7 +312,7 @@ export default function DriverBlog() {
           <CardSkeleton image style={{ marginBottom: spacing.lg }} />
           <CardSkeleton image style={{ marginBottom: spacing.lg }} />
         </>
-      ) : posts.slice(0, visibleCount).map((post) => (
+      ) : filteredPosts.slice(0, visibleCount).map((post) => (
         <Card key={post.id} style={{ marginBottom: spacing.lg }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
             <Image source={{ uri: post.driverAvatar }} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceAlt }} />
@@ -253,7 +330,20 @@ export default function DriverBlog() {
             </TouchableOpacity>
           </View>
           {menuPostId === post.id && (
-            <View style={{ alignSelf: 'flex-end', marginTop: -spacing.sm, marginBottom: spacing.md, padding: spacing.sm, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, gap: spacing.xs }}>
+            <View
+              style={{
+                position: 'absolute',
+                right: spacing.lg,
+                top: 64,
+                zIndex: 20,
+                padding: spacing.sm,
+                borderRadius: borderRadius.md,
+                backgroundColor: colors.surfaceAlt,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: spacing.xs,
+              }}
+            >
               <TouchableOpacity onPress={() => editPost(post)} disabled={saving} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm }}>
                 <Edit3 size={16} color={colors.text} />
                 <Text style={{ color: colors.text, fontWeight: '700' }}>Sửa bài viết</Text>
@@ -267,23 +357,9 @@ export default function DriverBlog() {
           <TouchableOpacity activeOpacity={0.88} onPress={() => openPost(post)}>
             {!!post.caption && <Text style={{ color: colors.text, lineHeight: 22, marginBottom: spacing.md }}>{post.caption}</Text>}
             {post.mediaUrls.length > 0 && (
-              <FlatList
-                data={post.mediaUrls}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(item, index) => `${post.id}-${item}-${index}`}
-                contentContainerStyle={{ gap: spacing.sm, marginBottom: spacing.md }}
-                renderItem={({ item, index }) => (
-                  post.mediaTypes[index] === 'image' ? (
-                    <Image source={{ uri: item }} style={{ width: 220, height: 170, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }} />
-                  ) : (
-                    <View style={{ width: 220, height: 170, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', gap: spacing.sm }}>
-                      <Play size={32} color={colors.primary} />
-                      <Text style={{ color: colors.textSecondary }}>Video Cloudinary</Text>
-                    </View>
-                  )
-                )}
-              />
+              <View style={{ marginBottom: spacing.md }}>
+                <BlogMediaGrid urls={post.mediaUrls} types={post.mediaTypes} height={230} />
+              </View>
             )}
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
@@ -291,19 +367,25 @@ export default function DriverBlog() {
             <TouchableOpacity onPress={() => openPost(post)}>
               <Text style={{ color: colors.textSecondary }}><MessageCircle size={14} color={colors.info} /> {post.comments}</Text>
             </TouchableOpacity>
-            <Text style={{ color: colors.textSecondary }}><Share2 size={14} color={colors.primary} /> {post.shares}</Text>
+            <Text style={{ color: colors.textSecondary }}><Share2 size={14} color={colors.primary} /> Chia sẻ</Text>
           </View>
         </Card>
       ))}
 
-      {!loading && posts.length === 0 && (
-        <EmptyState
-          icon={<Camera size={48} color={colors.primary} />}
-          title="Chưa có bài viết"
-          description="Tạo bài viết đầu tiên để khách hàng xem tin tức từ tài xế"
-        />
+      {!loading && filteredPosts.length === 0 && (
+        search || activeFilter !== 'all' ? (
+          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xl }}>
+            Không tìm thấy bài viết phù hợp.
+          </Text>
+        ) : (
+          <EmptyState
+            icon={<Camera size={48} color={colors.primary} />}
+            title="Chưa có bài viết"
+            description="Tạo bài viết đầu tiên để khách hàng xem tin tức từ tài xế"
+          />
+        )
       )}
-      {!loading && posts.length > visibleCount && (
+      {!loading && filteredPosts.length > visibleCount && (
         <Button
           label="Tải thêm bài viết"
           onPress={() => setVisibleCount((current) => current + 8)}

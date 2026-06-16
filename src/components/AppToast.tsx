@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Animated, Text, View } from 'react-native';
 import Toast, { BaseToastProps, ToastConfig } from 'react-native-toast-message';
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react-native';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
@@ -31,9 +31,10 @@ function RichToast({ text1, text2, type = 'info' }: BaseToastProps & { type?: ke
   const meta = toastMeta[type] ?? toastMeta.info;
 
   return (
-    <View
+    <Animated.View
       style={{
         width: '92%',
+        maxWidth: 560,
         borderLeftWidth: 5,
         borderLeftColor: meta.color,
         backgroundColor: meta.backgroundColor,
@@ -48,17 +49,23 @@ function RichToast({ text1, text2, type = 'info' }: BaseToastProps & { type?: ke
       <View style={{ marginTop: 1 }}>{meta.icon}</View>
       <View style={{ flex: 1 }}>
         {!!text1 && (
-          <Text style={{ color: '#0f172a', fontSize: fontSize.base, fontWeight: '900', lineHeight: 22 }}>
+          <Text
+            numberOfLines={0}
+            style={{ color: '#0f172a', fontSize: fontSize.base, fontWeight: '900', lineHeight: 22, flexShrink: 1 }}
+          >
             {text1}
           </Text>
         )}
         {!!text2 && (
-          <Text style={{ color: '#334155', fontSize: fontSize.sm, lineHeight: 20, marginTop: spacing.xs }}>
+          <Text
+            numberOfLines={0}
+            style={{ color: '#334155', fontSize: fontSize.sm, lineHeight: 20, marginTop: spacing.xs, flexShrink: 1 }}
+          >
             {text2}
           </Text>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -70,5 +77,5 @@ const toastConfig: ToastConfig = {
 };
 
 export function AppToast() {
-  return <Toast config={toastConfig} topOffset={54} visibilityTime={4200} />;
+  return <Toast config={toastConfig} topOffset={54} visibilityTime={5600} />;
 }

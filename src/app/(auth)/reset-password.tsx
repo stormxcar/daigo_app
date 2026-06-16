@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Eye, EyeOff, Lock } from 'lucide-react-native';
 import { Button, TextInput } from '@/components/BaseComponents';
@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme';
 import { toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
+import { showError as showErrorToast, showSuccess } from '@/utils/toast';
 
 export default function ResetPasswordScreen() {
   const { colors } = useTheme();
@@ -20,7 +21,7 @@ export default function ResetPasswordScreen() {
 
   const showError = (message: string) => {
     setLocalError(message);
-    Alert.alert('Không thể cập nhật mật khẩu', message);
+    showErrorToast('Không thể cập nhật mật khẩu', message);
   };
 
   const handleUpdatePassword = async () => {
@@ -42,6 +43,7 @@ export default function ResetPasswordScreen() {
 
     try {
       await updatePassword(password);
+      showSuccess('Đã cập nhật mật khẩu', 'Bạn có thể đăng nhập bằng mật khẩu mới.');
       router.replace('/(auth)/login');
     } catch (err: any) {
       showError(toVietnameseAuthError(err.message));

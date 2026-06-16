@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, Image, Modal, Pressable, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
+﻿import React, { useEffect, useState } from 'react';
+import { Image, Modal, Pressable, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { Bell, Camera, ChevronRight, Info, LogOut, Mail, Phone, Shield, User, X } from 'lucide-react-native';
@@ -9,12 +9,19 @@ import { Avatar, Button, Card, TextInput } from '@/components/BaseComponents';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Screen } from '@/components/ScreenComponents';
 import { BookingCard } from '@/components/FeatureCards';
+import {
+  BookingListControls,
+  BookingSortMode,
+  BookingStatusFilter,
+  filterAndSortBookings,
+} from '@/components/BookingListControls';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 import { useBooking } from '@/hooks/useBooking';
 import { apiClient } from '@/services/api';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
 import { DAIGO_LOGO_URL, APP_NAME, APP_TAGLINE } from '@/constants/branding';
+import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 export default function ProfileScreen() {
   const [modalVisible, setModalVisible] = useState(false);
@@ -34,6 +41,19 @@ export default function ProfileScreen() {
   const [smsEnabled, setSmsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
   const [visibleBookingCount, setVisibleBookingCount] = useState(6);
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<BookingStatusFilter>('all');
+  const [historySortMode, setHistorySortMode] = useState<BookingSortMode>('newest');
+  const [historyFiltersExpanded, setHistoryFiltersExpanded] = useState(false);
+  const filteredBookings = React.useMemo(
+    () => filterAndSortBookings(bookings, historyQuery, historyStatusFilter, historySortMode),
+    [bookings, historyQuery, historyStatusFilter, historySortMode]
+  );
+  const activeHistoryFilterCount = [
+    historyQuery,
+    historyStatusFilter !== 'all' ? historyStatusFilter : '',
+    historySortMode !== 'newest' ? historySortMode : '',
+  ].filter(Boolean).length;
 
   const refreshProfile = () => {
     if (user?.id) fetchBookings({ customerId: user.id });
@@ -67,9 +87,9 @@ export default function ProfileScreen() {
         avatarUrl: user.avatarUrl,
       });
       setUser(updated);
-      Alert.alert('Đã lưu', 'Thông tin hồ sơ của bạn đã được cập nhật.');
+      showSuccess('Đã lưu hồ sơ', 'Thông tin hồ sơ của bạn đã được cập nhật.');
     } catch (error: any) {
-      Alert.alert('Không thể lưu hồ sơ', error.message);
+      showError('Không thể lưu hồ sơ', error.message);
     } finally {
       setSaving(false);
     }
@@ -81,7 +101,7 @@ export default function ProfileScreen() {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Cần quyền truy cập ảnh', 'Vui lòng cho phép ứng dụng truy cập thư viện ảnh.');
+        showWarning('Cần quyền truy cập ảnh', 'Vui lòng cho phép ứng dụng truy cập thư viện ảnh.');
         return;
       }
 
@@ -104,8 +124,9 @@ export default function ProfileScreen() {
       }, 'image');
       const updated = await apiClient.updateProfile(user.id, { avatarUrl: uploaded.secure_url });
       setUser(updated);
+      showSuccess('Đã cập nhật avatar', 'Ảnh đại diện mới đã được lưu.');
     } catch (error: any) {
-      Alert.alert('Không thể upload avatar', error.message);
+      showError('Không thể upload avatar', error.message);
     } finally {
       setUploadingAvatar(false);
     }
@@ -116,7 +137,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <Screen scroll padding onRefresh={refreshProfile}>
+    <Screen scroll onRefresh={refreshProfile}>
       <Card style={{ marginBottom: spacing.lg, alignItems: 'center' }}>
         <Avatar
           source={user?.avatarUrl ? { uri: user.avatarUrl } : undefined}
@@ -193,20 +214,36 @@ export default function ProfileScreen() {
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: spacing.sm }}>
           Lịch sử chuyến đi
         </Text>
-        {bookings.slice(0, visibleBookingCount).map((booking) => (
+        <BookingListControls
+          query={historyQuery}
+          onQueryChange={setHistoryQuery}
+          statusFilter={historyStatusFilter}
+          onStatusFilterChange={setHistoryStatusFilter}
+          sortMode={historySortMode}
+          onSortModeChange={setHistorySortMode}
+          expanded={historyFiltersExpanded}
+          onExpandedChange={setHistoryFiltersExpanded}
+          activeCount={activeHistoryFilterCount}
+          onReset={() => {
+            setHistoryQuery('');
+            setHistoryStatusFilter('all');
+            setHistorySortMode('newest');
+          }}
+        />
+        {filteredBookings.slice(0, visibleBookingCount).map((booking) => (
           <BookingCard key={booking.id} {...booking} />
         ))}
-        {bookings.length > visibleBookingCount && (
+        {filteredBookings.length > visibleBookingCount && (
           <Button
             label="Tải thêm chuyến đi"
             onPress={() => setVisibleBookingCount((current) => current + 6)}
             variant="outline"
           />
         )}
-        {bookings.length === 0 && (
+        {filteredBookings.length === 0 && (
           <Card>
             <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>
-              Bạn chưa có chuyến đi nào.
+              Không tìm thấy chuyến đi phù hợp.
             </Text>
           </Card>
         )}

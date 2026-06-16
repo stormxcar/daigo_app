@@ -22,8 +22,8 @@ const iconsMap = {
 export const QuickActionRow: React.FC<{ actions: readonly ActionItem[] }> = ({ actions }) => {
   const { colors } = useTheme();
   return (
-    <View style={{ marginBottom: spacing.xl }}>
-      <Text style={{ fontSize: fontSize.base, fontWeight: '800', color: colors.text, marginBottom: spacing.md }}>
+    <View style={{ marginBottom: spacing.xl , }}>
+      <Text style={{ fontSize: fontSize.base, fontWeight: '800', color: colors.text, marginBottom: spacing.md, paddingHorizontal: spacing.md }}>
         Lối tắt
       </Text>
       <FlatList

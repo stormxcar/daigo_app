@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Linking, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,7 +44,7 @@ export default function ChatDetailScreen() {
     const channelName = `chat-detail-${id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
       .channel(channelName)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` }, async () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async () => {
         if (user) {
           const latest = await apiClient.getConversations(user.id);
           setConversations(latest);
@@ -73,7 +73,7 @@ export default function ChatDetailScreen() {
   }
 
   return (
-    <Screen scroll padding style={{ paddingBottom: 110 + insets.bottom }}>
+    <Screen scroll style={{ paddingBottom: 110 + insets.bottom }}>
       <Card style={{ marginBottom: spacing.lg }}>
         <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
           <Image source={{ uri: conversation.participantAvatar }} style={{ width: 48, height: 48, borderRadius: 24 }} />

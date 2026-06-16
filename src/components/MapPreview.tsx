@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Toast from 'react-native-toast-message';
 import { Crosshair, Expand, LocateFixed, MapPin, Minimize } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { DrivingRoute, getDrivingRoute, LatLng } from '@/services/mapRouteService';
 import { getNativeMapLibre, NativeMapUnavailable } from '@/components/NativeMapLibre';
+import { showError, showSuccess } from '@/utils/toast';
 
 interface MapPoint {
   label: string;
@@ -137,12 +137,12 @@ export function MapPreview({
       setLocating(true);
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
-        Toast.show({ type: 'error', text1: 'Chưa bật GPS', text2: 'Vui lòng cấp quyền vị trí.' });
+        showError('Chưa bật GPS', 'Vui lòng cấp quyền vị trí.');
         return;
       }
       const servicesEnabled = await Location.hasServicesEnabledAsync();
       if (!servicesEnabled) {
-        Toast.show({ type: 'error', text1: 'GPS đang tắt', text2: 'Vui lòng bật dịch vụ vị trí.' });
+        showError('GPS đang tắt', 'Vui lòng bật dịch vụ vị trí.');
         return;
       }
       const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
@@ -151,7 +151,7 @@ export function MapPreview({
       compactCameraRef.current?.flyTo({ center: toLngLat(point), zoom: 15, duration: 650, easing: 'ease' });
       fullscreenCameraRef.current?.flyTo({ center: toLngLat(point), zoom: 15, duration: 650, easing: 'ease' });
     } catch (error: any) {
-      Alert.alert('Không thể lấy vị trí', error.message || 'Vui lòng kiểm tra GPS và thử lại.');
+      showError('Không thể lấy vị trí', error.message || 'Vui lòng kiểm tra GPS và thử lại.');
     } finally {
       setLocating(false);
     }
@@ -167,11 +167,7 @@ export function MapPreview({
     if (selectMode === 'pickup') onPickupChange?.(nextPoint);
     if (selectMode === 'dropoff') onDropoffChange?.(nextPoint);
 
-    Toast.show({
-      type: 'success',
-      text1: selectMode === 'pickup' ? 'Đã chọn điểm đón' : 'Đã chọn điểm đến',
-      text2: label,
-    });
+    showSuccess(selectMode === 'pickup' ? 'Đã chọn điểm đón' : 'Đã chọn điểm đến', label);
   };
 
   useEffect(() => {

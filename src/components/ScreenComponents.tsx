@@ -29,7 +29,7 @@ export const Screen: FC<ScreenProps> = ({
   children,
   style,
   scroll = false,
-  padding = true,
+  padding = false,
   paddingHorizontal = padding,
   paddingVertical = padding,
   safeArea = false,
@@ -103,7 +103,7 @@ export const ScreenHeader: FC<HeaderProps> = ({ title, subtitle, style }) => {
   const { colors } = useTheme();
 
   return (
-    <View style={style}>
+    <View style={[{ paddingHorizontal: spacing.md }, style]}>
       <Text
         style={{
           fontSize: 28,

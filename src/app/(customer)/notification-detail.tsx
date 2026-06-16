@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Bell, CalendarClock, ChevronRight } from 'lucide-react-native';
@@ -38,7 +38,7 @@ export default function NotificationDetailScreen() {
   }
 
   return (
-    <Screen scroll padding>
+    <Screen scroll>
       <Card style={{ marginBottom: spacing.lg }}>
         <View
           style={{

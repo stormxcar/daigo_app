@@ -1,6 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Text, useWindowDimensions, View } from 'react-native';
-import Toast from 'react-native-toast-message';
 import { useLocalSearchParams } from 'expo-router';
 import { Banknote, Car, Clock, Mail, MapPin, Navigation, Phone, Route, User, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
@@ -22,6 +21,7 @@ import { BOOKING_STATUS, TERMINAL_BOOKING_STATUSES } from '@/constants';
 import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { openExternalDirections } from '@/services/externalMapsUrlService';
 import { getCurrentLatLng } from '@/services/locationService';
+import { showError, showInfo, showSuccess, showWarning } from '@/utils/toast';
 
 export default function DriverBookingDetail() {
   const { colors } = useTheme();
@@ -47,7 +47,7 @@ export default function DriverBookingDetail() {
         setTripPhase(location.phase);
       }
     } catch (error: any) {
-      Alert.alert('Không thể tải chuyến đi', error.message);
+      showError('Không thể tải chuyến đi', error.message);
     }
   };
 
@@ -74,9 +74,9 @@ export default function DriverBookingDetail() {
       setLoading(true);
       const updated = await apiClient.acceptBooking(booking.id, user.id);
       setBooking(updated);
-      Toast.show({ type: 'success', text1: 'Đã xác nhận chuyến', text2: 'Khách hàng sẽ nhận được thông báo realtime.' });
+      showSuccess('Đã xác nhận chuyến', 'Khách hàng sẽ nhận được thông báo realtime.');
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Không thể xác nhận chuyến', text2: error.message });
+      showError('Không thể xác nhận chuyến', error.message);
     } finally {
       setLoading(false);
     }
@@ -88,9 +88,9 @@ export default function DriverBookingDetail() {
       setLoading(true);
       const updated = await apiClient.cancelBookingByDriver(booking.id);
       setBooking(updated);
-      Toast.show({ type: 'success', text1: 'Đã hủy chuyến', text2: 'Khách hàng sẽ nhận được thông báo.' });
+      showSuccess('Đã hủy chuyến', 'Khách hàng sẽ nhận được thông báo.');
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Không thể hủy chuyến', text2: error.message });
+      showError('Không thể hủy chuyến', error.message);
     } finally {
       setLoading(false);
     }
@@ -104,7 +104,7 @@ export default function DriverBookingDetail() {
       setBooking(updated);
       await startTrackingGps('pickup');
     } catch (error: any) {
-      Alert.alert('Không thể cập nhật chuyến', error.message);
+      showError('Không thể cập nhật chuyến', error.message);
     } finally {
       setLoading(false);
     }
@@ -121,7 +121,7 @@ export default function DriverBookingDetail() {
         : null;
 
     if (distanceToPickup !== null && distanceToPickup > 100) {
-      Alert.alert('Bạn chưa ở gần điểm đón', 'Vui lòng đến gần điểm đón để xác nhận đã tới nơi.');
+      showWarning('Bạn chưa ở gần điểm đón', 'Vui lòng đến gần điểm đón để xác nhận đã tới nơi.');
       return;
     }
 
@@ -130,7 +130,7 @@ export default function DriverBookingDetail() {
       const updated = await apiClient.markDriverArrived(booking.id);
       setBooking(updated);
     } catch (error: any) {
-      Alert.alert('Không thể cập nhật chuyến', error.message);
+      showError('Không thể cập nhật chuyến', error.message);
     } finally {
       setLoading(false);
     }
@@ -144,7 +144,7 @@ export default function DriverBookingDetail() {
       setBooking(updated);
       await markPickupReached();
     } catch (error: any) {
-      Alert.alert('Không thể bắt đầu chuyến', error.message);
+      showError('Không thể bắt đầu chuyến', error.message);
     } finally {
       setLoading(false);
     }
@@ -163,7 +163,7 @@ export default function DriverBookingDetail() {
 
   const openExternalNavigation = async () => {
     try {
-      Toast.show({ type: 'info', text1: 'Đang mở app bản đồ...' });
+      showInfo('Đang mở app bản đồ...');
       const origin = driverLocation
         ? { latitude: driverLocation.latitude, longitude: driverLocation.longitude }
         : await getCurrentLatLng();
@@ -173,18 +173,14 @@ export default function DriverBookingDetail() {
       }
       await openExternalDirections(origin, destination);
     } catch (error: any) {
-      Toast.show({
-        type: 'error',
-        text1: 'Không thể mở app bản đồ',
-        text2: error.message || 'Vui lòng thử lại.',
-      });
+      showError('Không thể mở app bản đồ', error.message || 'Vui lòng thử lại.');
     }
   };
 
   const startTrackingGps = async (phase: TripPhase = tripPhase) => {
     if (!booking || !user) return;
     if (![BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED, BOOKING_STATUS.TRIP_STARTED].includes(booking.status as any)) {
-      Alert.alert('Chưa thể chia sẻ GPS', 'Bạn cần xác nhận chuyến trước khi bắt đầu di chuyển.');
+      showWarning('Chưa thể chia sẻ GPS', 'Bạn cần xác nhận chuyến trước khi bắt đầu di chuyển.');
       return;
     }
 
@@ -196,8 +192,9 @@ export default function DriverBookingDetail() {
       });
       watchRef.current = subscription;
       setTracking(true);
+      showSuccess('Đã bật GPS realtime', 'Vị trí tài xế sẽ được cập nhật theo thiết bị.');
     } catch (error: any) {
-      Alert.alert('Không thể bật GPS realtime', error.message);
+      showError('Không thể bật GPS realtime', error.message);
     }
   };
 
@@ -218,7 +215,7 @@ export default function DriverBookingDetail() {
       setTripPhase('dropoff');
       await startTrackingGps('dropoff');
     } catch (error: any) {
-      Alert.alert('Không thể chuyển lộ trình', error.message);
+      showError('Không thể chuyển lộ trình', error.message);
     }
   };
 
@@ -231,9 +228,9 @@ export default function DriverBookingDetail() {
       setTracking(false);
       const updated = await apiClient.completeBooking(booking.id);
       setBooking(updated);
-      Toast.show({ type: 'success', text1: 'Đã hoàn thành chuyến', text2: 'Khách hàng sẽ nhận được thông báo hoàn thành.' });
+      showSuccess('Đã hoàn thành chuyến', 'Khách hàng sẽ nhận được thông báo hoàn thành.');
     } catch (error: any) {
-      Alert.alert('Không thể hoàn thành chuyến', error.message);
+      showError('Không thể hoàn thành chuyến', error.message);
     } finally {
       setLoading(false);
     }
@@ -284,7 +281,7 @@ export default function DriverBookingDetail() {
           : 'info';
 
   return (
-    <Screen scroll padding>
+    <Screen scroll>
       <Card style={{ marginBottom: spacing.lg }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.md }}>
           <View style={{ flex: 1 }}>

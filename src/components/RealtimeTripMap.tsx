@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Toast from 'react-native-toast-message';
 import { Car, Crosshair, Expand, LocateFixed, MapPin, Navigation, Route } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
@@ -10,6 +9,7 @@ import { DriverLocation } from '@/types';
 import { getDistanceMeters } from '@/services/driverLocation';
 import { DrivingRoute, getDrivingRoute, LatLng } from '@/services/mapRouteService';
 import { getNativeMapLibre, NativeMapUnavailable } from '@/components/NativeMapLibre';
+import { showError, showInfo, showSuccess } from '@/utils/toast';
 
 interface MapPoint {
   label: string;
@@ -157,7 +157,7 @@ export function RealtimeTripMap({
 
   const centerOnDriver = useCallback(() => {
     if (!driverPoint) {
-      Toast.show({ type: 'info', text1: 'Chưa có GPS tài xế', text2: 'Hãy bật chia sẻ GPS realtime để bám theo vị trí tài xế.' });
+      showInfo('Chưa có GPS tài xế', 'Hãy bật chia sẻ GPS realtime để bám theo vị trí tài xế.');
       return;
     }
     setFollowDriver(true);
@@ -176,11 +176,7 @@ export function RealtimeTripMap({
       setRouteLoading(true);
       setRouteError(null);
       if (reason === 'deviation' && driverPoint) {
-        Toast.show({
-          type: 'info',
-          text1: 'Bạn đang đi lệch lộ trình',
-          text2: 'Hệ thống đang tính lại đường đi bằng Goong.',
-        });
+        showInfo('Bạn đang đi lệch lộ trình', 'Hệ thống đang tính lại đường đi bằng Goong.');
       }
 
       const nextRoute = await getDrivingRoute(routeOrigin, routeDestination);
@@ -189,16 +185,12 @@ export function RealtimeTripMap({
       lastRouteAtRef.current = Date.now();
 
       if (reason === 'manual' || reason === 'deviation') {
-        Toast.show({ type: 'success', text1: 'Đã cập nhật lộ trình Goong' });
+        showSuccess('Đã cập nhật lộ trình Goong');
       }
     } catch (error: any) {
       setRoute(null);
       setRouteError(error.message || 'Không thể tải lộ trình Goong. Vui lòng thử lại.');
-      Toast.show({
-        type: 'error',
-        text1: 'Không thể tải lộ trình Goong',
-        text2: error.message,
-      });
+      showError('Không thể tải lộ trình Goong', error.message);
     } finally {
       setRouteLoading(false);
     }

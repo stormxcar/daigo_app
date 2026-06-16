@@ -1,15 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import { Image, Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
-import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { AuthRequired } from '@/components/AuthRequired';
-import { Button, Card } from '@/components/BaseComponents';
-import { Screen } from '@/components/ScreenComponents';
-import { useAuthStore } from '@/stores/authStore';
-import { useChatStore } from '@/stores/chatStore';
-import { apiClient } from '@/services/api';
-import { supabase } from '@/services/supabase';
+﻿import React, { useEffect, useMemo, useState } from "react";
+import { Image, Text, TouchableOpacity, View } from "react-native";
+import { router } from "expo-router";
+import { useTheme } from "@/theme";
+import { borderRadius, fontSize, spacing } from "@/theme/tokens";
+import { AuthRequired } from "@/components/AuthRequired";
+import { Button, Card } from "@/components/BaseComponents";
+import { Screen } from "@/components/ScreenComponents";
+import { SearchFilterBar } from "@/components/SearchFilterBar";
+import { useAuthStore } from "@/stores/authStore";
+import { useChatStore } from "@/stores/chatStore";
+import { apiClient } from "@/services/api";
+import { supabase } from "@/services/supabase";
+
+const CHAT_FILTERS = [
+  { key: "all", label: "Tất cả" },
+  { key: "unread", label: "🔵 Chưa đọc" },
+  { key: "read", label: "✅ Đã đọc" },
+];
+
+const CHAT_SORTS = [
+  { key: "newest", label: "Tin nhắn mới" },
+  { key: "oldest", label: "Tin nhắn cũ" },
+  { key: "unread", label: "Chưa đọc trước" },
+  { key: "name", label: "Theo tên A-Z" },
+];
 
 export default function ChatScreen() {
   const { colors } = useTheme();
@@ -17,6 +31,9 @@ export default function ChatScreen() {
   const { conversations, setConversations, setError } = useChatStore();
   const [refreshing, setRefreshing] = useState(false);
   const [visibleCount, setVisibleCount] = useState(12);
+  const [search, setSearch] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [activeSort, setActiveSort] = useState("newest");
 
   const refreshConversations = async () => {
     if (!user) return;
@@ -38,12 +55,26 @@ export default function ChatScreen() {
     const channelName = `chat-list-${user.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
       .channel(channelName)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
-        apiClient.getConversations(user.id).then(setConversations).catch((error) => setError(error.message));
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
-        apiClient.getConversations(user.id).then(setConversations).catch((error) => setError(error.message));
-      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "conversations" },
+        () => {
+          apiClient
+            .getConversations(user.id)
+            .then(setConversations)
+            .catch((error) => setError(error.message));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
+        () => {
+          apiClient
+            .getConversations(user.id)
+            .then(setConversations)
+            .catch((error) => setError(error.message));
+        },
+      )
       .subscribe();
 
     return () => {
@@ -51,39 +82,125 @@ export default function ChatScreen() {
     };
   }, [user?.id]);
 
+  const filteredConversations = useMemo(() => {
+    let result = [...conversations];
+
+    // Search
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.participantName?.toLowerCase().includes(q) ||
+          c.lastMessage?.toLowerCase().includes(q),
+      );
+    }
+
+    // Filter
+    if (activeFilter === "unread")
+      result = result.filter((c) => c.unreadCount > 0);
+    if (activeFilter === "read")
+      result = result.filter((c) => !c.unreadCount || c.unreadCount === 0);
+
+    // Sort
+    if (activeSort === "unread")
+      result.sort((a, b) => (b.unreadCount ?? 0) - (a.unreadCount ?? 0));
+    if (activeSort === "name")
+      result.sort((a, b) =>
+        (a.participantName ?? "").localeCompare(b.participantName ?? ""),
+      );
+    if (activeSort === "oldest") result = [...result].reverse();
+
+    return result;
+  }, [conversations, search, activeFilter, activeSort]);
+
   if (!isAuthenticated) {
-    return <AuthRequired description="Bạn cần đăng nhập để trò chuyện với tài xế." />;
+    return (
+      <AuthRequired description="Bạn cần đăng nhập để trò chuyện với tài xế." />
+    );
   }
 
   return (
-    <Screen scroll padding refreshing={refreshing} onRefresh={refreshConversations}>
-      {conversations.slice(0, visibleCount).map((conversation) => (
+    <Screen scroll refreshing={refreshing} onRefresh={refreshConversations}>
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
+        <SearchFilterBar
+          searchValue={search}
+          onSearchChange={setSearch}
+          placeholder="Tìm tài xế hoặc tin nhắn..."
+          filters={CHAT_FILTERS}
+          activeFilter={activeFilter}
+          onFilterChange={setActiveFilter}
+          sortOptions={CHAT_SORTS}
+          activeSort={activeSort}
+          onSortChange={(key) => setActiveSort(key || "newest")}
+          resultCount={filteredConversations.length}
+          resultLabel="cuộc trò chuyện"
+        />
+      </View>
+
+      {filteredConversations.slice(0, visibleCount).map((conversation) => (
         <TouchableOpacity
           key={conversation.id}
           activeOpacity={0.84}
           onPress={() =>
             router.push({
-              pathname: '/(customer)/chat-detail' as any,
+              pathname: "/(customer)/chat-detail" as any,
               params: { id: conversation.id },
             })
           }
         >
           <Card style={{ marginBottom: spacing.md }}>
-            <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: spacing.md,
+                alignItems: "center",
+              }}
+            >
               <Image
                 source={{ uri: conversation.participantAvatar }}
-                style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: colors.surfaceAlt }}
+                style={{
+                  width: 54,
+                  height: 54,
+                  borderRadius: 27,
+                  backgroundColor: colors.surfaceAlt,
+                }}
               />
               <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontSize: 16,
+                    fontWeight: "700",
+                  }}
+                >
                   {conversation.participantName}
                 </Text>
-                <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs }}>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: colors.textSecondary,
+                    fontSize: fontSize.sm,
+                    marginTop: spacing.xs,
+                  }}
+                >
                   {conversation.lastMessage}
                 </Text>
+                {(conversation.threadIds?.length ?? 0) > 1 && (
+                  <Text
+                    style={{
+                      color: colors.textTertiary,
+                      fontSize: fontSize.xs,
+                      marginTop: spacing.xs,
+                    }}
+                  >
+                    {conversation.threadIds?.length} chuyến cùng tài xế
+                  </Text>
+                )}
               </View>
-              <View style={{ alignItems: 'flex-end', gap: spacing.sm }}>
-                <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs }}>
+              <View style={{ alignItems: "flex-end", gap: spacing.sm }}>
+                <Text
+                  style={{ color: colors.textTertiary, fontSize: fontSize.xs }}
+                >
                   {conversation.lastMessageTime}
                 </Text>
                 {conversation.unreadCount > 0 && (
@@ -93,11 +210,17 @@ export default function ChatScreen() {
                       height: 22,
                       borderRadius: borderRadius.full,
                       backgroundColor: colors.primary,
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    <Text style={{ color: 'white', fontSize: fontSize.xs, fontWeight: '700' }}>
+                    <Text
+                      style={{
+                        color: "white",
+                        fontSize: fontSize.xs,
+                        fontWeight: "700",
+                      }}
+                    >
                       {conversation.unreadCount}
                     </Text>
                   </View>
@@ -107,12 +230,20 @@ export default function ChatScreen() {
           </Card>
         </TouchableOpacity>
       ))}
-      {conversations.length === 0 && (
-        <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xl }}>
-          Chưa có cuộc trò chuyện. Conversation sẽ được tạo sau khi bạn đặt xe.
+      {filteredConversations.length === 0 && (
+        <Text
+          style={{
+            color: colors.textSecondary,
+            textAlign: "center",
+            marginTop: spacing.xl,
+          }}
+        >
+          {search || activeFilter !== "all"
+            ? "Không tìm thấy cuộc trò chuyện phù hợp."
+            : "Chưa có cuộc trò chuyện. Conversation sẽ được tạo sau khi bạn đặt xe."}
         </Text>
       )}
-      {conversations.length > visibleCount && (
+      {filteredConversations.length > visibleCount && (
         <Button
           label="Tải thêm tin nhắn"
           onPress={() => setVisibleCount((current) => current + 12)}

@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
-import Toast from 'react-native-toast-message';
+﻿import React, { useEffect, useState } from 'react';
+import { Text, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banknote, Car, CheckCircle2, Clock, MapPin, Navigation, Phone, Route, User } from 'lucide-react-native';
@@ -15,6 +14,7 @@ import { MapPreview } from '@/components/MapPreview';
 import { RealtimeTripMap } from '@/components/RealtimeTripMap';
 import { getDriverLocation, subscribeDriverLocation } from '@/services/driverLocation';
 import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
+import { showError, showSuccess } from '@/utils/toast';
 
 export default function BookingDetailScreen() {
   const { colors } = useTheme();
@@ -59,7 +59,7 @@ export default function BookingDetailScreen() {
     apiClient
       .getVehicleById(params.vehicleId)
       .then(setVehicle)
-      .catch((error) => Alert.alert('Không thể tải xe', error.message));
+      .catch((error) => showError('Không thể tải xe', error.message));
   }, [params.id, params.vehicleId]);
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export default function BookingDetailScreen() {
     apiClient
       .getBookingById(params.id)
       .then(setBooking)
-      .catch((error) => Alert.alert('Không thể tải chuyến đi', error.message));
+      .catch((error) => showError('Không thể tải chuyến đi', error.message));
     getDriverLocation(params.id).then(setDriverLocation).catch(() => undefined);
 
     const unsubscribe = subscribeDriverLocation(params.id, setDriverLocation);
@@ -102,18 +102,10 @@ export default function BookingDetailScreen() {
         distance,
       });
       setSubmitted(true);
-      Toast.show({
-        type: 'success',
-        text1: 'Đặt xe thành công',
-        text2: `Yêu cầu đặt ${vehicle.name} đã được lưu vào Supabase.`,
-      });
+      showSuccess('Đặt xe thành công', `Yêu cầu đặt ${vehicle.name} đã được lưu vào Supabase.`);
       router.replace({ pathname: '/(customer)/booking-detail' as any, params: { id: created.id } });
     } catch (error: any) {
-      Toast.show({
-        type: 'error',
-        text1: 'Không thể đặt xe',
-        text2: error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.',
-      });
+      showError('Không thể đặt xe', error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -129,7 +121,7 @@ export default function BookingDetailScreen() {
     }
 
     return (
-      <Screen scroll padding>
+      <Screen scroll>
         <Card style={{ marginBottom: spacing.lg }}>
           <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800', marginBottom: spacing.sm }}>
             {booking.bookingCode ?? 'Chuyến đi'}
@@ -181,7 +173,7 @@ export default function BookingDetailScreen() {
   }
 
   return (
-    <Screen scroll padding>
+    <Screen scroll>
       <Card style={{ marginBottom: spacing.lg }}>
         <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700', marginBottom: spacing.md }}>
           Tóm tắt chuyến đi

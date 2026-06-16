@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+﻿import React, { useEffect, useState } from 'react';
+import { Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { Camera, CheckCircle2, LogOut, Mail, MapPin, Phone, UserCircle, XCircle } from 'lucide-react-native';
@@ -10,6 +10,7 @@ import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
 import { useAuthStore } from '@/stores/authStore';
+import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 export default function DriverProfile() {
   const { colors } = useTheme();
@@ -53,7 +54,7 @@ export default function DriverProfile() {
   const pickAvatar = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Cần quyền truy cập ảnh', 'Vui lòng cho phép ứng dụng chọn ảnh đại diện.');
+      showWarning('Cần quyền truy cập ảnh', 'Vui lòng cho phép ứng dụng chọn ảnh đại diện.');
       return;
     }
 
@@ -74,8 +75,9 @@ export default function DriverProfile() {
         type: asset.mimeType ?? 'image/jpeg',
       }, 'image');
       setAvatarUrl(uploaded.secure_url);
+      showSuccess('Đã upload avatar', 'Nhấn Lưu để cập nhật hồ sơ tài xế.');
     } catch (error: any) {
-      Alert.alert('Không thể upload avatar', error.message);
+      showError('Không thể upload avatar', error.message);
     } finally {
       setSaving(false);
     }
@@ -84,7 +86,7 @@ export default function DriverProfile() {
   const saveProfile = async () => {
     if (!user) return;
     if (!fullName.trim()) {
-      Alert.alert('Thông tin chưa hợp lệ', 'Vui lòng nhập họ và tên.');
+      showError('Thông tin chưa hợp lệ', 'Vui lòng nhập họ và tên.');
       return;
     }
 
@@ -98,9 +100,9 @@ export default function DriverProfile() {
       });
       setUser(updated);
       setEditing(false);
-      Alert.alert('Đã lưu hồ sơ', 'Thông tin tài xế đã được cập nhật.');
+      showSuccess('Đã lưu hồ sơ', 'Thông tin tài xế đã được cập nhật.');
     } catch (error: any) {
-      Alert.alert('Không thể lưu hồ sơ', error.message);
+      showError('Không thể lưu hồ sơ', error.message);
     } finally {
       setSaving(false);
     }
@@ -112,7 +114,7 @@ export default function DriverProfile() {
   };
 
   return (
-    <Screen scroll padding>
+    <Screen scroll>
       <Card style={{ marginBottom: spacing.lg, alignItems: 'center' }}>
         <TouchableOpacity activeOpacity={0.84} onPress={editing ? pickAvatar : undefined} disabled={!editing || saving}>
           <View>

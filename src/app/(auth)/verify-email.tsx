@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { KeyRound, Mail } from 'lucide-react-native';
 import { Button, TextInput } from '@/components/BaseComponents';
@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme';
 import { isValidEmail, toVietnameseAuthError } from '@/utils/authValidation';
+import { showError, showSuccess } from '@/utils/toast';
 
 export default function VerifyEmailScreen() {
   const { colors } = useTheme();
@@ -22,24 +23,25 @@ export default function VerifyEmailScreen() {
     if (!email || !otp) {
       const message = 'Vui lòng nhập email và mã OTP.';
       setLocalError(message);
-      Alert.alert('Thiếu thông tin', message);
+      showError('Thiếu thông tin', message);
       return;
     }
 
     if (!isValidEmail(email)) {
       const message = 'Email không đúng định dạng.';
       setLocalError(message);
-      Alert.alert('Email không hợp lệ', message);
+      showError('Email không hợp lệ', message);
       return;
     }
 
     try {
       const response = await verifySignupOtp(email, otp);
+      showSuccess('Xác thực thành công', 'Tài khoản đã được kích hoạt.');
       router.replace(response.user.role === 'customer' ? '/(customer)/home' : '/(driver)/dashboard');
     } catch (err: any) {
       const message = toVietnameseAuthError(err.message);
       setLocalError(message);
-      Alert.alert('Không thể xác thực', message);
+      showError('Không thể xác thực', message);
     }
   };
 
@@ -47,14 +49,14 @@ export default function VerifyEmailScreen() {
     if (!email) {
       const message = 'Vui lòng nhập email để gửi lại OTP.';
       setLocalError(message);
-      Alert.alert('Thiếu email', message);
+      showError('Thiếu email', message);
       return;
     }
 
     if (!isValidEmail(email)) {
       const message = 'Email không đúng định dạng.';
       setLocalError(message);
-      Alert.alert('Email không hợp lệ', message);
+      showError('Email không hợp lệ', message);
       return;
     }
 
@@ -62,10 +64,11 @@ export default function VerifyEmailScreen() {
       await resendSignupOtp(email);
       setNotice('Mã OTP mới đã được gửi đến email của bạn.');
       setLocalError('');
+      showSuccess('Đã gửi lại OTP', 'Vui lòng kiểm tra email của bạn.');
     } catch (err: any) {
       const message = toVietnameseAuthError(err.message);
       setLocalError(message);
-      Alert.alert('Không thể gửi lại OTP', message);
+      showError('Không thể gửi lại OTP', message);
     }
   };
 

@@ -18,7 +18,7 @@ interface Promotion {
 export const PromoBanner: React.FC<{ promotions: Promotion[] }> = ({ promotions }) => {
   const { colors } = useTheme();
   return (
-    <View style={{ marginBottom: spacing.xl }}>
+    <View style={{ marginBottom: spacing.xl , paddingHorizontal: spacing.md}}>
       <Text style={{ fontSize: fontSize.base, fontWeight: '800', color: colors.text, marginBottom: spacing.md }}>
         Nổi bật hôm nay
       </Text>

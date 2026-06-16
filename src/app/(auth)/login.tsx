@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, View, Text, TouchableOpacity } from 'react-native';
-import * as Linking from 'expo-linking';
+import { Image, View, Text, TouchableOpacity } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
@@ -12,13 +10,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { Check, Eye, EyeOff, Lock, Mail, Square } from 'lucide-react-native';
 import { isValidEmail, toVietnameseAuthError } from '@/utils/authValidation';
 import { DAIGO_LOGO_URL, APP_TAGLINE } from '@/constants/branding';
+import { getAuthRedirectUri } from '@/utils/authRedirect';
+import { showError as showErrorToast, showSuccess } from '@/utils/toast';
 
 const REMEMBER_EMAIL_KEY = 'booking_daigo_remember_email';
 const REMEMBER_PASSWORD_KEY = 'booking_daigo_remember_password';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const { login, loginWithGoogle, isLoading, error } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -43,7 +42,7 @@ export default function LoginScreen() {
 
   const showError = (message: string) => {
     setLocalError(message);
-    Alert.alert('Không thể đăng nhập', message);
+    showErrorToast('Không thể đăng nhập', message);
   };
 
   const handleLogin = async () => {
@@ -71,6 +70,7 @@ export default function LoginScreen() {
           ? '/(customer)/home'
           : '/(driver)/dashboard'
       );
+      showSuccess('Đăng nhập thành công', `Xin chào ${response.user.fullName}.`);
     } catch (err: any) {
       showError(toVietnameseAuthError(err.message));
     }
@@ -78,8 +78,9 @@ export default function LoginScreen() {
 
   const handleGoogleLogin = async () => {
     try {
-      const response = await loginWithGoogle(Linking.createURL('/(customer)/home'));
+      const response = await loginWithGoogle(getAuthRedirectUri());
       router.replace(response.user.role === 'customer' ? '/(customer)/home' : '/(driver)/dashboard');
+      showSuccess('Đăng nhập Google thành công', `Xin chào ${response.user.fullName}.`);
     } catch (err: any) {
       showError(toVietnameseAuthError(err.message));
     }

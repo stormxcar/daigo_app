@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import Toast from 'react-native-toast-message';
-import { Heart, MessageCircle, Play, Send, Share2 } from 'lucide-react-native';
+import { Heart, MessageCircle, Send, Share2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, CardSkeleton, TextInput } from '@/components/BaseComponents';
@@ -10,6 +9,9 @@ import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { BlogComment, BlogPost } from '@/types';
+import { showError, showSuccess, showWarning } from '@/utils/toast';
+import { shareBlogPostNative } from '@/utils/share';
+import { BlogMediaGrid } from '@/components/BlogMediaGrid';
 
 export default function BlogDetailScreen() {
   const { colors } = useTheme();
@@ -45,11 +47,7 @@ export default function BlogDetailScreen() {
 
   const requireAuth = (action: string) => {
     if (user) return true;
-    Toast.show({
-      type: 'warning',
-      text1: 'Bạn cần đăng nhập',
-      text2: `Vui lòng đăng nhập để ${action}.`,
-    });
+    showWarning('Bạn cần đăng nhập', `Vui lòng đăng nhập để ${action}.`);
     router.push('/(auth)/login');
     return false;
   };
@@ -62,7 +60,7 @@ export default function BlogDetailScreen() {
       const updated = await apiClient.toggleBlogLike(post.id, user!.id);
       setPost(updated);
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Không thể thả tim', text2: error.message });
+      showError('Không thể thả tim', error.message);
     } finally {
       setLoading(false);
     }
@@ -79,7 +77,7 @@ export default function BlogDetailScreen() {
       setReplyTo(null);
       setPost(await apiClient.getBlogPostById(post.id));
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Không thể bình luận', text2: error.message });
+      showError('Không thể bình luận', error.message);
     } finally {
       setLoading(false);
     }
@@ -87,14 +85,12 @@ export default function BlogDetailScreen() {
 
   const sharePost = async () => {
     if (!post || loading) return;
-    if (!requireAuth('chia sẻ bài viết')) return;
     try {
       setLoading(true);
-      const updated = await apiClient.shareBlogPost(post.id, user!.id);
-      setPost(updated);
-      Toast.show({ type: 'success', text1: 'Đã chia sẻ', text2: 'Lượt chia sẻ đã được lưu vào database.' });
+      await shareBlogPostNative(post);
+      showSuccess('Đã mở chia sẻ', 'Chọn ứng dụng bạn muốn gửi bài viết đến.');
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Không thể chia sẻ', text2: error.message });
+      showError('Không thể chia sẻ', error.message);
     } finally {
       setLoading(false);
     }
@@ -122,7 +118,7 @@ export default function BlogDetailScreen() {
     comments.filter((comment) => comment.parentCommentId === commentId);
 
   return (
-    <Screen scroll padding>
+    <Screen scroll>
       <Card style={{ marginBottom: spacing.lg }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
           <Image source={{ uri: post.driverAvatar }} style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surfaceAlt }} />
@@ -137,24 +133,8 @@ export default function BlogDetailScreen() {
           {post.caption}
         </Text>
         {post.mediaUrls.length > 0 && (
-          <View style={{ gap: spacing.md, marginBottom: spacing.lg }}>
-            {post.mediaUrls.map((mediaUrl, index) => (
-              post.mediaTypes[index] === 'image' ? (
-                <Image
-                  key={`${mediaUrl}-${index}`}
-                  source={{ uri: mediaUrl }}
-                  style={{ width: '100%', height: 280, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}
-                />
-              ) : (
-                <View
-                  key={`${mediaUrl}-${index}`}
-                  style={{ width: '100%', height: 220, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', gap: spacing.sm }}
-                >
-                  <Play size={36} color={colors.primary} />
-                  <Text style={{ color: colors.textSecondary, fontWeight: '700' }}>Video đã lưu trên Cloudinary</Text>
-                </View>
-              )
-            ))}
+          <View style={{ marginBottom: spacing.lg }}>
+            <BlogMediaGrid urls={post.mediaUrls} types={post.mediaTypes} height={320} />
           </View>
         )}
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -168,7 +148,7 @@ export default function BlogDetailScreen() {
           </View>
           <TouchableOpacity onPress={sharePost} disabled={loading} style={{ flex: 1, alignItems: 'center', padding: spacing.sm }}>
             <Share2 size={20} color={colors.primary} />
-            <Text style={{ color: colors.text, marginTop: spacing.xs }}>{post.shares} chia sẻ</Text>
+            <Text style={{ color: colors.text, marginTop: spacing.xs }}>Chia sẻ</Text>
           </TouchableOpacity>
         </View>
       </Card>
@@ -217,20 +197,23 @@ export default function BlogDetailScreen() {
             </TouchableOpacity>
           </View>
         )}
-        <TextInput
-          value={commentText}
-          onChangeText={setCommentText}
-          placeholder="Viết bình luận..."
-          disabled={loading}
-          style={{ marginTop: spacing.sm, marginBottom: spacing.md }}
-        />
-        <Button
-          label="Gửi bình luận"
-          onPress={submitComment}
-          disabled={!commentText.trim() || loading}
-          loading={loading}
-          icon={<Send size={18} color="white" />}
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginTop: spacing.sm }}>
+          <TextInput
+            value={commentText}
+            onChangeText={setCommentText}
+            placeholder="Viết bình luận..."
+            disabled={loading}
+            style={{ flex: 1 }}
+          />
+          <Button
+            label="Gửi"
+            onPress={submitComment}
+            disabled={!commentText.trim() || loading}
+            loading={loading}
+            icon={<Send size={18} color="white" />}
+            style={{ minHeight: 50 }}
+          />
+        </View>
       </Card>
     </Screen>
   );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Image, View, Text, TouchableOpacity } from 'react-native';
+import { Image, View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
@@ -10,6 +10,7 @@ import { Eye, EyeOff, User, Mail, Phone, Lock } from 'lucide-react-native';
 import { UserRole } from '@/types';
 import { isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
 import { DAIGO_LOGO_URL } from '@/constants/branding';
+import { showError as showErrorToast, showInfo, showSuccess } from '@/utils/toast';
 
 export default function RegisterScreen() {
   const { colors } = useTheme();
@@ -27,7 +28,7 @@ export default function RegisterScreen() {
 
   const showError = (message: string) => {
     setLocalError(message);
-    Alert.alert('Không thể đăng ký', message);
+    showErrorToast('Không thể đăng ký', message);
   };
 
   const handleRegister = async () => {
@@ -73,8 +74,9 @@ export default function RegisterScreen() {
       });
       if (response.token) {
         router.replace(response.user.role === 'driver' ? '/(driver)/dashboard' : '/(customer)/home');
+        showSuccess('Đăng ký thành công', `Tài khoản ${response.user.fullName} đã sẵn sàng.`);
       } else {
-        Alert.alert('Xác thực email', 'Tài khoản đã được tạo. Vui lòng nhập mã OTP được gửi về email để kích hoạt tài khoản.');
+        showInfo('Xác thực email', 'Tài khoản đã được tạo. Vui lòng nhập mã OTP được gửi về email để kích hoạt tài khoản.');
         router.replace({
           pathname: '/(auth)/verify-email' as any,
           params: { email },

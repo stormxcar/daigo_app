@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, View, Text } from 'react-native';
-import * as Linking from 'expo-linking';
+import { View, Text } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
@@ -9,6 +8,8 @@ import { Button, TextInput } from '@/components/BaseComponents';
 import { Mail } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { isValidEmail, toVietnameseAuthError } from '@/utils/authValidation';
+import { getAuthRedirectUri } from '@/utils/authRedirect';
+import { showError, showSuccess } from '@/utils/toast';
 
 export default function ForgotPasswordScreen() {
   const { colors } = useTheme();
@@ -21,24 +22,25 @@ export default function ForgotPasswordScreen() {
     if (!email) {
       const message = 'Vui lòng nhập email để đặt lại mật khẩu.';
       setLocalError(message);
-      Alert.alert('Thiếu email', message);
+      showError('Thiếu email', message);
       return;
     }
 
     if (!isValidEmail(email)) {
       const message = 'Email không đúng định dạng.';
       setLocalError(message);
-      Alert.alert('Email không hợp lệ', message);
+      showError('Email không hợp lệ', message);
       return;
     }
 
     try {
-      await resetPassword(email, Linking.createURL('/(auth)/reset-password'));
+      await resetPassword(email, getAuthRedirectUri('auth/reset-password'));
       setSent(true);
+      showSuccess('Đã gửi email', 'Vui lòng kiểm tra hộp thư đến hoặc thư rác.');
     } catch (err: any) {
       const message = toVietnameseAuthError(err.message);
       setLocalError(message);
-      Alert.alert('Không thể gửi email', message);
+      showError('Không thể gửi email', message);
     }
   };
 
