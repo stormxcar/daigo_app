@@ -51,7 +51,17 @@ module.exports = {
         isAudioEnabled: false,
       },
     ],
+    [
+      'expo-notifications',
+      {
+        icon: './assets/icon.png',
+        color: '#1d4ed8',
+        defaultChannel: 'default',
+      },
+    ],
     'expo-screen-orientation',
+    'expo-font',
+    'expo-video',
     '@maplibre/maplibre-react-native',
   ],
   scheme: 'daigobooking',

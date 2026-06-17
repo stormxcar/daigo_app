@@ -30,6 +30,7 @@ export interface Vehicle {
   pricePerKm: number;
   status: VehicleStatus;
   image: string;
+  imageUrls?: string[];
   description?: string;
   createdAt: string;
   updatedAt: string;
@@ -101,6 +102,28 @@ export interface DriverLocation {
   createdAt?: string;
 }
 
+export interface RatingReview {
+  id: string;
+  bookingId: string;
+  fromUserId: string;
+  toUserId: string;
+  rating: number;
+  comment?: string;
+  createdAt: string;
+}
+
+export interface SavedLocation {
+  id: string;
+  userId: string;
+  label: string;
+  address: string;
+  lat?: number;
+  lng?: number;
+  type: 'home' | 'work' | 'favorite' | 'other';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type NotificationType =
   | 'booking_success'
   | 'driver_confirm'
@@ -128,6 +151,11 @@ export interface Message {
   sender: 'user' | 'driver';
   senderName: string;
   text: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
+  replyToMessageId?: string;
+  replyToText?: string;
+  replyToSenderName?: string;
   timestamp: string;
   read: boolean;
 }

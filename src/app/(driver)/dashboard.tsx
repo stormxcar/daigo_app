@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
 import { BarChart3, Briefcase, Car, LocateFixed, Newspaper, Wallet } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, CardSkeleton } from '@/components/BaseComponents';
 import { EmptyState, Screen } from '@/components/ScreenComponents';
+import { ActiveTripSheet } from '@/components/ActiveTripSheet';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { BlogPost, Booking, Vehicle } from '@/types';
@@ -101,8 +103,18 @@ export default function DriverDashboard() {
     const completed = bookings.filter((booking) => booking.status === BOOKING_STATUS.TRIP_COMPLETED);
     const active = bookings.filter((booking) => ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
     const revenue = completed.reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
-    return { completed: completed.length, active: active.length, revenue };
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const todayCompleted = completed.filter((booking) => booking.date === todayKey);
+    const todayRevenue = todayCompleted.reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    const weekRevenue = completed
+      .filter((booking) => new Date(booking.date || booking.createdAt) >= sevenDaysAgo)
+      .reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
+    const averageTrip = completed.length ? Math.round(revenue / completed.length) : 0;
+    return { completed: completed.length, active: active.length, revenue, todayRevenue, todayCompleted: todayCompleted.length, weekRevenue, averageTrip };
   }, [bookings]);
+  const activeTrip = bookings.find((booking) => ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
 
   const chart = useMemo(() => {
     const buckets = buildBuckets(mode);
@@ -127,6 +139,12 @@ export default function DriverDashboard() {
 
   return (
     <Screen scroll refreshing={refreshing || loading} onRefresh={() => loadData(true)}>
+      <ActiveTripSheet
+        booking={activeTrip}
+        role="driver"
+        onOpenDetail={(id) => router.push({ pathname: '/(driver)/booking-detail' as any, params: { id } })}
+      />
+
       <View style={{ paddingHorizontal: spacing.lg }}>
         <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: spacing.xs, marginTop: spacing.md }}>
           Thống kê tài xế
@@ -178,6 +196,27 @@ export default function DriverDashboard() {
           </Card>
         ))}
       </View>}
+
+      {!loading && (
+        <Card style={{ marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.primaryLight }}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
+            Doanh thu theo ngày
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.md }}>
+            {[
+              { label: 'Hôm nay', value: money(stats.todayRevenue), sub: `${stats.todayCompleted} chuyến hoàn thành` },
+              { label: '7 ngày', value: money(stats.weekRevenue), sub: 'Doanh thu tuần này' },
+              { label: 'TB/chuyến', value: money(stats.averageTrip), sub: 'Giá trị trung bình' },
+            ].map((item) => (
+              <View key={item.label} style={{ flex: 1, padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{item.label}</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '900', marginTop: spacing.xs }}>{item.value}</Text>
+                <Text numberOfLines={2} style={{ color: colors.textTertiary, fontSize: 10, marginTop: spacing.xs }}>{item.sub}</Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      )}
 
       {!loading && <Card style={{ marginBottom: spacing.lg }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg }}>

@@ -133,6 +133,10 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   logout: async () => {
+    const currentUser = useAuthStore.getState().user;
+    if (currentUser?.id) {
+      await apiClient.disablePushTokens(currentUser.id).catch(() => undefined);
+    }
     await apiClient.logout();
     set({ user: null, token: null, isAuthenticated: false, error: null });
   },
@@ -143,6 +147,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
 
   restoreSession: (user, token) => {
-    set({ user, token, isAuthenticated: true });
+    set({ user, token, isAuthenticated: true, isLoading: false, error: null });
   },
 }));

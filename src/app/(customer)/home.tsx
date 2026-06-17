@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { CalendarClock, Car, LocateFixed, MapPin, Phone, ShieldCheck, Star } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { Badge, Button, Card, CardSkeleton } from '@/components/BaseComponents';
+import { Badge, Button, Card, Skeleton } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { useAuth } from '@/hooks/useAuth';
 import { useBooking } from '@/hooks/useBooking';
@@ -14,11 +14,13 @@ import { NearbyMapCard } from '@/components/NearbyMapCard';
 import { RecommendedVehicleCarousel } from '@/components/RecommendedVehicleCarousel';
 import { RecentTripsCarousel } from '@/components/RecentTripsCarousel';
 import { NewsUpdatesList } from '@/components/NewsUpdatesList';
+import { ActiveTripSheet } from '@/components/ActiveTripSheet';
 
 import { HelpSupportRow } from '@/components/HelpSupportRow';
 import { useVehicles } from '@/hooks/useVehicles';
 import { apiClient } from '@/services/api';
 import { DeviceLocation, getCurrentDeviceLocation } from '@/services/deviceLocation';
+import { ACTIVE_BOOKING_STATUSES } from '@/constants';
 
 import { BlogPost, Vehicle } from '@/types';
 import { DAIGO_LOGO_URL } from '@/constants/branding';
@@ -38,6 +40,17 @@ function DriverVehicleCard({ vehicle }: { vehicle: Vehicle }) {
           source={{ uri: vehicle.image }}
           style={{ width: '100%', height: 176, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, marginBottom: spacing.md }}
         />
+      )}
+      {!!vehicle.imageUrls?.length && vehicle.imageUrls.length > 1 && (
+        <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md }}>
+          {vehicle.imageUrls.slice(1, 5).map((url, index) => (
+            <Image
+              key={`${vehicle.id}-preview-${index}`}
+              source={{ uri: url }}
+              style={{ flex: 1, height: 58, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt }}
+            />
+          ))}
+        </View>
       )}
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.md }}>
@@ -91,6 +104,32 @@ function DriverVehicleCard({ vehicle }: { vehicle: Vehicle }) {
   );
 }
 
+function HomeVehicleSkeleton() {
+  return (
+    <Card style={{ marginBottom: spacing.lg }}>
+      <Skeleton height={176} borderRadius={borderRadius.lg} style={{ marginBottom: spacing.md }} />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.md }}>
+        <View style={{ flex: 1, gap: spacing.sm }}>
+          <Skeleton width="58%" height={18} />
+          <Skeleton width="82%" height={12} />
+        </View>
+        <Skeleton width={72} height={26} borderRadius={borderRadius.full} />
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: borderRadius.lg }}>
+        <Skeleton width={52} height={52} borderRadius={26} />
+        <View style={{ flex: 1, gap: spacing.sm }}>
+          <Skeleton width="42%" height={14} />
+          <Skeleton width="62%" height={12} />
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
+        <Skeleton width="49%" height={44} borderRadius={borderRadius.lg} />
+        <Skeleton width="49%" height={44} borderRadius={borderRadius.lg} />
+      </View>
+    </Card>
+  );
+}
+
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
@@ -128,7 +167,9 @@ const isLoggedIn = !!user?.id;
 const promotions = useMemo(() => {
   const postPromotions = blogPosts.slice(0, 3).map((post) => ({
     id: post.id,
-    image: post.mediaUrls[0]?.startsWith('http') ? { uri: post.mediaUrls[0] } : undefined,
+    image: post.mediaUrls[0]?.startsWith('http') && (post.mediaTypes?.[0] ?? 'image') === 'image' ? { uri: post.mediaUrls[0] } : undefined,
+    mediaUrl: post.mediaUrls[0]?.startsWith('http') ? post.mediaUrls[0] : undefined,
+    mediaType: post.mediaTypes?.[0] ?? 'image',
     title: post.caption || 'Cập nhật mới từ tài xế',
     description: `${post.driverName} - ${new Date(post.createdAt).toLocaleDateString('vi-VN')}`,
     cta: 'Xem bài viết',
@@ -160,9 +201,18 @@ const promotions = useMemo(() => {
 const availableVehicles = vehicles.filter((vehicle) => vehicle.status === 'Sẵn sàng');
 const recommendedVehicles = availableVehicles.length > 0 ? availableVehicles : vehicles;
 const recentTrips = isLoggedIn ? bookings.slice(0, 6) : [];
+const activeTrip = isLoggedIn
+  ? bookings.find((booking) => ACTIVE_BOOKING_STATUSES.includes(booking.status as any))
+  : null;
 
   return (
     <Screen scroll refreshing={refreshing || isLoading} onRefresh={refreshHome}>
+      <ActiveTripSheet
+        booking={activeTrip}
+        role="customer"
+        onOpenDetail={(id) => router.push({ pathname: '/(customer)/booking-detail' as any, params: { id } })}
+      />
+
       {/* ─── GREETING + LOGO SECTION (Grab pattern) ─── */}
       <View style={{ marginBottom: spacing.xl, paddingHorizontal: spacing.md }}>
         <View
@@ -224,8 +274,8 @@ const recentTrips = isLoggedIn ? bookings.slice(0, 6) : [];
 
       {isLoading ? (
         <>
-          <CardSkeleton image style={{ marginBottom: spacing.lg }} />
-          <CardSkeleton image style={{ marginBottom: spacing.lg }} />
+          <HomeVehicleSkeleton />
+          <HomeVehicleSkeleton />
         </>
       ) : (
         availableVehicles.map((vehicle) => (

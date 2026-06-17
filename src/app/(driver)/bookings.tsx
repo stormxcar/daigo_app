@@ -31,6 +31,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { getBookingStatusInfo } from '@/utils/helpers';
 
 type LayoutMode = 'card' | 'list';
+const BOOKING_PAGE_SIZE = 12;
 
 // ─── Compact List Row ─────────────────────────────────────────────────────────
 function BookingListRow({
@@ -247,7 +248,9 @@ export default function DriverBookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [visibleCount, setVisibleCount] = useState(8);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [dismissedOfferId, setDismissedOfferId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<BookingStatusFilter>('all');
@@ -281,12 +284,33 @@ export default function DriverBookings() {
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.getBookings();
+      const data = await apiClient.getBookings({ page: 1, pageSize: BOOKING_PAGE_SIZE });
       setBookings(data);
+      setPage(1);
+      setHasMore(data.length === BOOKING_PAGE_SIZE);
     } catch (error: any) {
       showError('Không thể tải chuyến đi', error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreBookings = async () => {
+    if (loading || loadingMore || !hasMore) return;
+    try {
+      setLoadingMore(true);
+      const nextPage = page + 1;
+      const data = await apiClient.getBookings({ page: nextPage, pageSize: BOOKING_PAGE_SIZE });
+      setBookings((current) => {
+        const existingIds = new Set(current.map((booking) => booking.id));
+        return [...current, ...data.filter((booking) => !existingIds.has(booking.id))];
+      });
+      setPage(nextPage);
+      setHasMore(data.length === BOOKING_PAGE_SIZE);
+    } catch (error: any) {
+      showError('Không thể tải thêm chuyến đi', error.message);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -330,7 +354,7 @@ export default function DriverBookings() {
   const handleCancel = async (bookingId: string) => {
     try {
       setLoadingId(bookingId);
-      await apiClient.cancelBooking(bookingId);
+      await apiClient.cancelBookingByDriver(bookingId, 'Tài xế hủy từ danh sách chuyến đi');
       await fetchBookings();
     } catch (error: any) {
       showError('Không thể hủy chuyến', error.message);
@@ -395,7 +419,7 @@ export default function DriverBookings() {
       ) : layoutMode === 'card' ? (
         /* ══ CARD VIEW ══ */
         <View style={{ paddingHorizontal: spacing.lg }}>
-          {visibleBookings.slice(0, visibleCount).map((booking) => (
+          {visibleBookings.map((booking) => (
             <Card key={booking.id} style={{ marginBottom: spacing.lg }}>
               <BookingCard
                 {...booking}
@@ -443,7 +467,7 @@ export default function DriverBookings() {
       ) : (
         /* ══ LIST VIEW ══ */
         <View>
-          {visibleBookings.slice(0, visibleCount).map((booking) => (
+          {visibleBookings.map((booking) => (
             <BookingListRow
               key={booking.id}
               booking={booking}
@@ -466,12 +490,14 @@ export default function DriverBookings() {
       )}
 
       {/* ── Load more ── */}
-      {!loading && visibleBookings.length > visibleCount && (
+      {!loading && hasMore && activeFilterCount === 0 && (
         <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.sm }}>
           <Button
-            label="Tải thêm chuyến đi"
-            onPress={() => setVisibleCount((current) => current + 8)}
+            label={loadingMore ? 'Đang tải thêm...' : 'Tải thêm chuyến đi'}
+            onPress={loadMoreBookings}
             variant="outline"
+            loading={loadingMore}
+            disabled={loadingMore}
           />
         </View>
       )}

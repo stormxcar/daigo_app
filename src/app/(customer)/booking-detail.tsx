@@ -1,20 +1,23 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Banknote, Car, CheckCircle2, Clock, MapPin, Navigation, Phone, Route, User } from 'lucide-react-native';
+import { Banknote, Car, CheckCircle2, Clock, MapPin, Navigation, Phone, Route, Star, User } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { Button, Card } from '@/components/BaseComponents';
+import { Button, Card, TextInput } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
-import { Booking, DriverLocation, Vehicle } from '@/types';
+import { Booking, DriverLocation, RatingReview, Vehicle } from '@/types';
 import { MapPreview } from '@/components/MapPreview';
 import { RealtimeTripMap } from '@/components/RealtimeTripMap';
+import { BookingTimeline } from '@/components/BookingTimeline';
+import { LazyMount } from '@/components/LazyMount';
 import { getDriverLocation, subscribeDriverLocation } from '@/services/driverLocation';
 import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
-import { showError, showSuccess } from '@/utils/toast';
+import { BOOKING_STATUS, CUSTOMER_CANCEL_REASONS } from '@/constants';
+import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 export default function BookingDetailScreen() {
   const { colors } = useTheme();
@@ -31,6 +34,8 @@ export default function BookingDetailScreen() {
     dropoffLat?: string;
     dropoffLng?: string;
     distance?: string;
+    estimatedPrice?: string;
+    routeDuration?: string;
     note?: string;
   }>();
 
@@ -39,11 +44,15 @@ export default function BookingDetailScreen() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [ratingReview, setRatingReview] = useState<RatingReview | null>(null);
+  const [rating, setRating] = useState(5);
+  const [ratingComment, setRatingComment] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const passengers = Number(params.passengers) || 1;
   const distance = Number(params.distance) || 1;
-  const estimatedPrice = distance * (vehicle?.pricePerKm ?? 0);
+  const estimatedPrice = Number(params.estimatedPrice) || distance * (vehicle?.pricePerKm ?? 0);
   const pickupLat = Number(params.pickupLat);
   const pickupLng = Number(params.pickupLng);
   const dropoffLat = Number(params.dropoffLat);
@@ -74,6 +83,14 @@ export default function BookingDetailScreen() {
     const unsubscribe = subscribeDriverLocation(params.id, setDriverLocation);
     return unsubscribe;
   }, [params.id]);
+
+  useEffect(() => {
+    if (!booking || !user || booking.status !== BOOKING_STATUS.TRIP_COMPLETED) return;
+    apiClient
+      .getRatingForBooking(booking.id, user.id)
+      .then(setRatingReview)
+      .catch(() => undefined);
+  }, [booking?.id, booking?.status, user?.id]);
 
   const handleConfirm = async () => {
     if (loading || submitted) return;
@@ -111,6 +128,45 @@ export default function BookingDetailScreen() {
     }
   };
 
+  const handleCancelBooking = async () => {
+    if (!booking) return;
+    if (!cancelReason) {
+      showWarning('Chọn lý do hủy', 'Vui lòng chọn một lý do trước khi hủy chuyến.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const updated = await apiClient.cancelBooking(booking.id, cancelReason);
+      setBooking(updated);
+      showSuccess('Đã hủy chuyến', 'Lý do hủy đã được lưu vào lịch sử chuyến đi.');
+    } catch (error: any) {
+      showError('Không thể hủy chuyến', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitRating = async () => {
+    if (!booking || !user || !booking.driverId) return;
+    try {
+      setLoading(true);
+      const created = await apiClient.createRating({
+        bookingId: booking.id,
+        fromUserId: user.id,
+        toUserId: booking.driverId,
+        rating,
+        comment: ratingComment,
+      });
+      setRatingReview(created);
+      showSuccess('Đã gửi đánh giá', 'Cảm ơn bạn đã đánh giá tài xế sau chuyến đi.');
+    } catch (error: any) {
+      showError('Không thể gửi đánh giá', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (params.id) {
     if (!booking) {
       return (
@@ -131,6 +187,13 @@ export default function BookingDetailScreen() {
           </Text>
         </Card>
 
+        <Card style={{ marginBottom: spacing.lg }}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>
+            Trạng thái chuyến đi
+          </Text>
+          <BookingTimeline status={booking.status} />
+        </Card>
+
         {existingBookingHasMap && (
           <Card style={{ marginBottom: spacing.lg }}>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
@@ -139,13 +202,15 @@ export default function BookingDetailScreen() {
             <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
               {driverLocation ? 'Vị trí tài xế đang được cập nhật trực tiếp.' : 'Tài xế chưa bật chia sẻ GPS.'}
             </Text>
-            <RealtimeTripMap
-              pickup={{ label: booking.pickupLocation, latitude: booking.pickupLat!, longitude: booking.pickupLng! }}
-              dropoff={{ label: booking.dropoffLocation, latitude: booking.dropoffLat!, longitude: booking.dropoffLng! }}
-              driverLocation={driverLocation}
-              bookingStatus={booking.status}
-              showControls={false}
-            />
+            <LazyMount minHeight={320} label="Đang tải bản đồ realtime...">
+              <RealtimeTripMap
+                pickup={{ label: booking.pickupLocation, latitude: booking.pickupLat!, longitude: booking.pickupLng! }}
+                dropoff={{ label: booking.dropoffLocation, latitude: booking.dropoffLat!, longitude: booking.dropoffLng! }}
+                driverLocation={driverLocation}
+                bookingStatus={booking.status}
+                showControls={false}
+              />
+            </LazyMount>
           </Card>
         )}
 
@@ -168,6 +233,105 @@ export default function BookingDetailScreen() {
             </View>
           ))}
         </Card>
+
+        {!!booking.cancelReason && (
+          <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
+              Lý do hủy chuyến
+            </Text>
+            <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
+              {booking.cancelReason}
+            </Text>
+          </Card>
+        )}
+
+        {[BOOKING_STATUS.SEARCHING_DRIVER, BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED].includes(booking.status as any) && (
+          <Card style={{ marginBottom: spacing.lg }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
+              Hủy chuyến
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
+              Chọn lý do để tài xế và hệ thống chăm sóc khách hàng nắm được tình huống.
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
+              {CUSTOMER_CANCEL_REASONS.map((reason) => (
+                <TouchableOpacity
+                  key={reason}
+                  onPress={() => setCancelReason(reason)}
+                  style={{
+                    paddingVertical: spacing.sm,
+                    paddingHorizontal: spacing.md,
+                    borderRadius: borderRadius.full,
+                    backgroundColor: cancelReason === reason ? colors.error : colors.surfaceAlt,
+                  }}
+                >
+                  <Text style={{ color: cancelReason === reason ? 'white' : colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
+                    {reason}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Button
+              label="Hủy chuyến"
+              onPress={handleCancelBooking}
+              loading={loading}
+              disabled={loading}
+              variant="danger"
+            />
+          </Card>
+        )}
+
+        {booking.status === BOOKING_STATUS.TRIP_COMPLETED && !!booking.driverId && (
+          <Card style={{ marginBottom: spacing.lg }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
+              Đánh giá tài xế
+            </Text>
+            {ratingReview ? (
+              <>
+                <View style={{ flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.sm }}>
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <Star
+                      key={index}
+                      size={22}
+                      color={colors.warning}
+                      fill={index < ratingReview.rating ? colors.warning : 'transparent'}
+                    />
+                  ))}
+                </View>
+                <Text style={{ color: colors.textSecondary }}>
+                  {ratingReview.comment || 'Bạn đã đánh giá chuyến đi này.'}
+                </Text>
+              </>
+            ) : (
+              <>
+                <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md }}>
+                  {Array.from({ length: 5 }).map((_, index) => {
+                    const value = index + 1;
+                    return (
+                      <TouchableOpacity key={value} onPress={() => setRating(value)}>
+                        <Star
+                          size={30}
+                          color={colors.warning}
+                          fill={value <= rating ? colors.warning : 'transparent'}
+                        />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <TextInput
+                  label="Nhận xét"
+                  placeholder="Tài xế đúng giờ, xe sạch, thái độ tốt..."
+                  value={ratingComment}
+                  onChangeText={setRatingComment}
+                  multiline
+                  numberOfLines={3}
+                  style={{ marginBottom: spacing.md }}
+                />
+                <Button label="Gửi đánh giá" onPress={submitRating} loading={loading} disabled={loading} />
+              </>
+            )}
+          </Card>
+        )}
       </Screen>
     );
   }
@@ -199,17 +363,19 @@ export default function BookingDetailScreen() {
           Bản đồ hành trình
         </Text>
         {hasMap ? (
-          <MapPreview
-            pickup={{ label: params.pickupLocation || 'Điểm đón', lat: pickupLat, lng: pickupLng }}
-            dropoff={{ label: params.dropoffLocation || 'Điểm đến', lat: dropoffLat, lng: dropoffLng }}
-            showControls={false}
-          />
+          <LazyMount minHeight={260} label="Đang tải bản đồ hành trình...">
+            <MapPreview
+              pickup={{ label: params.pickupLocation || 'Điểm đón', lat: pickupLat, lng: pickupLng }}
+              dropoff={{ label: params.dropoffLocation || 'Điểm đến', lat: dropoffLat, lng: dropoffLng }}
+              showControls={false}
+            />
+          </LazyMount>
         ) : null}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.md }}>
           <Text style={{ color: colors.textSecondary }}>
             <Route size={14} color={colors.textSecondary} /> {distance} km
           </Text>
-          <Text style={{ color: colors.textSecondary }}>Dự kiến 35-45 phút</Text>
+          <Text style={{ color: colors.textSecondary }}>{params.routeDuration ? `Dự kiến ${params.routeDuration}` : 'Dự kiến theo Goong'}</Text>
         </View>
       </Card>
 
@@ -265,6 +431,9 @@ export default function BookingDetailScreen() {
         </View>
         <Text style={{ color: colors.primary, fontSize: 24, fontWeight: '800' }}>
           {estimatedPrice.toLocaleString('vi-VN')} VND
+        </Text>
+        <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs }}>
+          Giá đã bao gồm phí nền tảng và phụ phí giờ cao điểm nếu có. Khoảng cách lấy theo lộ trình Goong thực tế.
         </Text>
       </Card>
 

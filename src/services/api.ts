@@ -1,7 +1,8 @@
 import * as WebBrowser from 'expo-web-browser';
-import { AuthCredentials, AuthResponse, BlogComment, BlogPost, Booking, ChatConversation, Message, NotificationItem, RegisterData, User, Vehicle } from '@/types';
+import { AuthCredentials, AuthResponse, BlogComment, BlogPost, Booking, ChatConversation, Message, NotificationItem, RatingReview, RegisterData, SavedLocation, User, Vehicle } from '@/types';
 import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { supabase } from './supabase';
+import { getAuthRedirectUri } from '@/utils/authRedirect';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -16,6 +17,7 @@ type VehicleRow = {
   price_per_km: number;
   status: Vehicle['status'];
   image: string;
+  image_urls?: string[] | null;
   description: string | null;
   created_at: string;
   updated_at: string;
@@ -77,6 +79,7 @@ const mapVehicle = (row: VehicleRow): Vehicle => ({
   pricePerKm: row.price_per_km,
   status: row.status,
   image: row.image,
+  imageUrls: row.image_urls?.length ? row.image_urls : row.image ? [row.image] : [],
   description: row.description ?? undefined,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -143,7 +146,37 @@ const mapBlogPost = (row: any): BlogPost => ({
   updatedAt: row.updated_at,
 });
 
+const mapRating = (row: any): RatingReview => ({
+  id: row.id,
+  bookingId: row.booking_id,
+  fromUserId: row.from_user_id,
+  toUserId: row.to_user_id,
+  rating: row.rating,
+  comment: row.comment ?? undefined,
+  createdAt: row.created_at,
+});
+
+const mapSavedLocation = (row: any): SavedLocation => ({
+  id: row.id,
+  userId: row.user_id,
+  label: row.label,
+  address: row.address,
+  lat: row.latitude ?? undefined,
+  lng: row.longitude ?? undefined,
+  type: row.location_type,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
 class ApiClient {
+  private async getAuthResponseFromCurrentSession(fallbackMessage: string): Promise<AuthResponse> {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = await this.getCurrentUser();
+    if (!user || !sessionData.session) throw new Error(fallbackMessage);
+
+    return { token: sessionData.session.access_token, user };
+  }
+
   async getCurrentUser(): Promise<User | null> {
     const { data: sessionData } = await supabase.auth.getSession();
     const authUser = sessionData.session?.user;
@@ -179,21 +212,34 @@ class ApiClient {
 
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     if (result.type !== 'success') {
+      const existingSession = await supabase.auth.getSession();
+      if (existingSession.data.session) {
+        return this.getAuthResponseFromCurrentSession('Không tìm thấy phiên đăng nhập Google');
+      }
       throw new Error('Đăng nhập Google đã bị hủy');
     }
 
     const url = new URL(result.url);
+    const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
     const code = url.searchParams.get('code');
     if (code) {
       const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchangeError) throw exchangeError;
+      if (exchangeError) {
+        const session = await supabase.auth.getSession();
+        if (!session.data.session) throw exchangeError;
+      }
+    } else if (hashParams.get('access_token') && hashParams.get('refresh_token')) {
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: hashParams.get('access_token') ?? '',
+        refresh_token: hashParams.get('refresh_token') ?? '',
+      });
+      if (sessionError) {
+        const session = await supabase.auth.getSession();
+        if (!session.data.session) throw sessionError;
+      }
     }
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const user = await this.getCurrentUser();
-    if (!user || !sessionData.session) throw new Error('Không tìm thấy phiên đăng nhập Google');
-
-    return { token: sessionData.session.access_token, user };
+    return this.getAuthResponseFromCurrentSession('Không tìm thấy phiên đăng nhập Google');
   }
 
   async resendSignupOtp(email: string) {
@@ -225,6 +271,20 @@ class ApiClient {
     if (error) throw error;
   }
 
+  async verifyRecoveryOtp(email: string, token: string): Promise<AuthResponse> {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'recovery',
+    });
+    if (error) throw error;
+
+    const user = await this.getCurrentUser();
+    if (!user || !data.session) throw new Error('Không tìm thấy phiên đặt lại mật khẩu');
+
+    return { token: data.session.access_token, user };
+  }
+
   async updatePassword(password: string) {
     const { error } = await supabase.auth.updateUser({ password });
     if (error) throw error;
@@ -235,6 +295,7 @@ class ApiClient {
       email: data.email,
       password: data.password,
       options: {
+        emailRedirectTo: getAuthRedirectUri(),
         data: {
           full_name: data.fullName,
           phone: data.phone,
@@ -283,6 +344,49 @@ class ApiClient {
       .single();
     if (error) throw error;
     return mapProfile(updated as ProfileRow);
+  }
+
+  async upsertPushToken(userId: string, token: string, platform: string): Promise<void> {
+    const { error } = await supabase
+      .from('push_tokens')
+      .upsert(
+        {
+          user_id: userId,
+          token,
+          platform: ['ios', 'android', 'web'].includes(platform) ? platform : 'unknown',
+          enabled: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,token' }
+      );
+    if (error) throw error;
+  }
+
+  async disablePushTokens(userId: string): Promise<void> {
+    const { error } = await supabase
+      .from('push_tokens')
+      .update({ enabled: false, updated_at: new Date().toISOString() })
+      .eq('user_id', userId);
+    if (error) throw error;
+  }
+
+  async sendPushNotification(data: {
+    userId?: string;
+    userIds?: string[];
+    title: string;
+    body: string;
+    payload?: Record<string, unknown>;
+  }): Promise<void> {
+    const { error } = await supabase.functions.invoke('send-push-notification', {
+      body: {
+        userId: data.userId,
+        userIds: data.userIds,
+        title: data.title,
+        body: data.body,
+        data: data.payload ?? {},
+      },
+    });
+    if (error) throw error;
   }
 
   async getVehicles(): Promise<Vehicle[]> {
@@ -377,6 +481,7 @@ class ApiClient {
         price_per_km: data.pricePerKm,
         status: data.status ?? 'Sẵn sàng',
         image: data.image ?? '',
+        image_urls: data.imageUrls ?? (data.image ? [data.image] : []),
         description: data.description,
       })
       .select('*')
@@ -398,6 +503,7 @@ class ApiClient {
         price_per_km: data.pricePerKm,
         status: data.status,
         image: data.image,
+        image_urls: data.imageUrls,
         description: data.description,
       })
       .eq('id', id)
@@ -412,7 +518,7 @@ class ApiClient {
     if (error) throw error;
   }
 
-  async getBookings(filters?: { status?: string; driverId?: string; customerId?: string }): Promise<Booking[]> {
+  async getBookings(filters?: { status?: string; driverId?: string; customerId?: string; page?: number; pageSize?: number }): Promise<Booking[]> {
     let query = supabase
       .from('bookings')
       .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
@@ -421,6 +527,10 @@ class ApiClient {
     if (filters?.status) query = query.eq('status', filters.status);
     if (filters?.driverId) query = query.eq('driver_id', filters.driverId);
     if (filters?.customerId) query = query.eq('customer_id', filters.customerId);
+    if (filters?.page && filters?.pageSize) {
+      const from = (filters.page - 1) * filters.pageSize;
+      query = query.range(from, from + filters.pageSize - 1);
+    }
 
     const { data, error } = await query;
     if (error) throw error;
@@ -531,7 +641,7 @@ class ApiClient {
     return mapBooking(updated);
   }
 
-  async cancelBooking(id: string): Promise<Booking> {
+  async cancelBooking(id: string, reason?: string): Promise<Booking> {
     const bookingBefore = await this.getBookingById(id);
     if ([BOOKING_STATUS.TRIP_STARTED, BOOKING_STATUS.TRIP_COMPLETED].includes(bookingBefore.status as any)) {
       throw new Error('Không thể hủy chuyến khi chuyến đi đã bắt đầu.');
@@ -540,6 +650,7 @@ class ApiClient {
     const booking = await this.updateBooking(id, {
       status: BOOKING_STATUS.CUSTOMER_CANCELLED,
       cancelledBy: 'CUSTOMER',
+      cancelReason: reason,
       cancelledAt: new Date().toISOString(),
     });
     const receiverId = booking.customerId;
@@ -547,7 +658,7 @@ class ApiClient {
       await this.createNotificationSafely({
         userId: receiverId,
         title: 'Chuyến đi đã bị hủy',
-        content: `Chuyến đi từ ${booking.pickupLocation} đến ${booking.dropoffLocation} đã bị hủy.`,
+        content: `Chuyến đi từ ${booking.pickupLocation} đến ${booking.dropoffLocation} đã bị hủy.${reason ? ` Lý do: ${reason}` : ''}`,
         type: 'driver_cancel',
         read: false,
         relatedBookingId: booking.id,
@@ -672,6 +783,83 @@ class ApiClient {
     return booking;
   }
 
+  async getRatingForBooking(bookingId: string, fromUserId: string): Promise<RatingReview | null> {
+    const { data, error } = await supabase
+      .from('ratings')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .eq('from_user_id', fromUserId)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? mapRating(data) : null;
+  }
+
+  async createRating(data: {
+    bookingId: string;
+    fromUserId: string;
+    toUserId: string;
+    rating: number;
+    comment?: string;
+  }): Promise<RatingReview> {
+    const { data: inserted, error } = await supabase
+      .from('ratings')
+      .insert({
+        booking_id: data.bookingId,
+        from_user_id: data.fromUserId,
+        to_user_id: data.toUserId,
+        rating: data.rating,
+        comment: data.comment?.trim() || null,
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return mapRating(inserted);
+  }
+
+  async getRatingsForUser(userId: string): Promise<RatingReview[]> {
+    const { data, error } = await supabase
+      .from('ratings')
+      .select('*')
+      .eq('to_user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map(mapRating);
+  }
+
+  async getSavedLocations(userId: string): Promise<SavedLocation[]> {
+    const { data, error } = await supabase
+      .from('saved_locations')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map(mapSavedLocation);
+  }
+
+  async createSavedLocation(data: {
+    userId: string;
+    label: string;
+    address: string;
+    lat?: number;
+    lng?: number;
+    type?: SavedLocation['type'];
+  }): Promise<SavedLocation> {
+    const { data: inserted, error } = await supabase
+      .from('saved_locations')
+      .insert({
+        user_id: data.userId,
+        label: data.label.trim(),
+        address: data.address.trim(),
+        latitude: data.lat,
+        longitude: data.lng,
+        location_type: data.type ?? 'favorite',
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return mapSavedLocation(inserted);
+  }
+
   async getNotifications(userId: string): Promise<NotificationItem[]> {
     const { data, error } = await supabase
       .from('notifications')
@@ -709,12 +897,24 @@ class ApiClient {
       .select('*')
       .single();
     if (error) throw error;
-    return {
+    const notification = {
       ...data,
       id: inserted.id,
       createdAt: inserted.created_at,
       time: new Date(inserted.created_at).toLocaleString('vi-VN'),
     };
+    this.sendPushNotification({
+      userId: data.userId,
+      title: data.title,
+      body: data.content,
+      payload: {
+        notificationId: inserted.id,
+        type: data.type,
+        relatedBookingId: data.relatedBookingId,
+        relatedPostId: data.relatedPostId,
+      },
+    }).catch((error) => console.warn('Không thể gửi push notification', error));
+    return notification;
   }
 
   async createNotificationSafely(data: Omit<NotificationItem, 'id'> & { id?: string }): Promise<NotificationItem | null> {
@@ -891,7 +1091,7 @@ class ApiClient {
   async getConversations(userId: string): Promise<ChatConversation[]> {
     const { data, error } = await supabase
       .from('conversations')
-      .select('*, customer:profiles!conversations_customer_id_fkey(*), driver:profiles!conversations_driver_id_fkey(*), messages(*, profiles!messages_sender_id_fkey(full_name, role))')
+      .select('*, customer:profiles!conversations_customer_id_fkey(*), driver:profiles!conversations_driver_id_fkey(*), messages(*, profiles!messages_sender_id_fkey(full_name, role), reply:messages!reply_to_message_id(text, sender_id, profiles!messages_sender_id_fkey(full_name)))')
       .or(`customer_id.eq.${userId},driver_id.eq.${userId}`)
       .order('updated_at', { ascending: false });
     if (error) throw error;
@@ -906,6 +1106,11 @@ class ApiClient {
         sender: message.sender_id === userId ? 'user' as const : 'driver' as const,
         senderName: message.profiles?.full_name ?? 'Người dùng',
         text: message.text,
+        mediaUrl: message.media_url ?? undefined,
+        mediaType: message.media_type ?? undefined,
+        replyToMessageId: message.reply_to_message_id ?? undefined,
+        replyToText: message.reply?.text ?? undefined,
+        replyToSenderName: message.reply?.profiles?.full_name ?? undefined,
         timestamp: message.created_at,
         read: message.read,
       }));
@@ -959,11 +1164,24 @@ class ApiClient {
       .map(({ updatedAt, ...conversation }) => conversation);
   }
 
-  async sendMessage(conversationId: string, message: string, senderId: string): Promise<Message> {
+  async sendMessage(
+    conversationId: string,
+    message: string,
+    senderId: string,
+    media?: { url: string; type: 'image' | 'video' },
+    replyToMessageId?: string
+  ): Promise<Message> {
     const { data, error } = await supabase
       .from('messages')
-      .insert({ conversation_id: conversationId, sender_id: senderId, text: message })
-      .select('*, profiles!messages_sender_id_fkey(full_name, role)')
+      .insert({
+        conversation_id: conversationId,
+        sender_id: senderId,
+        text: message,
+        media_url: media?.url,
+        media_type: media?.type,
+        reply_to_message_id: replyToMessageId,
+      })
+      .select('*, profiles!messages_sender_id_fkey(full_name, role), reply:messages!reply_to_message_id(text, sender_id, profiles!messages_sender_id_fkey(full_name))')
       .single();
     if (error) throw error;
     return {
@@ -971,9 +1189,23 @@ class ApiClient {
       sender: 'user',
       senderName: data.profiles?.full_name ?? 'Bạn',
       text: data.text,
+      mediaUrl: data.media_url ?? undefined,
+      mediaType: data.media_type ?? undefined,
+      replyToMessageId: data.reply_to_message_id ?? undefined,
+      replyToText: data.reply?.text ?? undefined,
+      replyToSenderName: data.reply?.profiles?.full_name ?? undefined,
       timestamp: data.created_at,
       read: data.read,
     };
+  }
+
+  async deleteMessage(messageId: string, senderId: string): Promise<void> {
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('id', messageId)
+      .eq('sender_id', senderId);
+    if (error) throw error;
   }
 
   async markConversationMessagesAsRead(conversationId: string, userId: string): Promise<void> {

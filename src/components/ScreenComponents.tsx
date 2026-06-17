@@ -54,7 +54,7 @@ export const Screen: FC<ScreenProps> = ({
     <ScrollView
       style={containerStyle}
       contentContainerStyle={[
-        { flexGrow: 1, paddingBottom: spacing.xl + insets.bottom },
+        { flexGrow: 1, paddingBottom: spacing.sm },
         style,
       ]}
       scrollEnabled={true}

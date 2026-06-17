@@ -1,8 +1,9 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Image,
   Modal,
+  Platform,
   Share,
   StyleSheet,
   Text,
@@ -10,10 +11,11 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { ResizeMode, Video, AVPlaybackStatus, VideoFullscreenUpdate } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import {
   ChevronLeft,
   ChevronRight,
@@ -36,9 +38,30 @@ interface BlogMediaGridProps {
   height?: number;
 }
 
+function FullscreenVideo({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (videoPlayer) => {
+    videoPlayer.loop = false;
+    videoPlayer.muted = false;
+  });
+
+  return (
+    <VideoView
+      player={player}
+      style={StyleSheet.absoluteFill}
+      contentFit="contain"
+      nativeControls
+      fullscreenOptions={{ enable: true, orientation: 'default' }}
+    />
+  );
+}
+
 // ─── Custom Video Player ──────────────────────────────────────────────────────
-function InlineVideo({ uri, onDownload }: { uri: string; onDownload: () => void }) {
-  const videoRef = useRef<Video>(null);
+function InlineVideo({ uri, onDownload, onOpen }: { uri: string; onDownload: () => void; onOpen: () => void }) {
+  const player = useVideoPlayer(uri, (videoPlayer) => {
+    videoPlayer.loop = false;
+    videoPlayer.muted = true;
+    videoPlayer.timeUpdateEventInterval = 0.5;
+  });
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -63,6 +86,11 @@ function InlineVideo({ uri, onDownload }: { uri: string; onDownload: () => void 
   };
 
   const handleTap = () => {
+    if (!isPlaying) {
+      onOpen();
+      return;
+    }
+
     if (showControls) {
       fadeControls(false);
     } else {
@@ -72,47 +100,50 @@ function InlineVideo({ uri, onDownload }: { uri: string; onDownload: () => void 
   };
 
   const togglePlay = async () => {
-    if (!videoRef.current) return;
     if (isPlaying) {
-      await videoRef.current.pauseAsync();
+      player.pause();
+      setIsPlaying(false);
     } else {
-      await videoRef.current.playAsync();
+      player.play();
+      setIsPlaying(true);
       scheduleHide();
     }
   };
 
   const toggleMute = async () => {
-    if (!videoRef.current) return;
     const next = !isMuted;
     setIsMuted(next);
-    await videoRef.current.setIsMutedAsync(next);
+    player.muted = next;
   };
 
   const openFullscreen = async () => {
-    if (!videoRef.current) return;
     try {
       fadeControls(true);
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => undefined);
-      await videoRef.current.presentFullscreenPlayer();
+      onOpen();
     } catch (error: any) {
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
       showError('Không thể phóng to video', error.message || 'Thiết bị chưa hỗ trợ chế độ toàn màn hình.');
     }
   };
 
-  const formatTime = (ms: number) => {
-    const totalSec = Math.floor(ms / 1000);
+  const formatTime = (seconds: number) => {
+    const totalSec = Math.floor(seconds);
     const m = Math.floor(totalSec / 60);
     const s = totalSec % 60;
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-    if (!status.isLoaded) return;
-    setIsPlaying(status.isPlaying);
-    setProgress(status.positionMillis ?? 0);
-    setDuration(status.durationMillis ?? 0);
-  };
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setProgress(player.currentTime || 0);
+      setDuration(player.duration || 0);
+      setIsPlaying(player.playing);
+    }, 500);
+
+    return () => {
+      clearInterval(timer);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+    };
+  }, [player]);
 
   const progressPct = duration > 0 ? (progress / duration) * 100 : 0;
 
@@ -122,19 +153,14 @@ function InlineVideo({ uri, onDownload }: { uri: string; onDownload: () => void 
       onPress={handleTap}
       style={styles.videoWrapper}
     >
-      <Video
-        ref={videoRef}
-        source={{ uri }}
+      <VideoView
+        player={player}
         style={StyleSheet.absoluteFill}
-        resizeMode={ResizeMode.COVER}
-        isMuted={isMuted}
-        shouldPlay={false}
-        isLooping={false}
-        onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-        onFullscreenUpdate={(event) => {
-          if (event.fullscreenUpdate === VideoFullscreenUpdate.PLAYER_DID_DISMISS) {
-            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
-          }
+        contentFit="cover"
+        nativeControls={false}
+        fullscreenOptions={{ enable: true, orientation: 'landscape' }}
+        onFullscreenExit={() => {
+          ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
         }}
       />
 
@@ -191,24 +217,22 @@ function InlineVideo({ uri, onDownload }: { uri: string; onDownload: () => void 
 // ─── Main Grid ────────────────────────────────────────────────────────────────
 export function BlogMediaGrid({ urls, types, height = 260 }: BlogMediaGridProps) {
   const { colors } = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const images = useMemo(
-    () => urls.map((url, index) => ({ url, type: types[index] ?? 'image' as const })).filter((item) => item.type === 'image'),
+  const mediaItems = useMemo(
+    () => urls.map((url, index) => ({ url, type: types[index] ?? 'image' as const })),
     [urls, types]
   );
 
   if (urls.length === 0) return null;
 
   const openMedia = (index: number) => {
-    if ((types[index] ?? 'image') === 'video') return; // video handled inline
-    const imageIndex = images.findIndex((item) => item.url === urls[index]);
-    setActiveIndex(Math.max(imageIndex, 0));
+    setActiveIndex(index);
   };
 
-  const activeImage = activeIndex !== null ? images[activeIndex] : null;
+  const activeMedia = activeIndex !== null ? mediaItems[activeIndex] : null;
   const canPrev = activeIndex !== null && activeIndex > 0;
-  const canNext = activeIndex !== null && activeIndex < images.length - 1;
+  const canNext = activeIndex !== null && activeIndex < mediaItems.length - 1;
 
   const handleShare = async (url: string) => {
     await Share.share({ message: url, url }).catch(() => undefined);
@@ -216,6 +240,14 @@ export function BlogMediaGrid({ urls, types, height = 260 }: BlogMediaGridProps)
 
   const saveRemoteMedia = async (url: string, mediaType: 'image' | 'video') => {
     try {
+      if (Constants.appOwnership === 'expo' && Platform.OS === 'android') {
+        showError(
+          'Cần development build',
+          'Expo Go trên Android không còn cấp đủ quyền lưu media. Hãy cài APK/dev build mới để kiểm tra lưu ảnh/video thật.'
+        );
+        return;
+      }
+
       const permission = await MediaLibrary.requestPermissionsAsync();
       if (!permission.granted) {
         showError(
@@ -292,7 +324,7 @@ export function BlogMediaGrid({ urls, types, height = 260 }: BlogMediaGridProps)
               style={[styles.tile, tileStyle(index), { backgroundColor: colors.surfaceAlt }]}
             >
               {isVideo ? (
-                <InlineVideo uri={url} onDownload={() => handleVideoDownload(url)} />
+                <InlineVideo uri={url} onDownload={() => handleVideoDownload(url)} onOpen={() => openMedia(index)} />
               ) : (
                 <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
               )}
@@ -306,22 +338,35 @@ export function BlogMediaGrid({ urls, types, height = 260 }: BlogMediaGridProps)
         })}
       </View>
 
-      {/* Fullscreen image modal */}
+      {/* Fullscreen media modal */}
       <Modal visible={activeIndex !== null} animationType="fade" transparent statusBarTranslucent onRequestClose={() => setActiveIndex(null)}>
         <View style={styles.modal}>
           <TouchableOpacity style={[styles.closeBtn, { top: 42 }]} onPress={() => setActiveIndex(null)}>
             <X size={24} color="white" />
           </TouchableOpacity>
 
-          {activeImage && (
+          {activeMedia && (
             <>
-              <Image source={{ uri: activeImage.url }} style={{ width, height: width * 1.12 }} resizeMode="contain" />
+              {activeMedia.type === 'video' ? (
+                <View style={{ width, height: windowHeight }}>
+                  <FullscreenVideo uri={activeMedia.url} />
+                </View>
+              ) : (
+                <Image source={{ uri: activeMedia.url }} style={{ width, height: windowHeight }} resizeMode="contain" />
+              )}
               <View style={styles.actions}>
-                <TouchableOpacity onPress={() => handleDownload(activeImage.url)} style={styles.actionBtn}>
+                <TouchableOpacity
+                  onPress={() =>
+                    activeMedia.type === 'video'
+                      ? handleVideoDownload(activeMedia.url)
+                      : handleDownload(activeMedia.url)
+                  }
+                  style={styles.actionBtn}
+                >
                   <Download size={20} color="white" />
-                  <Text style={styles.actionText}>Tải ảnh</Text>
+                  <Text style={styles.actionText}>{activeMedia.type === 'video' ? 'Tải video' : 'Tải ảnh'}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleShare(activeImage.url)} style={styles.actionBtn}>
+                <TouchableOpacity onPress={() => handleShare(activeMedia.url)} style={styles.actionBtn}>
                   <Share2 size={20} color="white" />
                   <Text style={styles.actionText}>Chia sẻ</Text>
                 </TouchableOpacity>
@@ -335,7 +380,7 @@ export function BlogMediaGrid({ urls, types, height = 260 }: BlogMediaGridProps)
             </TouchableOpacity>
           )}
           {canNext && (
-            <TouchableOpacity style={[styles.navBtn, styles.nextBtn]} onPress={() => setActiveIndex((value) => Math.min((value ?? 0) + 1, images.length - 1))}>
+            <TouchableOpacity style={[styles.navBtn, styles.nextBtn]} onPress={() => setActiveIndex((value) => Math.min((value ?? 0) + 1, mediaItems.length - 1))}>
               <ChevronRight size={28} color="white" />
             </TouchableOpacity>
           )}

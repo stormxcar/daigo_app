@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { Camera, Edit3, Heart, MessageCircle, MoreVertical, Play, Plus, Share2, Trash2, X } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { Button, Card, CardSkeleton, TextInput } from '@/components/BaseComponents';
+import { Button, Card, Skeleton, TextInput } from '@/components/BaseComponents';
 import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { SearchFilterBar } from '@/components/SearchFilterBar';
 import { apiClient } from '@/services/api';
@@ -28,6 +28,31 @@ const BLOG_SORTS = [
   { key: 'mostComments', label: 'Nhiều bình luận' },
 ];
 
+const BLOG_PAGE_SIZE = 8;
+
+function DriverBlogSkeleton() {
+  return (
+    <Card style={{ marginBottom: spacing.lg }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
+        <Skeleton width={44} height={44} borderRadius={22} />
+        <View style={{ flex: 1, gap: spacing.sm }}>
+          <Skeleton width="50%" height={14} />
+          <Skeleton width="28%" height={10} />
+        </View>
+        <Skeleton width={32} height={32} borderRadius={16} />
+      </View>
+      <Skeleton width="88%" height={12} style={{ marginBottom: spacing.sm }} />
+      <Skeleton width="64%" height={12} style={{ marginBottom: spacing.md }} />
+      <Skeleton height={220} borderRadius={16} style={{ marginBottom: spacing.md }} />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <Skeleton width="18%" height={14} />
+        <Skeleton width="22%" height={14} />
+        <Skeleton width="20%" height={14} />
+      </View>
+    </Card>
+  );
+}
+
 export default function DriverBlog() {
   const { colors } = useTheme();
   const { user } = useAuthStore();
@@ -45,7 +70,9 @@ export default function DriverBlog() {
     label: '',
   });
   const [loading, setLoading] = useState(true);
-  const [visibleCount, setVisibleCount] = useState(8);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [activeSort, setActiveSort] = useState('newest');
@@ -54,12 +81,33 @@ export default function DriverBlog() {
     if (!user) return;
     try {
       setLoading(true);
-      const data = await apiClient.getBlogPosts(1, 30, { driverId: user.id });
+      const data = await apiClient.getBlogPosts(1, BLOG_PAGE_SIZE, { driverId: user.id });
       setPosts(data);
+      setPage(1);
+      setHasMore(data.length === BLOG_PAGE_SIZE);
     } catch (error: any) {
       showError('Không thể tải bài viết', error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMorePosts = async () => {
+    if (!user || loading || loadingMore || !hasMore) return;
+    try {
+      setLoadingMore(true);
+      const nextPage = page + 1;
+      const data = await apiClient.getBlogPosts(nextPage, BLOG_PAGE_SIZE, { driverId: user.id });
+      setPosts((current) => {
+        const existingIds = new Set(current.map((post) => post.id));
+        return [...current, ...data.filter((post) => !existingIds.has(post.id))];
+      });
+      setPage(nextPage);
+      setHasMore(data.length === BLOG_PAGE_SIZE);
+    } catch (error: any) {
+      showError('Không thể tải thêm bài viết', error.message);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -309,10 +357,10 @@ export default function DriverBlog() {
 
       {loading ? (
         <>
-          <CardSkeleton image style={{ marginBottom: spacing.lg }} />
-          <CardSkeleton image style={{ marginBottom: spacing.lg }} />
+          <DriverBlogSkeleton />
+          <DriverBlogSkeleton />
         </>
-      ) : filteredPosts.slice(0, visibleCount).map((post) => (
+      ) : filteredPosts.map((post) => (
         <Card key={post.id} style={{ marginBottom: spacing.lg }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
             <Image source={{ uri: post.driverAvatar }} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceAlt }} />
@@ -385,11 +433,13 @@ export default function DriverBlog() {
           />
         )
       )}
-      {!loading && filteredPosts.length > visibleCount && (
+      {!loading && hasMore && activeFilter === 'all' && !search.trim() && (
         <Button
-          label="Tải thêm bài viết"
-          onPress={() => setVisibleCount((current) => current + 8)}
+          label={loadingMore ? 'Đang tải thêm...' : 'Tải thêm bài viết'}
+          onPress={loadMorePosts}
           variant="outline"
+          loading={loadingMore}
+          disabled={loadingMore}
         />
       )}
     </Screen>

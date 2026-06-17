@@ -44,6 +44,7 @@ const blankForm = {
   pricePerKm: "15000",
   status: "Sẵn sàng" as VehicleStatus,
   image: "",
+  imageUrls: [] as string[],
   description: "",
 };
 
@@ -122,12 +123,13 @@ export default function DriverVehicles() {
       pricePerKm: String(vehicle.pricePerKm),
       status: vehicle.status,
       image: vehicle.image,
+      imageUrls: vehicle.imageUrls?.length ? vehicle.imageUrls : vehicle.image ? [vehicle.image] : [],
       description: vehicle.description ?? "",
     });
     setShowForm(true);
   };
 
-  const pickImage = async () => {
+  const pickImages = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       showWarning(
@@ -139,30 +141,44 @@ export default function DriverVehicles() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      allowsEditing: true,
+      allowsMultipleSelection: true,
+      selectionLimit: 8,
       quality: 0.82,
     });
 
-    if (result.canceled || !result.assets[0]) return;
+    if (result.canceled || result.assets.length === 0) return;
 
     try {
       setSaving(true);
-      const asset = result.assets[0];
-      const uploaded = await uploadMediaToCloudinary(
-        {
-          uri: asset.uri,
-          name: asset.fileName ?? `vehicle-${Date.now()}.jpg`,
-          type: asset.mimeType ?? "image/jpeg",
-        },
-        "image",
-      );
-      setForm((current) => ({ ...current, image: uploaded.secure_url }));
-      showSuccess("Đã upload ảnh xe", "Ảnh xe đã sẵn sàng để lưu.");
+      const uploadedUrls: string[] = [];
+      for (const [index, asset] of result.assets.entries()) {
+        const uploaded = await uploadMediaToCloudinary(
+          {
+            uri: asset.uri,
+            name: asset.fileName ?? `vehicle-${Date.now()}-${index}.jpg`,
+            type: asset.mimeType ?? "image/jpeg",
+          },
+          "image",
+        );
+        uploadedUrls.push(uploaded.secure_url);
+      }
+      setForm((current) => {
+        const nextUrls = [...current.imageUrls, ...uploadedUrls].slice(0, 8);
+        return { ...current, imageUrls: nextUrls, image: nextUrls[0] ?? current.image };
+      });
+      showSuccess("Đã upload ảnh xe", `${uploadedUrls.length} ảnh đã sẵn sàng để lưu.`);
     } catch (error: any) {
       showError("Không thể upload ảnh", error.message);
     } finally {
       setSaving(false);
     }
+  };
+
+  const removeVehicleImage = (url: string) => {
+    setForm((current) => {
+      const nextUrls = current.imageUrls.filter((item) => item !== url);
+      return { ...current, imageUrls: nextUrls, image: nextUrls[0] ?? "" };
+    });
   };
 
   const validate = () => {
@@ -196,6 +212,7 @@ export default function DriverVehicles() {
         pricePerKm: Number(form.pricePerKm),
         status: form.status,
         image: form.image,
+        imageUrls: form.imageUrls,
         description: form.description.trim(),
       };
 
@@ -309,7 +326,7 @@ export default function DriverVehicles() {
           </Text>
 
           <TouchableOpacity
-            onPress={pickImage}
+            onPress={pickImages}
             disabled={saving}
             activeOpacity={0.82}
             style={{
@@ -335,9 +352,38 @@ export default function DriverVehicles() {
                 >
                   Upload ảnh xe
                 </Text>
+                <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs }}>
+                  Có thể chọn nhiều ảnh cùng lúc
+                </Text>
               </View>
             )}
           </TouchableOpacity>
+
+          {form.imageUrls.length > 0 && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md }}>
+              {form.imageUrls.map((url, index) => (
+                <View key={`${url}-${index}`} style={{ width: 74, height: 74, borderRadius: borderRadius.md, overflow: "hidden", backgroundColor: colors.surfaceAlt }}>
+                  <Image source={{ uri: url }} style={{ width: "100%", height: "100%" }} />
+                  <TouchableOpacity
+                    onPress={() => removeVehicleImage(url)}
+                    style={{
+                      position: "absolute",
+                      top: 4,
+                      right: 4,
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      backgroundColor: "rgba(0,0,0,0.55)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <X size={13} color="white" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
 
           <TextInput
             label="Tên xe"
@@ -480,6 +526,17 @@ export default function DriverVehicles() {
                   backgroundColor: colors.surfaceAlt,
                 }}
               />
+            )}
+            {!!vehicle.imageUrls?.length && vehicle.imageUrls.length > 1 && (
+              <View style={{ flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md }}>
+                {vehicle.imageUrls.slice(1, 5).map((url, index) => (
+                  <Image
+                    key={`${vehicle.id}-gallery-${index}`}
+                    source={{ uri: url }}
+                    style={{ flex: 1, height: 58, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt }}
+                  />
+                ))}
+              </View>
             )}
             <View
               style={{

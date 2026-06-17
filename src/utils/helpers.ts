@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { PRICE_CONFIG } from '@/constants';
 
 // Format date
 export const formatDate = (date: string | Date, format = 'DD/MM/YYYY'): string => {
@@ -88,16 +89,23 @@ export const calculateDistance = (
 export const calculateBookingPrice = (
   distance: number,
   pricePerKm: number,
-  passengerCount: number = 1
-): { basePrice: number; platformFee: number; totalPrice: number } => {
-  const basePrice = Math.max(distance * pricePerKm, 30000); // minimum booking price
-  const platformFee = Math.floor(basePrice * 0.1); // 10% platform fee
-  const totalPrice = basePrice + platformFee;
+  passengerCount: number = 1,
+  time?: string
+): { basePrice: number; platformFee: number; peakFee: number; totalPrice: number; peakMultiplier: number } => {
+  const basePrice = Math.max(Math.round(distance * pricePerKm), PRICE_CONFIG.MINIMUM_BOOKING_PRICE);
+  const platformFee = Math.floor(basePrice * (PRICE_CONFIG.PLATFORM_FEE_PERCENT / 100));
+  const hour = Number((time ?? '').split(':')[0]);
+  const isPeakHour = Number.isFinite(hour) && ((hour >= 7 && hour < 9) || (hour >= 17 && hour < 20));
+  const peakMultiplier = isPeakHour ? PRICE_CONFIG.SURGE_MULTIPLIER_PEAK : 1;
+  const peakFee = Math.floor((basePrice + platformFee) * (peakMultiplier - 1));
+  const totalPrice = basePrice + platformFee + peakFee;
 
   return {
     basePrice,
     platformFee,
+    peakFee,
     totalPrice,
+    peakMultiplier,
   };
 };
 

@@ -50,11 +50,16 @@ export const useBooking = () => {
     []
   );
 
-  const cancelBooking = useCallback(async (bookingId: string) => {
+  const cancelBooking = useCallback(async (bookingId: string, reason?: string) => {
     try {
       store.setLoading(true);
-      const booking = await apiClient.cancelBooking(bookingId);
-      store.updateBooking(bookingId, { status: booking.status });
+      const booking = await apiClient.cancelBooking(bookingId, reason);
+      store.updateBooking(bookingId, {
+        status: booking.status,
+        cancelReason: booking.cancelReason,
+        cancelledAt: booking.cancelledAt,
+        cancelledBy: booking.cancelledBy,
+      });
       store.setLoading(false);
       return booking;
     } catch (err: any) {

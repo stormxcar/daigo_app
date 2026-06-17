@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Image, View, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Image, View, Text, TouchableOpacity } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { useTheme } from '@/theme';
@@ -7,7 +7,7 @@ import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { useAuth } from '@/hooks/useAuth';
-import { Check, Eye, EyeOff, Lock, Mail, Square } from 'lucide-react-native';
+import { AlertCircle, Check, Eye, EyeOff, Lock, Mail, RotateCcw, Square } from 'lucide-react-native';
 import { isValidEmail, toVietnameseAuthError } from '@/utils/authValidation';
 import { DAIGO_LOGO_URL, APP_TAGLINE } from '@/constants/branding';
 import { getAuthRedirectUri } from '@/utils/authRedirect';
@@ -25,6 +25,8 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleError, setGoogleError] = useState('');
 
   useEffect(() => {
     const loadRememberedLogin = async () => {
@@ -78,11 +80,25 @@ export default function LoginScreen() {
 
   const handleGoogleLogin = async () => {
     try {
+      setGoogleLoading(true);
+      setGoogleError('');
+      setLocalError('');
       const response = await loginWithGoogle(getAuthRedirectUri());
       router.replace(response.user.role === 'customer' ? '/(customer)/home' : '/(driver)/dashboard');
       showSuccess('Đăng nhập Google thành công', `Xin chào ${response.user.fullName}.`);
     } catch (err: any) {
-      showError(toVietnameseAuthError(err.message));
+      console.warn('Google login failed', {
+        message: err?.message,
+        name: err?.name,
+        code: err?.code,
+        status: err?.status,
+        details: err,
+      });
+      const message = toVietnameseAuthError(err?.message);
+      setGoogleError(message);
+      showError(message);
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -251,10 +267,72 @@ export default function LoginScreen() {
         label="Đăng nhập với Google"
         onPress={handleGoogleLogin}
         variant="outline"
-        loading={isLoading}
-        disabled={isLoading}
+        loading={googleLoading}
+        disabled={isLoading || googleLoading}
         style={{ marginBottom: spacing.md }}
       />
+
+      {googleLoading && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.sm,
+            padding: spacing.md,
+            borderRadius: borderRadius.md,
+            backgroundColor: colors.surfaceAlt,
+            marginBottom: spacing.md,
+          }}
+        >
+          <ActivityIndicator size="small" color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontWeight: '800' }}>Đang đăng nhập Google</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs }}>
+              Sau khi chọn tài khoản, ứng dụng sẽ tự quay lại trang chủ.
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {!!googleError && !googleLoading && (
+        <View
+          style={{
+            padding: spacing.md,
+            borderRadius: borderRadius.md,
+            backgroundColor: colors.surfaceAlt,
+            borderWidth: 1,
+            borderColor: colors.error,
+            marginBottom: spacing.md,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
+            <AlertCircle size={20} color={colors.error} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontWeight: '900' }}>Google chưa hoàn tất đăng nhập</Text>
+              <Text style={{ color: colors.textSecondary, lineHeight: 20, marginTop: spacing.xs }}>
+                {googleError}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            onPress={handleGoogleLogin}
+            disabled={isLoading || googleLoading}
+            style={{
+              marginTop: spacing.md,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: spacing.sm,
+              paddingVertical: spacing.md,
+              borderRadius: borderRadius.md,
+              backgroundColor: colors.primary,
+            }}
+          >
+            <RotateCcw size={16} color="white" />
+            <Text style={{ color: 'white', fontWeight: '800' }}>Thử lại Google</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View
         style={{

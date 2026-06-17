@@ -53,6 +53,22 @@ export const TERMINAL_BOOKING_STATUSES = [
   BOOKING_STATUS.EXPIRED,
 ] as const;
 
+export const CUSTOMER_CANCEL_REASONS = [
+  'Tôi muốn đổi thời gian chuyến đi',
+  'Tôi nhập sai điểm đón/điểm đến',
+  'Tôi không còn nhu cầu di chuyển',
+  'Chờ tài xế quá lâu',
+  'Lý do khác',
+] as const;
+
+export const DRIVER_CANCEL_REASONS = [
+  'Xe gặp sự cố',
+  'Tôi ở quá xa điểm đón',
+  'Không liên hệ được khách hàng',
+  'Có việc khẩn cấp',
+  'Lý do khác',
+] as const;
+
 // Notification Types
 export const NOTIFICATION_TYPES = {
   BOOKING_SUCCESS: 'booking_success',

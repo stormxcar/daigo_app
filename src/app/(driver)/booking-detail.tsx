@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Modal, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Banknote, Car, Clock, Mail, MapPin, Navigation, Phone, Route, User, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
@@ -7,6 +7,8 @@ import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Badge, Button, Card } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { RealtimeTripMap } from '@/components/RealtimeTripMap';
+import { BookingTimeline } from '@/components/BookingTimeline';
+import { LazyMount } from '@/components/LazyMount';
 import { apiClient } from '@/services/api';
 import {
   getDistanceMeters,
@@ -17,7 +19,7 @@ import {
 } from '@/services/driverLocation';
 import { useAuthStore } from '@/stores/authStore';
 import { Booking, DriverLocation, TripPhase } from '@/types';
-import { BOOKING_STATUS, TERMINAL_BOOKING_STATUSES } from '@/constants';
+import { BOOKING_STATUS, DRIVER_CANCEL_REASONS, TERMINAL_BOOKING_STATUSES } from '@/constants';
 import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { openExternalDirections } from '@/services/externalMapsUrlService';
 import { getCurrentLatLng } from '@/services/locationService';
@@ -34,6 +36,7 @@ export default function DriverBookingDetail() {
   const [tracking, setTracking] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const watchRef = useRef<{ remove: () => void } | null>(null);
 
   const loadBooking = async () => {
@@ -84,9 +87,13 @@ export default function DriverBookingDetail() {
 
   const cancelBooking = async () => {
     if (!booking) return;
+    if (!cancelReason) {
+      showWarning('Chọn lý do hủy', 'Vui lòng chọn lý do trước khi hủy chuyến.');
+      return;
+    }
     try {
       setLoading(true);
-      const updated = await apiClient.cancelBookingByDriver(booking.id);
+      const updated = await apiClient.cancelBookingByDriver(booking.id, cancelReason);
       setBooking(updated);
       showSuccess('Đã hủy chuyến', 'Khách hàng sẽ nhận được thông báo.');
     } catch (error: any) {
@@ -311,6 +318,11 @@ export default function DriverBookingDetail() {
         ))}
       </Card>
 
+      <Card style={{ marginBottom: spacing.lg }}>
+        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Tiến trình chuyến đi</Text>
+        <BookingTimeline status={booking.status} />
+      </Card>
+
       {hasMap && (
         <Card style={{ marginBottom: spacing.lg }}>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>Bản đồ realtime</Text>
@@ -319,14 +331,16 @@ export default function DriverBookingDetail() {
               ? 'Bản đồ Goong hiển thị lộ trình trong app đến điểm đón. Bật GPS realtime để marker tài xế di chuyển theo vị trí thật.'
               : 'Bản đồ Goong hiển thị lộ trình trong app đến điểm đến.'}
           </Text>
-          <RealtimeTripMap
-            pickup={{ label: booking.pickupLocation, latitude: booking.pickupLat!, longitude: booking.pickupLng! }}
-            dropoff={{ label: booking.dropoffLocation, latitude: booking.dropoffLat!, longitude: booking.dropoffLng! }}
-            driverLocation={driverLocation}
-            bookingStatus={booking.status}
-            onExpand={() => setMapExpanded(true)}
-            onOpenExternalMap={openExternalNavigation}
-          />
+          <LazyMount minHeight={340} label="Đang tải bản đồ realtime...">
+            <RealtimeTripMap
+              pickup={{ label: booking.pickupLocation, latitude: booking.pickupLat!, longitude: booking.pickupLng! }}
+              dropoff={{ label: booking.dropoffLocation, latitude: booking.dropoffLat!, longitude: booking.dropoffLng! }}
+              driverLocation={driverLocation}
+              bookingStatus={booking.status}
+              onExpand={() => setMapExpanded(true)}
+              onOpenExternalMap={openExternalNavigation}
+            />
+          </LazyMount>
           <Text style={{ color: colors.textSecondary, marginTop: spacing.md }}>
             <Route size={14} color={colors.textSecondary} /> {booking.distance ?? '--'} km
           </Text>
@@ -370,6 +384,13 @@ export default function DriverBookingDetail() {
         )}
       </Card>
 
+      {!!booking.cancelReason && (
+        <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>Lý do hủy chuyến</Text>
+          <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>{booking.cancelReason}</Text>
+        </Card>
+      )}
+
       <Card style={{ marginBottom: spacing.lg }}>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Xe và thanh toán</Text>
         <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}>
@@ -388,6 +409,32 @@ export default function DriverBookingDetail() {
           </Text>
         </View>
       </Card>
+
+      {[BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED].includes(booking.status as any) && (
+        <Card style={{ marginBottom: spacing.lg }}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
+            Lý do hủy nếu không thể nhận chuyến
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            {DRIVER_CANCEL_REASONS.map((reason) => (
+              <TouchableOpacity
+                key={reason}
+                onPress={() => setCancelReason(reason)}
+                style={{
+                  paddingVertical: spacing.sm,
+                  paddingHorizontal: spacing.md,
+                  borderRadius: borderRadius.full,
+                  backgroundColor: cancelReason === reason ? colors.error : colors.surfaceAlt,
+                }}
+              >
+                <Text style={{ color: cancelReason === reason ? 'white' : colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
+                  {reason}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Card>
+      )}
 
       <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg }}>
         {booking.status === BOOKING_STATUS.SEARCHING_DRIVER && (

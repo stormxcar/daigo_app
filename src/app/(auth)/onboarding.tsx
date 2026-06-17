@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   FlatList,
   Image,
+  ImageBackground,
   NativeScrollEvent,
   NativeSyntheticEvent,
   StyleSheet,
@@ -11,92 +12,49 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import LottieView from 'lottie-react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@/theme';
-import { borderRadius, spacing, fontSize } from '@/theme/tokens';
+import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
-import { DAIGO_LOGO_URL, LOTTIE_ONBOARDING } from '@/constants/branding';
-import { CalendarClock, CarFront, ShieldCheck } from 'lucide-react-native';
+import { DAIGO_LOGO_URL } from '@/constants/branding';
 
 interface OnboardingStep {
   title: string;
   description: string;
   detail: string;
-  lottieUrl: string;
   highlight: string;
-  gradientColors: [string, string];
-  icon: React.ReactNode;
+  imageUrl: string;
 }
 
-function RemoteLottie({ uri, fallback }: { uri: string; fallback: React.ReactNode }) {
-  const [animation, setAnimation] = useState<object | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    fetch(uri)
-      .then((response) => {
-        if (!response.ok) throw new Error(`Lottie ${response.status}`);
-        return response.json();
-      })
-      .then((json) => {
-        if (mounted) setAnimation(json);
-      })
-      .catch(() => {
-        if (mounted) setFailed(true);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [uri]);
-
-  if (!animation || failed) {
-    return <View style={styles.fallbackIllustration}>{fallback}</View>;
-  }
-
-  return <LottieView source={animation as any} autoPlay loop style={styles.lottie} />;
-}
+const steps: OnboardingStep[] = [
+  {
+    title: 'Đặt xe nhanh chóng',
+    description: 'Chọn điểm đón, điểm đến và xe phù hợp chỉ trong vài thao tác.',
+    detail: 'Daigo kết nối bạn với tài xế thật, lộ trình rõ ràng và giá được ước tính trước khi xác nhận.',
+    highlight: 'Nhanh chóng',
+    imageUrl: 'https://res.cloudinary.com/dzwjgfd7t/image/upload/v1781662332/booking_daigo/58a9b0ce100a4530de574e476e553e61_tmm988.jpg',
+  },
+  {
+    title: 'Lịch trình linh hoạt',
+    description: 'Đặt chuyến theo ngày, giờ, số người và nhu cầu di chuyển của bạn.',
+    detail: 'Lưu địa điểm hay đi, theo dõi trạng thái chuyến và trò chuyện với tài xế trong app.',
+    highlight: 'Linh hoạt',
+    imageUrl: 'https://res.cloudinary.com/dzwjgfd7t/image/upload/v1781662243/booking_daigo/a9e9c1c1d6a5af6035b73dbbf64a6b3b_pujrqn.jpg',
+  },
+  {
+    title: 'Tài xế chuyên nghiệp',
+    description: 'Tài xế có hồ sơ, xe, đánh giá và lịch sử chuyến đi minh bạch.',
+    detail: 'Bạn có thể xem thông tin xe, ảnh xe, trạng thái chuyến và đánh giá sau khi hoàn thành.',
+    highlight: 'An toàn',
+    imageUrl: 'https://res.cloudinary.com/dzwjgfd7t/image/upload/v1781662206/booking_daigo/224c8d77a5116673ec95e9cc0e395451_gvnun4.jpg',
+  },
+];
 
 export default function OnboardingScreen() {
-  const { colors } = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<OnboardingStep>>(null);
   const [step, setStep] = useState(0);
-
-  const steps: OnboardingStep[] = [
-    {
-      title: 'Đặt xe nhanh chóng',
-      description: 'Đặt xe ô tô cao cấp chỉ trong vài giây, không cần chờ đợi',
-      detail: 'Chọn điểm đón, điểm đến và xác nhận. Tài xế sẽ liên hệ bạn ngay!',
-      lottieUrl: LOTTIE_ONBOARDING[0],
-      highlight: 'Nhanh chóng',
-      gradientColors: ['#1d4ed8', '#2563eb'],
-      icon: <CarFront size={92} color="white" strokeWidth={1.6} />,
-    },
-    {
-      title: 'Lịch trình linh hoạt',
-      description: 'Đặt xe theo ngày và giờ bạn mong muốn, phục vụ 24/7',
-      detail: 'Đặt trước hay đặt ngay đều được. Quản lý chuyến đi dễ dàng từ ứng dụng.',
-      lottieUrl: LOTTIE_ONBOARDING[1],
-      highlight: 'Linh hoạt',
-      gradientColors: ['#1e40af', '#2563eb'],
-      icon: <CalendarClock size={92} color="white" strokeWidth={1.6} />,
-    },
-    {
-      title: 'Tài xế chuyên nghiệp',
-      description: 'Tài xế được xác thực danh tính, có kinh nghiệm và an toàn',
-      detail: 'Trò chuyện trực tiếp với tài xế, theo dõi lộ trình và đánh giá sau chuyến đi.',
-      lottieUrl: LOTTIE_ONBOARDING[2],
-      highlight: 'An toàn',
-      gradientColors: ['#1e3a8a', '#2563eb'],
-      icon: <ShieldCheck size={92} color="white" strokeWidth={1.6} />,
-    },
-  ];
 
   const handleMomentumScrollEnd = (
     event: NativeSyntheticEvent<NativeScrollEvent>
@@ -109,32 +67,16 @@ export default function OnboardingScreen() {
     if (step < steps.length - 1) {
       listRef.current?.scrollToIndex({ index: step + 1, animated: true });
       setStep(step + 1);
-    } else {
-      router.push('/(auth)/login');
+      return;
     }
+    router.push('/(auth)/login');
   };
 
   return (
     <Screen padding={false} safeArea={false}>
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-
-        {/* ─── TOP HEADER: Logo on gradient blue bar ─── */}
-        <LinearGradient
-          colors={['#0f2d6e', '#1d4ed8']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.header, { paddingTop: insets.top + spacing.md }]}
-        >
-          <Image
-            source={{ uri: DAIGO_LOGO_URL }}
-            style={styles.headerLogo}
-          />
-        </LinearGradient>
-
-        {/* ─── SLIDES ─── */}
+      <View style={{ flex: 1, backgroundColor: '#020617' }}>
         <FlatList
           ref={listRef}
-          style={{ flex: 1 }}
           data={steps}
           keyExtractor={(item) => item.title}
           horizontal
@@ -148,206 +90,157 @@ export default function OnboardingScreen() {
             index,
           })}
           renderItem={({ item }) => (
-            <View style={[styles.slide, { width }]}>
-              {/* Lottie Animation */}
-              <View style={styles.lottieContainer}>
-                <LinearGradient
-                  colors={item.gradientColors}
-                  style={styles.lottieGradient}
+            <ImageBackground
+              source={{ uri: item.imageUrl }}
+              resizeMode="cover"
+              style={{ width, height }}
+            >
+              <View style={styles.imageShade} />
+              <LinearGradient
+                colors={['rgba(2,6,23,0)', 'rgba(2,6,23,0.52)', 'rgba(2,6,23,0.94)']}
+                locations={[0.05, 0.30, 1]}
+                style={StyleSheet.absoluteFill}
+              />
+
+              {/* <View style={[styles.topBar, { paddingTop: insets.top + spacing.md }]}>
+                <Image source={{ uri: DAIGO_LOGO_URL }} style={styles.logo} />
+              </View> */}
+
+              <View style={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{item.highlight.toUpperCase()}</Text>
+                </View>
+
+                <Text style={styles.title}>{item.title}</Text>
+                <Text style={styles.description}>{item.description}</Text>
+                <Text style={styles.detail}>{item.detail}</Text>
+
+                <View style={styles.dots}>
+                  {steps.map((_, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.dot,
+                        {
+                          width: index === step ? 30 : 8,
+                          backgroundColor: index === step ? 'white' : 'rgba(255,255,255,0.42)',
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+
+                <TouchableOpacity onPress={goNext} activeOpacity={0.88} style={styles.ctaButton}>
+                  <Text style={styles.ctaText}>
+                    {step < steps.length - 1 ? 'Tiếp theo' : 'Bắt đầu ngay'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => router.replace('/(customer)/home')}
+                  activeOpacity={0.75}
+                  style={styles.skipButton}
                 >
-                  <RemoteLottie uri={item.lottieUrl} fallback={item.icon} />
-                </LinearGradient>
+                  <Text style={styles.skipText}>Bỏ qua</Text>
+                </TouchableOpacity>
               </View>
-
-              {/* Highlight badge */}
-              <View
-                style={[styles.badge, { backgroundColor: colors.primary }]}
-              >
-                <Text style={styles.badgeText}>
-                  {item.highlight.toUpperCase()}
-                </Text>
-              </View>
-
-              {/* Title */}
-              <Text style={[styles.title, { color: colors.text }]}>
-                {item.title}
-              </Text>
-
-              {/* Description */}
-              <Text style={[styles.description, { color: colors.textSecondary }]}>
-                {item.description}
-              </Text>
-
-              {/* Detail info card */}
-              <View
-                style={[
-                  styles.detailCard,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-                  💡 {item.detail}
-                </Text>
-              </View>
-
-              {/* Step dots */}
-              <View style={styles.dots}>
-                {steps.map((_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.dot,
-                      {
-                        width: i === step ? 28 : 8,
-                        backgroundColor: i === step ? colors.primary : colors.surfaceAlt,
-                      },
-                    ]}
-                  />
-                ))}
-              </View>
-            </View>
+            </ImageBackground>
           )}
         />
-
-        {/* ─── BOTTOM BUTTONS ─── */}
-        <View
-          style={[
-            styles.bottomBar,
-            { paddingBottom: insets.bottom + spacing.lg },
-          ]}
-        >
-          <TouchableOpacity
-            onPress={goNext}
-            activeOpacity={0.88}
-            style={[styles.ctaButton, { backgroundColor: colors.primary }]}
-          >
-            <Text style={styles.ctaText}>
-              {step < steps.length - 1 ? 'Tiếp theo →' : 'Bắt đầu ngay'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => router.replace('/(customer)/home')}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.skipText, { color: colors.textSecondary }]}>
-              Bỏ qua
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-    alignItems: 'center',
+  imageShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.12)',
   },
-  headerLogo: {
-    width: 130,
-    height: 50,
+  topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  logo: {
+    width: 132,
+    height: 52,
     resizeMode: 'contain',
   },
-  slide: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-  },
-  lottieContainer: {
-    marginBottom: spacing.xl,
-  },
-  lottieGradient: {
-    width: 220,
-    height: 220,
-    borderRadius: borderRadius['3xl'],
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 12,
-    overflow: 'hidden',
-  },
-  lottie: {
-    width: 180,
-    height: 180,
-  },
-  fallbackIllustration: {
-    width: 180,
-    height: 180,
-    alignItems: 'center',
-    justifyContent: 'center',
+  content: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: spacing.xl,
   },
   badge: {
+    alignSelf: 'flex-start',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
     marginBottom: spacing.md,
   },
   badgeText: {
     color: 'white',
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   title: {
-    fontSize: 26,
-    fontWeight: '800',
+    color: 'white',
+    fontSize: 34,
+    fontWeight: '900',
+    lineHeight: 40,
     marginBottom: spacing.md,
-    textAlign: 'center',
   },
   description: {
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: spacing.md,
-    maxWidth: '88%',
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 17,
+    lineHeight: 25,
+    fontWeight: '700',
+    marginBottom: spacing.sm,
   },
-  detailCard: {
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+  detail: {
+    color: 'rgba(255,255,255,0.76)',
+    fontSize: fontSize.sm,
+    lineHeight: 22,
     marginBottom: spacing.lg,
-    maxWidth: '90%',
-  },
-  detailText: {
-    fontSize: 13,
-    lineHeight: 20,
-    textAlign: 'center',
   },
   dots: {
     flexDirection: 'row',
     gap: spacing.sm,
     alignItems: 'center',
+    marginBottom: spacing.lg,
   },
   dot: {
     height: 8,
     borderRadius: 4,
   },
-  bottomBar: {
-    paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-  },
   ctaButton: {
     paddingVertical: spacing.md + 2,
     borderRadius: borderRadius.lg,
+    backgroundColor: 'white',
     alignItems: 'center',
   },
   ctaText: {
-    color: 'white',
+    color: '#0f172a',
     fontSize: fontSize.base,
-    fontWeight: '700',
+    fontWeight: '900',
+  },
+  skipButton: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
   },
   skipText: {
+    color: 'rgba(255,255,255,0.82)',
     fontSize: fontSize.sm,
-    fontWeight: '600',
-    textAlign: 'center',
-    paddingVertical: spacing.sm,
+    fontWeight: '700',
   },
 });

@@ -1,12 +1,29 @@
 import React from 'react';
 import { FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
-import { ResizeMode, Video } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Card } from '@/components/BaseComponents';
 import { BlogPost } from '@/types';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Newspaper, Play } from 'lucide-react-native';
+
+function NewsVideoPreview({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (videoPlayer) => {
+    videoPlayer.loop = true;
+    videoPlayer.muted = true;
+  });
+
+  return (
+    <VideoView
+      player={player}
+      style={{ width: '100%', height: '100%' }}
+      contentFit="cover"
+      nativeControls={false}
+      fullscreenOptions={{ enable: false }}
+    />
+  );
+}
 
 export const NewsUpdatesList: React.FC<{
   posts: BlogPost[];
@@ -36,13 +53,7 @@ export const NewsUpdatesList: React.FC<{
               <Card style={{ width: 228, padding: spacing.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border }}>
                 {hasRemoteMedia && firstMediaType === 'video' ? (
                   <View style={{ width: '100%', height: 100, borderRadius: borderRadius.sm, marginBottom: spacing.xs, overflow: 'hidden', backgroundColor: colors.surface }}>
-                    <Video
-                      source={{ uri: firstMediaUrl }}
-                      style={{ width: '100%', height: '100%' }}
-                      resizeMode={ResizeMode.COVER}
-                      shouldPlay={false}
-                      isMuted
-                    />
+                    <NewsVideoPreview uri={firstMediaUrl} />
                     <View
                       pointerEvents="none"
                       style={{

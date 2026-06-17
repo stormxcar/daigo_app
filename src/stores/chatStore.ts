@@ -12,6 +12,7 @@ interface ChatStore {
   setConversations: (conversations: ChatConversation[]) => void;
   selectConversation: (conversation: ChatConversation | null) => void;
   addMessage: (conversationId: string, message: Message) => void;
+  removeMessage: (conversationId: string, messageId: string) => void;
   sendMessage: (
     conversationId: string,
     text: string,
@@ -36,13 +37,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   selectConversation: (conversation) => set({ selectedConversation: conversation }),
 
   addMessage: (conversationId, message) => {
+    const preview = message.mediaType === 'image' ? 'Đã gửi một ảnh' : message.text;
     set((state) => ({
       conversations: state.conversations.map((conv) =>
         conv.id === conversationId
           ? {
               ...conv,
               messages: [...conv.messages, message],
-              lastMessage: message.text,
+              lastMessage: preview,
               lastMessageTime: message.timestamp,
             }
           : conv
@@ -52,8 +54,28 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           ? {
               ...state.selectedConversation,
               messages: [...state.selectedConversation.messages, message],
-              lastMessage: message.text,
+              lastMessage: preview,
               lastMessageTime: message.timestamp,
+            }
+          : state.selectedConversation,
+    }));
+  },
+
+  removeMessage: (conversationId, messageId) => {
+    set((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              messages: conv.messages.filter((message) => message.id !== messageId),
+            }
+          : conv
+      ),
+      selectedConversation:
+        state.selectedConversation?.id === conversationId
+          ? {
+              ...state.selectedConversation,
+              messages: state.selectedConversation.messages.filter((message) => message.id !== messageId),
             }
           : state.selectedConversation,
     }));

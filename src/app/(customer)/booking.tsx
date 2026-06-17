@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Calendar, Car, ChevronDown, ChevronUp, Clock, LocateFixed, MapPin, Search, SlidersHorizontal, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
@@ -8,14 +8,15 @@ import { Button, Card, TextInput } from '@/components/BaseComponents';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Screen } from '@/components/ScreenComponents';
 import { useAuthStore } from '@/stores/authStore';
-import { Vehicle } from '@/types';
+import { SavedLocation, Vehicle } from '@/types';
 import { apiClient } from '@/services/api';
 import { getDistanceKm, LocationSuggestion, searchVietnamLocations } from '@/services/locations';
+import { DrivingRoute, getDrivingRoute } from '@/services/mapRouteService';
 import { MapPreview } from '@/components/MapPreview';
 import { getCurrentDeviceLocation } from '@/services/deviceLocation';
 import { TERMINAL_BOOKING_STATUSES } from '@/constants';
-import { isoDateToVietnamDate, vietnamDateToIsoDate } from '@/utils/helpers';
-import { showError, showSuccess } from '@/utils/toast';
+import { calculateBookingPrice, formatCurrency, isoDateToVietnamDate, vietnamDateToIsoDate } from '@/utils/helpers';
+import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 type SortMode = 'price_asc' | 'price_desc' | 'seats_desc' | 'seats_asc' | 'brand_asc' | 'name_asc';
 
@@ -58,10 +59,15 @@ export default function BookingScreen() {
   const [dropoffPoint, setDropoffPoint] = useState<LocationSuggestion | null>(null);
   const [locationLoading, setLocationLoading] = useState<'pickup' | 'dropoff' | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
+  const [savingLocation, setSavingLocation] = useState<'pickup' | 'dropoff' | null>(null);
+  const [route, setRoute] = useState<DrivingRoute | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
 
   const passengerCount = Math.max(Number(passengers) || 1, 1);
   const bookingDate = vietnamDateToIsoDate(dateInput);
-  const distance = getDistanceKm(pickupPoint, dropoffPoint);
+  const fallbackDistance = getDistanceKm(pickupPoint, dropoffPoint);
+  const routeDistance = route?.distanceMeters ? Number((route.distanceMeters / 1000).toFixed(1)) : fallbackDistance;
 
   const loadVehicles = () => {
     setIsLoadingVehicles(true);
@@ -75,6 +81,11 @@ export default function BookingScreen() {
   useEffect(() => {
     loadVehicles();
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    apiClient.getSavedLocations(user.id).then(setSavedLocations).catch(() => setSavedLocations([]));
+  }, [user?.id]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -136,6 +147,9 @@ export default function BookingScreen() {
   }, [vehiclesData, passengerCount, minSeats, minPrice, maxPrice, brandFilter, statusFilter, onlyAvailable, sortMode, bookedVehicleIds]);
 
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
+  const selectedPriceQuote = selectedVehicle
+    ? calculateBookingPrice(routeDistance || 1, selectedVehicle.pricePerKm, passengerCount, time)
+    : null;
   const brandOptions = useMemo(
     () => Array.from(new Set(vehiclesData.map((vehicle) => vehicle.brand).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
     [vehiclesData]
@@ -162,6 +176,12 @@ export default function BookingScreen() {
     }
 
     try {
+      setRouteLoading(true);
+      const goongRoute = await getDrivingRoute(
+        { latitude: pickupPoint.lat, longitude: pickupPoint.lng },
+        { latitude: dropoffPoint.lat, longitude: dropoffPoint.lng }
+      );
+      setRoute(goongRoute);
       const bookings = await apiClient.getBookings();
       setBookedVehicleIds(
         bookings
@@ -170,7 +190,11 @@ export default function BookingScreen() {
           .map((booking) => booking.vehicleId)
       );
     } catch {
+      setRoute(null);
       setBookedVehicleIds([]);
+      showWarning('Chưa tải được lộ trình Goong', 'App sẽ tạm dùng khoảng cách ước tính để lọc xe.');
+    } finally {
+      setRouteLoading(false);
     }
 
     setSearched(true);
@@ -195,6 +219,56 @@ export default function BookingScreen() {
       showError('Không thể lấy vị trí', error.message);
     } finally {
       setGpsLoading(false);
+    }
+  };
+
+  const applySavedLocation = (location: SavedLocation, target: 'pickup' | 'dropoff') => {
+    if (typeof location.lat !== 'number' || typeof location.lng !== 'number') {
+      showError('Địa điểm thiếu tọa độ', 'Vui lòng tìm lại địa điểm này trên bản đồ trước khi sử dụng.');
+      return;
+    }
+    const point = {
+      id: location.id,
+      label: location.address,
+      lat: location.lat,
+      lng: location.lng,
+    };
+    if (target === 'pickup') {
+      setPickupPoint(point);
+      setPickupLocation(location.address);
+      setPickupSuggestions([]);
+    } else {
+      setDropoffPoint(point);
+      setDropoffLocation(location.address);
+      setDropoffSuggestions([]);
+    }
+  };
+
+  const saveLocation = async (target: 'pickup' | 'dropoff') => {
+    if (!user) return;
+    const point = target === 'pickup' ? pickupPoint : dropoffPoint;
+    const address = target === 'pickup' ? pickupLocation : dropoffLocation;
+    if (!point || !address.trim()) {
+      showError('Chưa có địa điểm', 'Vui lòng chọn địa điểm hợp lệ trước khi lưu.');
+      return;
+    }
+
+    try {
+      setSavingLocation(target);
+      const created = await apiClient.createSavedLocation({
+        userId: user.id,
+        label: target === 'pickup' ? 'Điểm đón hay đi' : 'Điểm đến hay đi',
+        address,
+        lat: point.lat,
+        lng: point.lng,
+        type: 'favorite',
+      });
+      setSavedLocations((current) => [created, ...current]);
+      showSuccess('Đã lưu địa điểm', 'Bạn có thể chọn nhanh địa điểm này ở lần đặt xe sau.');
+    } catch (error: any) {
+      showError('Không thể lưu địa điểm', error.message);
+    } finally {
+      setSavingLocation(null);
     }
   };
 
@@ -223,7 +297,9 @@ export default function BookingScreen() {
         pickupLng: String(pickupPoint.lng),
         dropoffLat: String(dropoffPoint.lat),
         dropoffLng: String(dropoffPoint.lng),
-        distance: String(distance),
+        distance: String(routeDistance),
+        estimatedPrice: String(selectedPriceQuote?.totalPrice ?? 0),
+        routeDuration: route?.duration ?? '',
       },
     });
   };
@@ -250,6 +326,21 @@ export default function BookingScreen() {
           icon={<MapPin size={20} color={colors.primary} />}
           style={{ marginBottom: spacing.md }}
         />
+        {savedLocations.length > 0 && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
+            {savedLocations.slice(0, 4).map((location) => (
+              <TouchableOpacity
+                key={`pickup-${location.id}`}
+                onPress={() => applySavedLocation(location, 'pickup')}
+                style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: borderRadius.full, backgroundColor: colors.surfaceAlt }}
+              >
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
+                  Đón: {location.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
         <Button
           label="Dùng vị trí hiện tại"
           onPress={handleUseCurrentLocation}
@@ -259,6 +350,16 @@ export default function BookingScreen() {
           icon={<LocateFixed size={16} color={colors.primary} />}
           style={{ marginBottom: spacing.md }}
         />
+        {pickupPoint && (
+          <Button
+            label="Lưu điểm đón này"
+            onPress={() => saveLocation('pickup')}
+            loading={savingLocation === 'pickup'}
+            variant="secondary"
+            size="sm"
+            style={{ marginBottom: spacing.md }}
+          />
+        )}
         {locationLoading === 'pickup' && <ActivityIndicator color={colors.primary} style={{ marginBottom: spacing.sm }} />}
         {pickupSuggestions.map((item) => (
           <TouchableOpacity
@@ -284,6 +385,31 @@ export default function BookingScreen() {
           icon={<MapPin size={20} color={colors.error} />}
           style={{ marginBottom: spacing.md }}
         />
+        {savedLocations.length > 0 && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
+            {savedLocations.slice(0, 4).map((location) => (
+              <TouchableOpacity
+                key={`dropoff-${location.id}`}
+                onPress={() => applySavedLocation(location, 'dropoff')}
+                style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: borderRadius.full, backgroundColor: colors.surfaceAlt }}
+              >
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
+                  Đến: {location.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        {dropoffPoint && (
+          <Button
+            label="Lưu điểm đến này"
+            onPress={() => saveLocation('dropoff')}
+            loading={savingLocation === 'dropoff'}
+            variant="secondary"
+            size="sm"
+            style={{ marginBottom: spacing.md }}
+          />
+        )}
         {locationLoading === 'dropoff' && <ActivityIndicator color={colors.primary} style={{ marginBottom: spacing.sm }} />}
         {dropoffSuggestions.map((item) => (
           <TouchableOpacity
@@ -564,9 +690,9 @@ export default function BookingScreen() {
         )}
 
         <Button
-          label="Tìm xe phù hợp"
+          label={routeLoading ? 'Đang tải lộ trình Goong' : 'Tìm xe phù hợp'}
           onPress={handleSearch}
-          loading={isLoadingVehicles}
+          loading={isLoadingVehicles || routeLoading}
           icon={<Search size={20} color="white" />}
         />
       </Card>
@@ -578,12 +704,14 @@ export default function BookingScreen() {
           </Text>
           <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: spacing.md }}>
             {vehicles.length} xe khớp ngày {dateInput}, giờ {time}, {passengerCount} hành khách
-            {distance ? `, khoảng ${distance} km` : ''}
+            {routeDistance ? `, lộ trình Goong khoảng ${routeDistance} km` : ''}
+            {route?.duration ? `, ${route.duration}` : ''}
           </Text>
 
           {vehicles.slice(0, visibleVehicleCount).map((vehicle) => {
             const selected = selectedVehicleId === vehicle.id;
             const available = vehicleAvailability(vehicle);
+            const priceQuote = calculateBookingPrice(routeDistance || 1, vehicle.pricePerKm, passengerCount, time);
 
             return (
               <TouchableOpacity
@@ -608,7 +736,9 @@ export default function BookingScreen() {
                       pickupLng: String(pickupPoint?.lng ?? ''),
                       dropoffLat: String(dropoffPoint?.lat ?? ''),
                       dropoffLng: String(dropoffPoint?.lng ?? ''),
-                      distance: String(distance),
+                      distance: String(routeDistance),
+                      estimatedPrice: String(priceQuote.totalPrice),
+                      routeDuration: route?.duration ?? '',
                     },
                   });
                 }}
@@ -623,18 +753,25 @@ export default function BookingScreen() {
                 }}
               >
                 <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' }}>
-                  <View
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 24,
-                      backgroundColor: selected ? colors.primary : colors.surfaceAlt,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Car size={24} color={selected ? 'white' : colors.text} />
-                  </View>
+                  {vehicle.image ? (
+                    <Image
+                      source={{ uri: vehicle.image }}
+                      style={{ width: 70, height: 70, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        backgroundColor: selected ? colors.primary : colors.surfaceAlt,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Car size={24} color={selected ? 'white' : colors.text} />
+                    </View>
+                  )}
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>
                       {vehicle.name}
@@ -643,7 +780,11 @@ export default function BookingScreen() {
                       {vehicle.licensePlate} - {vehicle.color} - {vehicle.seats} chỗ
                     </Text>
                     <Text style={{ color: colors.primary, fontWeight: '700', marginTop: spacing.sm }}>
-                      {vehicle.pricePerKm.toLocaleString('vi-VN')} VND/km
+                      {formatCurrency(priceQuote.totalPrice)}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: spacing.xs }}>
+                      {routeDistance || 1} km x {vehicle.pricePerKm.toLocaleString('vi-VN')}đ/km
+                      {priceQuote.peakFee > 0 ? ` + phụ phí cao điểm ${formatCurrency(priceQuote.peakFee)}` : ''}
                     </Text>
                   </View>
                   <Text
@@ -656,6 +797,17 @@ export default function BookingScreen() {
                     {available ? 'Trống' : 'Bận'}
                   </Text>
                 </View>
+                {!!vehicle.imageUrls?.length && vehicle.imageUrls.length > 1 && (
+                  <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
+                    {vehicle.imageUrls.slice(1, 5).map((url, index) => (
+                      <Image
+                        key={`${vehicle.id}-result-${index}`}
+                        source={{ uri: url }}
+                        style={{ flex: 1, height: 54, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt }}
+                      />
+                    ))}
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}

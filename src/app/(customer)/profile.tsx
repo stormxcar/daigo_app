@@ -1,8 +1,8 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, Modal, Pressable, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Bell, Camera, ChevronRight, Info, LogOut, Mail, Phone, Shield, User, X } from 'lucide-react-native';
+import { Bell, Camera, ChevronRight, Clock, DollarSign, Info, LayoutGrid, LayoutList, LogOut, Mail, MapPin, Phone, Shield, User, Users, X } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Avatar, Button, Card, TextInput } from '@/components/BaseComponents';
@@ -21,7 +21,146 @@ import { useBooking } from '@/hooks/useBooking';
 import { apiClient } from '@/services/api';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
 import { DAIGO_LOGO_URL, APP_NAME, APP_TAGLINE } from '@/constants/branding';
-import { showError, showSuccess, showWarning } from '@/utils/toast';
+import { showError, showInfo, showSuccess, showWarning } from '@/utils/toast';
+import { Booking } from '@/types';
+import { formatCurrency, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
+import { registerPushNotifications } from '@/services/pushNotifications';
+import { getCurrentDeviceLocation } from '@/services/deviceLocation';
+
+type HistoryLayoutMode = 'card' | 'list';
+
+function HistoryLayoutToggle({ mode, onChange }: { mode: HistoryLayoutMode; onChange: (mode: HistoryLayoutMode) => void }) {
+  const { colors } = useTheme();
+  const slideAnim = React.useRef(new Animated.Value(mode === 'card' ? 0 : 1)).current;
+
+  const selectMode = (next: HistoryLayoutMode) => {
+    Animated.spring(slideAnim, {
+      toValue: next === 'card' ? 0 : 1,
+      useNativeDriver: false,
+      tension: 120,
+      friction: 8,
+    }).start();
+    onChange(next);
+  };
+
+  const translateX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [2, 34],
+  });
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        backgroundColor: colors.surfaceAlt,
+        borderRadius: borderRadius.full,
+        padding: 2,
+        width: 72,
+        height: 34,
+      }}
+    >
+      <Animated.View
+        style={{
+          position: 'absolute',
+          top: 2,
+          width: 30,
+          height: 30,
+          borderRadius: 15,
+          backgroundColor: colors.primary,
+          transform: [{ translateX }],
+        }}
+      />
+      <TouchableOpacity onPress={() => selectMode('card')} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
+        <LayoutGrid size={15} color={mode === 'card' ? 'white' : colors.textSecondary} />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => selectMode('list')} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
+        <LayoutList size={15} color={mode === 'list' ? 'white' : colors.textSecondary} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function CustomerBookingListRow({ booking, onPress }: { booking: Booking; onPress: () => void }) {
+  const { colors } = useTheme();
+  const statusInfo = getBookingStatusInfo(booking.status);
+  const price = booking.actualPrice ?? booking.estimatedPrice ?? 0;
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.84}
+      style={{
+        backgroundColor: colors.surface,
+        borderRadius: borderRadius.lg,
+        padding: spacing.md,
+        marginBottom: spacing.sm,
+        borderWidth: 1,
+        borderColor: colors.border,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+      }}
+    >
+      <View
+        style={{
+          width: 42,
+          height: 42,
+          borderRadius: 21,
+          backgroundColor: `${statusInfo.color}22`,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: statusInfo.color }} />
+      </View>
+
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xs, marginBottom: spacing.xs }}>
+          <Text style={{ color: colors.text, fontWeight: '900', flex: 1 }} numberOfLines={1}>
+            {booking.bookingCode ?? 'Chuyến đi'}
+          </Text>
+          <View style={{ paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: borderRadius.full, backgroundColor: statusInfo.color }}>
+            <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>{statusInfo.label}</Text>
+          </View>
+        </View>
+
+        <View style={{ gap: 3 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+            <MapPin size={12} color={colors.primary} />
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, flex: 1 }} numberOfLines={1}>
+              {booking.pickupLocation}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+            <MapPin size={12} color={colors.error} />
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, flex: 1 }} numberOfLines={1}>
+              {booking.dropoffLocation}
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Clock size={11} color={colors.textTertiary} />
+            <Text style={{ color: colors.textTertiary, fontSize: 10 }}>
+              {formatVietnamDate(booking.date)} - {booking.time}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Users size={11} color={colors.textTertiary} />
+            <Text style={{ color: colors.textTertiary, fontSize: 10 }}>{booking.passengers}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <DollarSign size={11} color={colors.primary} />
+            <Text style={{ color: colors.primary, fontSize: 10, fontWeight: '900' }}>{formatCurrency(price)}</Text>
+          </View>
+        </View>
+      </View>
+
+      <ChevronRight size={18} color={colors.textTertiary} />
+    </TouchableOpacity>
+  );
+}
 
 export default function ProfileScreen() {
   const [modalVisible, setModalVisible] = useState(false);
@@ -45,6 +184,7 @@ export default function ProfileScreen() {
   const [historyStatusFilter, setHistoryStatusFilter] = useState<BookingStatusFilter>('all');
   const [historySortMode, setHistorySortMode] = useState<BookingSortMode>('newest');
   const [historyFiltersExpanded, setHistoryFiltersExpanded] = useState(false);
+  const [historyLayoutMode, setHistoryLayoutMode] = useState<HistoryLayoutMode>('card');
   const filteredBookings = React.useMemo(
     () => filterAndSortBookings(bookings, historyQuery, historyStatusFilter, historySortMode),
     [bookings, historyQuery, historyStatusFilter, historySortMode]
@@ -132,6 +272,61 @@ export default function ProfileScreen() {
     }
   };
 
+  const handlePushToggle = async (next: boolean) => {
+    if (!user) return;
+
+    if (!next) {
+      try {
+        await apiClient.disablePushTokens(user.id);
+        setPushEnabled(false);
+        showSuccess('Đã tắt thông báo', 'Bạn sẽ không nhận push notification trên thiết bị này.');
+      } catch (error: any) {
+        showError('Không thể tắt thông báo', error.message || 'Vui lòng thử lại sau.');
+      }
+      return;
+    }
+
+    try {
+      const token = await registerPushNotifications(user.id);
+      if (!token) {
+        setPushEnabled(false);
+        showWarning('Chưa bật được thông báo', 'Push notification thật cần chạy trên APK hoặc development build, không phải Expo Go.');
+        return;
+      }
+      setPushEnabled(true);
+      showSuccess('Đã bật thông báo', 'Thiết bị này sẽ nhận thông báo booking/chat.');
+    } catch (error: any) {
+      setPushEnabled(false);
+      showError('Không thể bật thông báo', error.message || 'Vui lòng kiểm tra quyền thông báo trên thiết bị.');
+    }
+  };
+
+  const handleLocationToggle = async (next: boolean) => {
+    if (!next) {
+      setLocationEnabled(false);
+      showInfo('Đã tắt chia sẻ vị trí', 'App sẽ không tự lấy GPS làm điểm đón cho đến khi bạn bật lại.');
+      return;
+    }
+
+    try {
+      const location = await getCurrentDeviceLocation();
+      setLocationEnabled(true);
+      showSuccess('Đã bật chia sẻ vị trí', location.label);
+    } catch (error: any) {
+      setLocationEnabled(false);
+      showError('Không thể bật vị trí', error.message || 'Vui lòng cấp quyền GPS trong cài đặt thiết bị.');
+    }
+  };
+
+  const handleSmsToggle = (next: boolean) => {
+    setSmsEnabled(next);
+    if (next) {
+      showInfo('Đã bật nhắc lịch trong app', 'SMS thật cần tích hợp nhà cung cấp SMS riêng, hiện app sẽ ưu tiên thông báo trong app/push.');
+    } else {
+      showInfo('Đã tắt nhắc lịch', 'Bạn có thể bật lại bất cứ lúc nào.');
+    }
+  };
+
   if (!isAuthenticated) {
     return <AuthRequired description="Bạn cần đăng nhập để xem và chỉnh sửa hồ sơ." />;
   }
@@ -210,10 +405,18 @@ export default function ProfileScreen() {
         <Button label="Lưu hồ sơ" onPress={handleSave} loading={saving} />
       </Card>
 
-      <View style={{ marginBottom: spacing.lg }}>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: spacing.sm }}>
-          Lịch sử chuyến đi
-        </Text>
+      <View style={{ marginBottom: spacing.lg, paddingHorizontal: spacing.lg }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>
+              Lịch sử chuyến đi
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
+              {filteredBookings.length} chuyến {activeHistoryFilterCount > 0 ? '(đã lọc)' : ''}
+            </Text>
+          </View>
+          <HistoryLayoutToggle mode={historyLayoutMode} onChange={setHistoryLayoutMode} />
+        </View>
         <BookingListControls
           query={historyQuery}
           onQueryChange={setHistoryQuery}
@@ -230,9 +433,15 @@ export default function ProfileScreen() {
             setHistorySortMode('newest');
           }}
         />
-        {filteredBookings.slice(0, visibleBookingCount).map((booking) => (
-          <BookingCard key={booking.id} {...booking} />
-        ))}
+        {filteredBookings.slice(0, visibleBookingCount).map((booking) => {
+          const openDetail = () =>
+            router.push({ pathname: '/(customer)/booking-detail' as any, params: { id: booking.id } });
+          return historyLayoutMode === 'card' ? (
+            <BookingCard key={booking.id} {...booking} onPress={openDetail} />
+          ) : (
+            <CustomerBookingListRow key={booking.id} booking={booking} onPress={openDetail} />
+          );
+        })}
         {filteredBookings.length > visibleBookingCount && (
           <Button
             label="Tải thêm chuyến đi"
@@ -258,21 +467,21 @@ export default function ProfileScreen() {
             label: 'Nhận thông báo chuyến đi',
             description: 'Cập nhật trạng thái đặt xe và tài xế',
             value: pushEnabled,
-            onValueChange: setPushEnabled,
+            onValueChange: handlePushToggle,
             icon: <Bell size={20} color={colors.primary} />,
           },
           {
-            label: 'Nhận SMS nhắc lịch',
-            description: 'Gửi tin nhắn trước giờ khởi hành',
+            label: 'Nhắc lịch chuyến đi',
+            description: 'Ưu tiên thông báo trong app/push, SMS cần nhà cung cấp riêng',
             value: smsEnabled,
-            onValueChange: setSmsEnabled,
+            onValueChange: handleSmsToggle,
             icon: <Phone size={20} color={colors.info} />,
           },
           {
             label: 'Chia sẻ vị trí khi đặt xe',
             description: 'Giúp tài xế đón bạn chính xác hơn',
             value: locationEnabled,
-            onValueChange: setLocationEnabled,
+            onValueChange: handleLocationToggle,
             icon: <Shield size={20} color={colors.success} />,
           },
           {

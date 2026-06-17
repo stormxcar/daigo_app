@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
+import { Image as ImageIcon, MessageCircle } from "lucide-react-native";
 import { useTheme } from "@/theme";
 import { borderRadius, fontSize, spacing } from "@/theme/tokens";
 import { AuthRequired } from "@/components/AuthRequired";
@@ -156,35 +157,62 @@ export default function ChatScreen() {
                 alignItems: "center",
               }}
             >
-              <Image
-                source={{ uri: conversation.participantAvatar }}
-                style={{
-                  width: 54,
-                  height: 54,
-                  borderRadius: 27,
-                  backgroundColor: colors.surfaceAlt,
-                }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text
+              <View>
+                <Image
+                  source={{ uri: conversation.participantAvatar }}
                   style={{
-                    color: colors.text,
-                    fontSize: 16,
-                    fontWeight: "700",
+                    width: 58,
+                    height: 58,
+                    borderRadius: 29,
+                    backgroundColor: colors.surfaceAlt,
                   }}
-                >
-                  {conversation.participantName}
-                </Text>
+                />
+                <View
+                  style={{
+                    position: "absolute",
+                    right: 1,
+                    bottom: 1,
+                    width: 14,
+                    height: 14,
+                    borderRadius: 7,
+                    backgroundColor: colors.success,
+                    borderWidth: 2,
+                    borderColor: colors.surface,
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 16,
+                      fontWeight: "900",
+                      flex: 1,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {conversation.participantName}
+                  </Text>
+                  <MessageCircle size={14} color={colors.primary} />
+                </View>
                 <Text
                   numberOfLines={1}
                   style={{
-                    color: colors.textSecondary,
+                    color: conversation.unreadCount > 0 ? colors.text : colors.textSecondary,
                     fontSize: fontSize.sm,
+                    fontWeight: conversation.unreadCount > 0 ? "800" : "500",
                     marginTop: spacing.xs,
                   }}
                 >
-                  {conversation.lastMessage}
+                  {conversation.lastMessage === "Đã gửi một ảnh" ? "Ảnh trong cuộc trò chuyện" : conversation.lastMessage}
                 </Text>
+                {conversation.lastMessage === "Đã gửi một ảnh" && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.xs }}>
+                    <ImageIcon size={13} color={colors.primary} />
+                    <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs }}>Nhấn để xem ảnh</Text>
+                  </View>
+                )}
                 {(conversation.threadIds?.length ?? 0) > 1 && (
                   <Text
                     style={{
