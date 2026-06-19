@@ -24,6 +24,7 @@ type PaymentRow = {
   submitted_at: string | null;
   verified_at: string | null;
   rejected_at: string | null;
+  expires_at: string | null;
 };
 
 type DriverBankProfile = Pick<
@@ -53,7 +54,19 @@ const mapPayment = (row: PaymentRow): Payment => ({
   submittedAt: row.submitted_at ?? undefined,
   verifiedAt: row.verified_at ?? undefined,
   rejectedAt: row.rejected_at ?? undefined,
+  expiresAt: row.expires_at ?? undefined,
 });
+
+const PAYMENT_EXPIRY_MINUTES = 15;
+
+function getPaymentExpiresAt(method: Payment['paymentMethod']) {
+  if (method === 'cash') return null;
+  return new Date(Date.now() + PAYMENT_EXPIRY_MINUTES * 60 * 1000).toISOString();
+}
+
+function isExpired(payment: Payment) {
+  return !!payment.expiresAt && Date.now() >= new Date(payment.expiresAt).getTime();
+}
 
 async function createPaymentNotification(data: {
   userId: string;
@@ -130,7 +143,13 @@ class PaymentService {
     }
 
     const existing = await this.getPaymentByBooking(booking.id);
-    if (existing && existing.paymentStatus !== 'expired') return existing;
+    if (existing && existing.paymentStatus !== 'expired') {
+      if (existing.paymentMethod !== 'cash' && ['pending', 'rejected'].includes(existing.paymentStatus) && isExpired(existing)) {
+        await this.expirePayment(existing);
+      } else {
+        return existing;
+      }
+    }
 
     const amount = booking.actualPrice ?? booking.estimatedPrice;
     const transferContent = createTransferContent(booking.id, customer.id);
@@ -163,6 +182,7 @@ class PaymentService {
         bank_account_holder: driverBank?.bankAccountHolder ?? null,
         transfer_content: transferContent,
         qr_url: qrUrl,
+        expires_at: getPaymentExpiresAt(method),
       })
       .select('*')
       .single();
@@ -173,6 +193,10 @@ class PaymentService {
   async markTransferSubmitted(payment: Payment): Promise<Payment> {
     if (payment.paymentStatus === 'driver_verified') {
       throw new Error('Thanh toán này đã được tài xế xác nhận.');
+    }
+    if (payment.paymentMethod !== 'cash' && isExpired(payment)) {
+      await this.expirePayment(payment);
+      throw new Error('Mã thanh toán đã hết hạn. Vui lòng tạo lại mã mới.');
     }
 
     const { data, error } = await supabase
@@ -194,6 +218,22 @@ class PaymentService {
       content: `Vui lòng kiểm tra giao dịch cho chuyến ${payment.transferContent}.`,
     });
 
+    return mapPayment(data as PaymentRow);
+  }
+
+  async expirePayment(payment: Payment): Promise<Payment> {
+    if (payment.paymentStatus === 'expired') return payment;
+    if (!['pending', 'rejected'].includes(payment.paymentStatus)) {
+      throw new Error('Thanh toán này không thể chuyển sang hết hạn.');
+    }
+
+    const { data, error } = await supabase
+      .from('payments')
+      .update({ payment_status: 'expired' })
+      .eq('id', payment.id)
+      .select('*')
+      .single();
+    if (error) throw error;
     return mapPayment(data as PaymentRow);
   }
 

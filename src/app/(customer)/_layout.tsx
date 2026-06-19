@@ -16,7 +16,9 @@ export default function CustomerLayout() {
   const detailRoutes = [
     'notifications',
     'booking-detail',
+    'map-picker',
     'payment',
+    'receipt',
     'blog-detail',
     'chat-detail',
     'notification-detail',
@@ -24,7 +26,9 @@ export default function CustomerLayout() {
   const backHrefByRoute: Record<string, string> = {
     notifications: '/(customer)/home',
     'booking-detail': '/(customer)/booking',
+    'map-picker': '/(customer)/booking',
     payment: '/(customer)/booking-detail',
+    receipt: '/(customer)/booking-detail',
     'blog-detail': '/(customer)/blog',
     'chat-detail': '/(customer)/chat',
     'notification-detail': '/(customer)/notifications',
@@ -113,10 +117,24 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
+        name="map-picker"
+        options={{
+          href: null,
+          title: 'Chọn vị trí',
+        }}
+      />
+      <Tabs.Screen
         name="payment"
         options={{
           href: null,
           title: 'Thanh toán',
+        }}
+      />
+      <Tabs.Screen
+        name="receipt"
+        options={{
+          href: null,
+          title: 'Biên nhận',
         }}
       />
       <Tabs.Screen

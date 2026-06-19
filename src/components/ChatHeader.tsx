@@ -38,7 +38,7 @@ export function ChatHeader({ conversation, roleLabel, onCallPress, onMenuPress }
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs }}>
             <ShieldCheck size={13} color={colors.success} />
             <Text style={{ color: colors.textSecondary, fontSize: 13 }} numberOfLines={1}>
-              Online - {roleLabel}
+              {roleLabel}
             </Text>
           </View>
         </View>

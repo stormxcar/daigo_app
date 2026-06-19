@@ -37,9 +37,8 @@ export default function ChatDetailScreen() {
   useEffect(() => {
     if (!id) return;
 
-    const channelName = `chat-detail-${id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel(channelName)
+      .channel(`chat-detail-${id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
         refresh().catch(() => undefined);
       })

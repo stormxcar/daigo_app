@@ -1,8 +1,7 @@
 import { useBookingStore } from '@/stores/bookingStore';
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { apiClient } from '@/services/api';
 import { Booking } from '@/types';
-import { supabase } from '@/services/supabase';
 
 export const useBooking = () => {
   const store = useBookingStore();
@@ -68,20 +67,6 @@ export const useBooking = () => {
       throw err;
     }
   }, []);
-
-  useEffect(() => {
-    const channelName = `bookings-realtime-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const channel = supabase
-      .channel(channelName)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        fetchBookings();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchBookings]);
 
   return {
     ...store,

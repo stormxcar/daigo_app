@@ -13,7 +13,14 @@ import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
 import { borderRadius, spacing } from '@/theme/tokens';
 import { Booking, PaymentMethod } from '@/types';
-import { showError, showSuccess } from '@/utils/toast';
+import { showError, showSuccess, showWarning } from '@/utils/toast';
+
+const formatRemainingTime = (milliseconds: number) => {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
 
 export default function CustomerPaymentScreen() {
   const { colors } = useTheme();
@@ -23,6 +30,18 @@ export default function CustomerPaymentScreen() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [booting, setBooting] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  const paymentExpiresAt = payment?.expiresAt ? new Date(payment.expiresAt).getTime() : null;
+  const paymentRemainingMs = paymentExpiresAt ? paymentExpiresAt - now : null;
+  const vietQrExpired =
+    !!payment &&
+    payment.paymentMethod !== 'cash' &&
+    payment.paymentStatus !== 'expired' &&
+    payment.paymentStatus !== 'submitted' &&
+    payment.paymentStatus !== 'driver_verified' &&
+    paymentRemainingMs !== null &&
+    paymentRemainingMs <= 0;
 
   useEffect(() => {
     if (!bookingId) return;
@@ -32,6 +51,22 @@ export default function CustomerPaymentScreen() {
       .catch((loadError) => showError('Không thể tải chuyến đi', loadError.message))
       .finally(() => setBooting(false));
   }, [bookingId]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!payment || !vietQrExpired) return;
+    paymentService
+      .expirePayment(payment)
+      .then((updated) => {
+        setPayment(updated);
+        showWarning('Mã VietQR đã hết hạn', 'Vui lòng tạo lại mã thanh toán mới nếu bạn muốn chuyển khoản.');
+      })
+      .catch(() => undefined);
+  }, [payment?.id, vietQrExpired]);
 
   const ensurePayment = async (method: PaymentMethod) => {
     if (!booking || !user) return;
@@ -45,6 +80,10 @@ export default function CustomerPaymentScreen() {
 
   const markTransferred = async () => {
     if (!payment) return;
+    if (vietQrExpired || payment.paymentStatus === 'expired') {
+      showError('Mã đã hết hạn', 'Vui lòng tạo lại mã thanh toán mới trước khi báo đã chuyển khoản.');
+      return;
+    }
     try {
       setSubmitting(true);
       const updated = await paymentService.markTransferSubmitted(payment);
@@ -156,11 +195,24 @@ export default function CustomerPaymentScreen() {
               ) : (
                 <>
                   <VietQRCard payment={payment} />
+                  <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}>
+                    <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
+                      <Clock size={22} color={vietQrExpired ? colors.error : colors.primary} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.text, fontWeight: '900' }}>
+                          {vietQrExpired ? 'Mã QR đã hết hạn' : `Mã QR còn hiệu lực trong ${formatRemainingTime(paymentRemainingMs ?? 0)}`}
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 }}>
+                          Sau khi hết hạn, bạn cần tạo lại mã mới trước khi báo đã chuyển khoản.
+                        </Text>
+                      </View>
+                    </View>
+                  </Card>
                   <Button
-                    label="Tôi đã chuyển khoản"
+                    label={vietQrExpired ? 'Mã đã hết hạn' : 'Tôi đã chuyển khoản'}
                     onPress={markTransferred}
                     loading={submitting}
-                    disabled={submitting}
+                    disabled={submitting || vietQrExpired}
                   />
                 </>
               )}
@@ -209,6 +261,15 @@ export default function CustomerPaymentScreen() {
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginTop: spacing.md }}>
                 Phiên thanh toán đã hết hạn
               </Text>
+              <Text style={{ color: colors.textSecondary, lineHeight: 22, marginTop: spacing.sm, marginBottom: spacing.md }}>
+                Mã QR cũ không còn dùng để báo chuyển khoản. Bạn có thể tạo lại mã mới cho chuyến đi này.
+              </Text>
+              <Button
+                label="Tạo lại mã thanh toán"
+                onPress={() => ensurePayment('vietqr')}
+                loading={loading}
+                icon={<RotateCcw size={18} color="white" />}
+              />
             </Card>
           )}
         </>

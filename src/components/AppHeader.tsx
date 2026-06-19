@@ -34,8 +34,9 @@ export function AppHeader({
   const shouldShowNotifications = showNotifications && isAuthenticated && !!user?.id;
 
   useEffect(() => {
+    if (!shouldShowNotifications) return;
     fetchNotifications();
-  }, [fetchNotifications]);
+  }, [fetchNotifications, shouldShowNotifications]);
 
   useEffect(() => {
     if (unreadCount <= 0) return;

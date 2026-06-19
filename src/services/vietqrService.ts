@@ -26,5 +26,6 @@ export function generateVietQRUrl(input: VietQRInput) {
 }
 
 export function createTransferContent(bookingId: string, customerId: string) {
-  return `BOOKING_${bookingId.slice(0, 8).toUpperCase()}_${customerId.slice(0, 8).toUpperCase()}`;
+  const suffix = Date.now().toString(36).toUpperCase();
+  return `BOOKING_${bookingId.slice(0, 8).toUpperCase()}_${customerId.slice(0, 8).toUpperCase()}_${suffix}`;
 }

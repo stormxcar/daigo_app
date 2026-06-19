@@ -1,8 +1,8 @@
-﻿import React, { useEffect, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Image, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Banknote, Car, CheckCircle2, Clock, MapPin, Navigation, Phone, Route, Star, User } from 'lucide-react-native';
+import { Banknote, Car, CheckCircle2, Clock, FileText, MapPin, Navigation, Phone, Route, Star, User } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, TextInput } from '@/components/BaseComponents';
@@ -15,10 +15,25 @@ import { RealtimeTripMap } from '@/components/RealtimeTripMap';
 import { BookingTimeline } from '@/components/BookingTimeline';
 import { LazyMount } from '@/components/LazyMount';
 import { PaymentStatusBadge, getPaymentStatusLabel } from '@/components/PaymentStatusBadge';
-import { getDriverLocation, subscribeDriverLocation } from '@/services/driverLocation';
+import { getDistanceMeters, getDriverLocation, subscribeDriverLocation } from '@/services/driverLocation';
+import { subscribeBookingStatus } from '@/services/bookingRealtimeService';
+import { getDrivingRoute, LatLng } from '@/services/mapRouteService';
 import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { BOOKING_STATUS, CUSTOMER_CANCEL_REASONS } from '@/constants';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
+
+const ETA_REFRESH_INTERVAL_MS = 20_000;
+const ETA_REFRESH_DISTANCE_METERS = 120;
+const ETA_ACTIVE_STATUSES = [
+  BOOKING_STATUS.DRIVER_ACCEPTED,
+  BOOKING_STATUS.DRIVER_ARRIVING,
+  BOOKING_STATUS.DRIVER_ARRIVED,
+] as const;
+
+const formatEta = (seconds: number) => {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return `${minutes} phút`;
+};
 
 export default function BookingDetailScreen() {
   const { colors } = useTheme();
@@ -51,6 +66,13 @@ export default function BookingDetailScreen() {
   const [cancelReason, setCancelReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [waitingSeconds, setWaitingSeconds] = useState(0);
+  const [driverEta, setDriverEta] = useState<{ text: string; distanceMeters: number; updatedAt: string } | null>(null);
+  const [driverEtaLoading, setDriverEtaLoading] = useState(false);
+  const [driverEtaError, setDriverEtaError] = useState<string | null>(null);
+  const pulseAnim = React.useRef(new Animated.Value(0.4)).current;
+  const lastEtaRequestAtRef = useRef(0);
+  const lastEtaDriverPointRef = useRef<LatLng | null>(null);
   const passengers = Number(params.passengers) || 1;
   const distance = Number(params.distance) || 1;
   const estimatedPrice = Number(params.estimatedPrice) || distance * (vehicle?.pricePerKm ?? 0);
@@ -75,15 +97,126 @@ export default function BookingDetailScreen() {
   useEffect(() => {
     if (!params.id) return undefined;
 
+    const fetchBooking = () =>
+      apiClient
+        .getBookingById(params.id!)
+        .then(setBooking)
+        .catch((error) => showError('Không thể tải chuyến đi', error.message));
+
+    fetchBooking();
+    getDriverLocation(params.id).then(setDriverLocation).catch(() => undefined);
+
+    const unsubscribeBooking = subscribeBookingStatus(params.id, (update) => {
+      setBooking((current) => (current ? { ...current, ...update } : current));
+      fetchBooking();
+    });
+    const unsubscribeLocation = subscribeDriverLocation(params.id, setDriverLocation);
+    return () => {
+      unsubscribeBooking();
+      unsubscribeLocation();
+    };
+  }, [params.id]);
+
+  useEffect(() => {
+    if (booking?.status !== BOOKING_STATUS.SEARCHING_DRIVER) {
+      setWaitingSeconds(0);
+      return;
+    }
+
+    const startedAt = booking.createdAt ? new Date(booking.createdAt).getTime() : Date.now();
+    setWaitingSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    const timer = setInterval(() => {
+      setWaitingSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [booking?.id, booking?.status, booking?.createdAt]);
+
+  useEffect(() => {
+    if (booking?.status !== BOOKING_STATUS.SEARCHING_DRIVER) return;
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.4, duration: 900, useNativeDriver: true }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [booking?.status, pulseAnim]);
+
+  useEffect(() => {
+    const hasPickup =
+      typeof booking?.pickupLat === 'number' &&
+      typeof booking?.pickupLng === 'number';
+    const isEtaStatus = !!booking?.status && ETA_ACTIVE_STATUSES.includes(booking.status as any);
+
+    if (!booking || !driverLocation || !hasPickup || !isEtaStatus) {
+      setDriverEta(null);
+      setDriverEtaLoading(false);
+      setDriverEtaError(null);
+      lastEtaRequestAtRef.current = 0;
+      lastEtaDriverPointRef.current = null;
+      return;
+    }
+
+    const driverPoint: LatLng = {
+      latitude: driverLocation.latitude,
+      longitude: driverLocation.longitude,
+    };
+    const pickupPoint: LatLng = {
+      latitude: booking.pickupLat!,
+      longitude: booking.pickupLng!,
+    };
+    const lastPoint = lastEtaDriverPointRef.current;
+    const movedMeters = lastPoint ? getDistanceMeters(lastPoint, driverPoint) : Infinity;
+    const requestAge = Date.now() - lastEtaRequestAtRef.current;
+
+    if (requestAge < ETA_REFRESH_INTERVAL_MS && movedMeters < ETA_REFRESH_DISTANCE_METERS) {
+      return;
+    }
+
+    let cancelled = false;
+    setDriverEtaLoading(true);
+    setDriverEtaError(null);
+
+    getDrivingRoute(driverPoint, pickupPoint)
+      .then((route) => {
+        if (cancelled) return;
+        lastEtaRequestAtRef.current = Date.now();
+        lastEtaDriverPointRef.current = driverPoint;
+        setDriverEta({
+          text: route.durationSeconds ? formatEta(route.durationSeconds) : route.duration || 'đang cập nhật',
+          distanceMeters: route.distanceMeters,
+          updatedAt: new Date().toISOString(),
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setDriverEtaError(error.message || 'Đang cập nhật ETA...');
+      })
+      .finally(() => {
+        if (!cancelled) setDriverEtaLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    booking?.id,
+    booking?.status,
+    booking?.pickupLat,
+    booking?.pickupLng,
+    driverLocation?.latitude,
+    driverLocation?.longitude,
+  ]);
+
+  const refreshBooking = () => {
+    if (!params.id) return;
     apiClient
       .getBookingById(params.id)
       .then(setBooking)
       .catch((error) => showError('Không thể tải chuyến đi', error.message));
-    getDriverLocation(params.id).then(setDriverLocation).catch(() => undefined);
-
-    const unsubscribe = subscribeDriverLocation(params.id, setDriverLocation);
-    return unsubscribe;
-  }, [params.id]);
+  };
 
   useEffect(() => {
     if (!booking || !user || booking.status !== BOOKING_STATUS.TRIP_COMPLETED) return;
@@ -195,6 +328,159 @@ export default function BookingDetailScreen() {
           <BookingTimeline status={booking.status} />
         </Card>
 
+        {booking.status === BOOKING_STATUS.SEARCHING_DRIVER && (
+          <Card style={{ marginBottom: spacing.lg, alignItems: 'center' }}>
+            <Animated.View
+              style={{
+                width: 82,
+                height: 82,
+                borderRadius: 41,
+                backgroundColor: colors.primary,
+                opacity: pulseAnim,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: spacing.md,
+              }}
+            >
+              <Car size={34} color="white" />
+            </Animated.View>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', textAlign: 'center' }}>
+              Đang tìm tài xế gần bạn...
+            </Text>
+            <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: spacing.sm, lineHeight: 21 }}>
+              Hệ thống đang gửi yêu cầu đến tài xế phù hợp. Thời gian đã chờ: {Math.floor(waitingSeconds / 60)}:
+              {String(waitingSeconds % 60).padStart(2, '0')}
+            </Text>
+            <Button
+              label="Làm mới trạng thái"
+              onPress={refreshBooking}
+              variant="outline"
+              size="sm"
+              style={{ marginTop: spacing.md }}
+            />
+          </Card>
+        )}
+
+        {/* Cảnh báo chờ quá lâu — hiện sau 5 phút */}
+        {booking.status === BOOKING_STATUS.SEARCHING_DRIVER && waitingSeconds > 300 && (
+          <Card
+            style={{
+              marginBottom: spacing.lg,
+              borderWidth: 1.5,
+              borderColor: colors.warning,
+              backgroundColor: colors.warning + '10',
+            }}
+          >
+            <Text
+              style={{
+                color: colors.warning,
+                fontSize: 16,
+                fontWeight: '900',
+                marginBottom: spacing.sm,
+              }}
+            >
+              ⚠️ Đã chờ quá lâu
+            </Text>
+            <Text style={{ color: colors.text, lineHeight: 21, marginBottom: spacing.md }}>
+              Hệ thống chưa tìm được tài xế phù hợp sau {Math.floor(waitingSeconds / 60)} phút. Bạn có thể hủy và đặt lại sau.
+            </Text>
+            <View style={{ gap: spacing.sm }}>
+              <Button
+                label="Hủy chuyến này"
+                onPress={() => {
+                  setCancelReason('Không tìm được tài xế');
+                }}
+                variant="danger"
+                size="sm"
+              />
+              <Button
+                label="Tiếp tục chờ"
+                onPress={refreshBooking}
+                variant="outline"
+                size="sm"
+              />
+            </View>
+          </Card>
+        )}
+
+        {!!booking.driverId && ETA_ACTIVE_STATUSES.includes(booking.status as any) && (
+          <Card style={{ marginBottom: spacing.lg }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
+              Tài xế đang đến điểm đón
+            </Text>
+            <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}>
+              {/* Avatar tài xế: dùng ảnh thật nếu có, fallback chữ cái */}
+              {booking.vehicle?.driverAvatar ? (
+                <Image
+                  source={{ uri: booking.vehicle.driverAvatar }}
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 26,
+                    backgroundColor: colors.surfaceAlt,
+                    borderWidth: 2,
+                    borderColor: colors.primary + '40',
+                  }}
+                />
+              ) : (
+                <View
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 26,
+                    backgroundColor: colors.primary,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ color: 'white', fontWeight: '900', fontSize: 20 }}>
+                    {(booking.driverName || 'T')[0].toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: '900', fontSize: fontSize.base }}>
+                  {booking.driverName || 'Tài xế'}
+                </Text>
+                <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+                  {booking.driverPhone || 'Chưa có số điện thoại'}
+                </Text>
+                {!!booking.vehicle && (
+                  <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+                    {booking.vehicle.name} - {booking.vehicle.licensePlate} - {booking.vehicle.color}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <View
+              style={{
+                padding: spacing.md,
+                borderRadius: borderRadius.md,
+                backgroundColor: colors.surfaceAlt,
+                gap: spacing.xs,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: '800' }}>
+                {driverEtaLoading && !driverEta
+                  ? 'Đang tính ETA theo lộ trình Goong...'
+                  : driverEta
+                    ? `Tài xế dự kiến đến trong ${driverEta.text}`
+                    : driverEtaError || 'Đang cập nhật ETA...'}
+              </Text>
+              {driverEta && (
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
+                  Khoảng cách còn {(driverEta.distanceMeters / 1000).toFixed(1)} km. ETA được cập nhật khi tài xế di chuyển.
+                </Text>
+              )}
+              {!driverLocation && (
+                <Text style={{ color: colors.warning, fontSize: fontSize.sm }}>
+                  Tài xế chưa bật chia sẻ GPS nên chưa tính được ETA.
+                </Text>
+              )}
+            </View>
+          </Card>
+        )}
+
         {existingBookingHasMap && (
           <Card style={{ marginBottom: spacing.lg }}>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
@@ -301,6 +587,27 @@ export default function BookingDetailScreen() {
               loading={loading}
               disabled={loading}
               variant="danger"
+            />
+          </Card>
+        )}
+
+        {booking.status === BOOKING_STATUS.TRIP_COMPLETED && !!booking.driverId && (
+          <Card style={{ marginBottom: spacing.lg }}>
+            <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center', marginBottom: spacing.md }}>
+              <FileText size={24} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>
+                  Biên nhận chuyến đi
+                </Text>
+                <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+                  Xem lại lộ trình, tài xế, xe, thanh toán và tổng tiền sau chuyến.
+                </Text>
+              </View>
+            </View>
+            <Button
+              label="Xem biên nhận"
+              onPress={() => router.push({ pathname: '/(customer)/receipt' as any, params: { bookingId: booking.id } })}
+              variant="outline"
             />
           </Card>
         )}

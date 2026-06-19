@@ -52,9 +52,8 @@ export default function DriverChat() {
 
     refreshConversations();
 
-    const channelName = `driver-chat-list-${user.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel(channelName)
+      .channel(`driver-chat-list-${user.id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
@@ -154,19 +153,6 @@ export default function DriverChat() {
                     height: 58,
                     borderRadius: 29,
                     backgroundColor: colors.surfaceAlt,
-                  }}
-                />
-                <View
-                  style={{
-                    position: "absolute",
-                    right: 1,
-                    bottom: 1,
-                    width: 14,
-                    height: 14,
-                    borderRadius: 7,
-                    backgroundColor: colors.success,
-                    borderWidth: 2,
-                    borderColor: colors.surface,
                   }}
                 />
               </View>

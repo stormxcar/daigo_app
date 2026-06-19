@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
-import { BarChart3, Briefcase, Car, LocateFixed, Newspaper, Wallet } from 'lucide-react-native';
+import { BarChart3, Briefcase, Car, LocateFixed, Newspaper, Percent, Route, Star, TrendingUp, Wallet } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, CardSkeleton } from '@/components/BaseComponents';
@@ -9,7 +9,7 @@ import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { ActiveTripSheet } from '@/components/ActiveTripSheet';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
-import { BlogPost, Booking, Vehicle } from '@/types';
+import { BlogPost, Booking, RatingReview, Vehicle } from '@/types';
 import { DeviceLocation, getCurrentDeviceLocation } from '@/services/deviceLocation';
 import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { showError, showSuccess } from '@/utils/toast';
@@ -42,6 +42,7 @@ export default function DriverDashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [ratings, setRatings] = useState<RatingReview[]>([]);
   const [mode, setMode] = useState<RangeMode>('day');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,15 +59,17 @@ export default function DriverDashboard() {
       } else {
         setLoading(true);
       }
-      const [allBookings, driverVehicles, driverPosts, driverStatus] = await Promise.all([
-        apiClient.getBookings({ driverId: user.id }),
+      const [allBookings, driverVehicles, driverPosts, driverStatus, driverRatings] = await Promise.all([
+        apiClient.getBookings({ driverId: user.id, page: 1, pageSize: 200 }),
         apiClient.getDriverVehicles(user.id),
         apiClient.getBlogPosts(1, 20, { driverId: user.id }),
         apiClient.getDriverStatus(user.id),
+        apiClient.getRatingsForUser(user.id),
       ]);
       setBookings(allBookings);
       setVehicles(driverVehicles);
       setPosts(driverPosts);
+      setRatings(driverRatings);
       setIsOnline(!!driverStatus?.is_online);
       setVerificationStatus(driverStatus?.verification_status ?? 'PENDING');
       getCurrentDeviceLocation().then(setDriverLocation).catch(() => undefined);
@@ -102,7 +105,10 @@ export default function DriverDashboard() {
   const stats = useMemo(() => {
     const completed = bookings.filter((booking) => booking.status === BOOKING_STATUS.TRIP_COMPLETED);
     const active = bookings.filter((booking) => ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
+    const cancelledByDriver = bookings.filter((booking) => booking.status === BOOKING_STATUS.DRIVER_CANCELLED);
+    const accepted = bookings.filter((booking) => booking.driverId === user?.id);
     const revenue = completed.reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
+    const distance = completed.reduce((sum, booking) => sum + (booking.distance ?? 0), 0);
     const todayKey = new Date().toISOString().slice(0, 10);
     const todayCompleted = completed.filter((booking) => booking.date === todayKey);
     const todayRevenue = todayCompleted.reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
@@ -111,9 +117,34 @@ export default function DriverDashboard() {
     const weekRevenue = completed
       .filter((booking) => new Date(booking.date || booking.createdAt) >= sevenDaysAgo)
       .reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const monthCompleted = completed.filter((booking) => new Date(booking.date || booking.createdAt) >= monthStart);
+    const monthRevenue = monthCompleted.reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
+    const monthDistance = monthCompleted.reduce((sum, booking) => sum + (booking.distance ?? 0), 0);
     const averageTrip = completed.length ? Math.round(revenue / completed.length) : 0;
-    return { completed: completed.length, active: active.length, revenue, todayRevenue, todayCompleted: todayCompleted.length, weekRevenue, averageTrip };
-  }, [bookings]);
+    const averageRating = ratings.length ? ratings.reduce((sum, item) => sum + item.rating, 0) / ratings.length : 0;
+    const acceptanceRate = bookings.length ? Math.round((accepted.length / bookings.length) * 100) : 0;
+    const rejectionRate = bookings.length ? Math.round((cancelledByDriver.length / bookings.length) * 100) : 0;
+    return {
+      completed: completed.length,
+      active: active.length,
+      revenue,
+      todayRevenue,
+      todayCompleted: todayCompleted.length,
+      weekRevenue,
+      averageTrip,
+      averageRating,
+      ratingCount: ratings.length,
+      acceptanceRate,
+      rejectionRate,
+      distance,
+      monthRevenue,
+      monthDistance,
+      monthTrips: monthCompleted.length,
+    };
+  }, [bookings, ratings, user?.id]);
   const activeTrip = bookings.find((booking) => ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
 
   const chart = useMemo(() => {
@@ -134,7 +165,7 @@ export default function DriverDashboard() {
     { label: 'Doanh thu', value: money(stats.revenue), icon: <Wallet size={20} color={colors.primary} /> },
     { label: 'Hoàn thành', value: String(stats.completed), icon: <Briefcase size={20} color={colors.success} /> },
     { label: 'Đang xử lý', value: String(stats.active), icon: <BarChart3 size={20} color={colors.info} /> },
-    { label: 'Xe', value: String(vehicles.length), icon: <Car size={20} color={colors.warning} /> },
+    { label: 'Rating', value: stats.ratingCount ? stats.averageRating.toFixed(1) : '--', icon: <Star size={20} color={colors.warning} /> },
   ];
 
   return (
@@ -214,6 +245,63 @@ export default function DriverDashboard() {
                 <Text numberOfLines={2} style={{ color: colors.textTertiary, fontSize: 10, marginTop: spacing.xs }}>{item.sub}</Text>
               </View>
             ))}
+          </View>
+        </Card>
+      )}
+
+      {!loading && (
+        <Card style={{ marginBottom: spacing.lg }}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
+            Hiệu suất tài xế
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+            {[
+              { label: 'Tỷ lệ nhận', value: `${stats.acceptanceRate}%`, sub: 'Trong 200 chuyến gần nhất', icon: <Percent size={18} color={colors.success} /> },
+              { label: 'Tỷ lệ từ chối', value: `${stats.rejectionRate}%`, sub: 'Chuyến tài xế hủy', icon: <Percent size={18} color={colors.error} /> },
+              { label: 'Km tháng này', value: `${stats.monthDistance.toFixed(1)} km`, sub: `${stats.monthTrips} chuyến hoàn thành`, icon: <Route size={18} color={colors.info} /> },
+              { label: 'Doanh thu tháng', value: money(stats.monthRevenue), sub: 'Từ chuyến hoàn thành', icon: <TrendingUp size={18} color={colors.primary} /> },
+            ].map((item) => (
+              <View
+                key={item.label}
+                style={{
+                  width: '47%',
+                  padding: spacing.md,
+                  borderRadius: borderRadius.lg,
+                  backgroundColor: colors.surfaceAlt,
+                }}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '700' }}>{item.label}</Text>
+                  {item.icon}
+                </View>
+                <Text numberOfLines={1} style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>{item.value}</Text>
+                <Text numberOfLines={2} style={{ color: colors.textTertiary, fontSize: 10, marginTop: spacing.xs }}>{item.sub}</Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      )}
+
+      {!loading && (
+        <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: colors.warning, alignItems: 'center', justifyContent: 'center' }}>
+              <Star size={26} color="#ffffff" fill="#ffffff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>
+                {stats.ratingCount ? `${stats.averageRating.toFixed(1)}/5` : 'Chưa có đánh giá'}
+              </Text>
+              <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+                {stats.ratingCount ? `${stats.ratingCount} đánh giá từ khách hàng` : 'Điểm đánh giá sẽ hiển thị sau chuyến hoàn thành đầu tiên.'}
+              </Text>
+            </View>
+            <Button
+              label="Xem"
+              size="sm"
+              variant="outline"
+              onPress={() => router.push('/(driver)/profile' as any)}
+            />
           </View>
         </Card>
       )}

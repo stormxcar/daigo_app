@@ -37,9 +37,8 @@ export default function DriverChatDetail() {
   useEffect(() => {
     if (!id) return;
 
-    const channelName = `driver-chat-detail-${id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel(channelName)
+      .channel(`driver-chat-detail-${id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
         refresh().catch(() => undefined);
       })

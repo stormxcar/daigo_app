@@ -1,11 +1,11 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
 import { Image as ImageIcon, MessageCircle } from "lucide-react-native";
 import { useTheme } from "@/theme";
 import { borderRadius, fontSize, spacing } from "@/theme/tokens";
 import { AuthRequired } from "@/components/AuthRequired";
-import { Button, Card } from "@/components/BaseComponents";
+import { Button, Card, Skeleton } from "@/components/BaseComponents";
 import { Screen } from "@/components/ScreenComponents";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
 import { useAuthStore } from "@/stores/authStore";
@@ -30,6 +30,7 @@ export default function ChatScreen() {
   const { colors } = useTheme();
   const { isAuthenticated, user } = useAuthStore();
   const { conversations, setConversations, setError } = useChatStore();
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [visibleCount, setVisibleCount] = useState(12);
   const [search, setSearch] = useState("");
@@ -48,14 +49,25 @@ export default function ChatScreen() {
     }
   };
 
+  const initialLoad = async () => {
+    if (!user) return;
+    try {
+      setLoading(true);
+      setConversations(await apiClient.getConversations(user.id));
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
 
-    refreshConversations();
+    initialLoad();
 
-    const channelName = `chat-list-${user.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel(channelName)
+      .channel(`chat-list-${user.id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
@@ -133,12 +145,40 @@ export default function ChatScreen() {
           sortOptions={CHAT_SORTS}
           activeSort={activeSort}
           onSortChange={(key) => setActiveSort(key || "newest")}
-          resultCount={filteredConversations.length}
+          resultCount={loading ? undefined : filteredConversations.length}
           resultLabel="cuộc trò chuyện"
         />
       </View>
 
-      {filteredConversations.slice(0, visibleCount).map((conversation) => (
+      {/* Skeleton loading lần đầu */}
+      {loading && (
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <View
+              key={i}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.md,
+                paddingVertical: spacing.md,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+              }}
+            >
+              <Skeleton width={58} height={58} borderRadius={29} />
+              <View style={{ flex: 1, gap: spacing.sm }}>
+                <Skeleton width="60%" height={16} />
+                <Skeleton width="85%" height={12} />
+              </View>
+              <View style={{ alignItems: "flex-end", gap: spacing.sm }}>
+                <Skeleton width={36} height={10} />
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {!loading && filteredConversations.slice(0, visibleCount).map((conversation) => (
         <TouchableOpacity
           key={conversation.id}
           activeOpacity={0.84}
@@ -165,19 +205,6 @@ export default function ChatScreen() {
                     height: 58,
                     borderRadius: 29,
                     backgroundColor: colors.surfaceAlt,
-                  }}
-                />
-                <View
-                  style={{
-                    position: "absolute",
-                    right: 1,
-                    bottom: 1,
-                    width: 14,
-                    height: 14,
-                    borderRadius: 7,
-                    backgroundColor: colors.success,
-                    borderWidth: 2,
-                    borderColor: colors.surface,
                   }}
                 />
               </View>
@@ -258,7 +285,7 @@ export default function ChatScreen() {
           </Card>
         </TouchableOpacity>
       ))}
-      {filteredConversations.length === 0 && (
+      {!loading && filteredConversations.length === 0 && (
         <Text
           style={{
             color: colors.textSecondary,
@@ -271,7 +298,7 @@ export default function ChatScreen() {
             : "Chưa có cuộc trò chuyện. Conversation sẽ được tạo sau khi bạn đặt xe."}
         </Text>
       )}
-      {filteredConversations.length > visibleCount && (
+      {!loading && filteredConversations.length > visibleCount && (
         <Button
           label="Tải thêm tin nhắn"
           onPress={() => setVisibleCount((current) => current + 12)}

@@ -19,6 +19,15 @@ export interface User {
   updatedAt: string;
 }
 
+export interface ProfileSettings {
+  userId: string;
+  pushEnabled: boolean;
+  smsEnabled: boolean;
+  locationSharingEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type VehicleStatus = 'Sẵn sàng' | 'Đang bận' | 'Bảo trì';
 
 export interface Vehicle {
@@ -98,6 +107,20 @@ export interface Booking {
   cancelReason?: string;
 }
 
+export type BookingDispatchStatus = 'pending' | 'accepted' | 'rejected' | 'timeout' | 'skipped';
+
+export interface BookingDispatch {
+  id: string;
+  bookingId: string;
+  driverId: string;
+  status: BookingDispatchStatus;
+  attempt: number;
+  expiresAt: string;
+  createdAt: string;
+  respondedAt?: string;
+  booking?: Booking;
+}
+
 export interface Payment {
   id: string;
   bookingId: string;
@@ -120,6 +143,7 @@ export interface Payment {
   submittedAt?: string;
   verifiedAt?: string;
   rejectedAt?: string;
+  expiresAt?: string;
 }
 
 export type TripPhase = 'pickup' | 'dropoff';

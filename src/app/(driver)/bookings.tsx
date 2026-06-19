@@ -25,7 +25,7 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { apiClient } from '@/services/api';
 import { supabase } from '@/services/supabase';
-import { Booking } from '@/types';
+import { Booking, BookingDispatch } from '@/types';
 import { BOOKING_STATUS, TERMINAL_BOOKING_STATUSES } from '@/constants';
 import { showError, showSuccess } from '@/utils/toast';
 import { getBookingStatusInfo } from '@/utils/helpers';
@@ -258,6 +258,10 @@ export default function DriverBookings() {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('card');
   const offerSheetRef = useRef<BottomSheetModal>(null);
+  const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const dispatchChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const [pendingDispatches, setPendingDispatches] = useState<BookingDispatch[]>([]);
+  const [dispatchCountdown, setDispatchCountdown] = useState(0);
 
   const availableBookings = useMemo(
     () =>
@@ -272,9 +276,8 @@ export default function DriverBookings() {
     () => filterAndSortBookings(availableBookings, searchQuery, statusFilter, sortMode),
     [availableBookings, searchQuery, statusFilter, sortMode]
   );
-  const pendingOffer = availableBookings.find(
-    (booking) => booking.status === BOOKING_STATUS.SEARCHING_DRIVER && booking.id !== dismissedOfferId
-  );
+  const pendingDispatch = pendingDispatches.find((dispatch) => dispatch.id !== dismissedOfferId);
+  const pendingOffer = pendingDispatch?.booking;
   const activeFilterCount = [
     searchQuery,
     statusFilter !== 'all' ? statusFilter : '',
@@ -282,9 +285,19 @@ export default function DriverBookings() {
   ].filter(Boolean).length;
 
   const fetchBookings = async () => {
+    if (!user?.id) {
+      setBookings([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await apiClient.getBookings({ page: 1, pageSize: BOOKING_PAGE_SIZE });
+      const data = await apiClient.getBookings({
+        driverVisibleTo: user.id,
+        page: 1,
+        pageSize: BOOKING_PAGE_SIZE,
+      });
       setBookings(data);
       setPage(1);
       setHasMore(data.length === BOOKING_PAGE_SIZE);
@@ -295,12 +308,30 @@ export default function DriverBookings() {
     }
   };
 
+  const fetchPendingDispatches = async () => {
+    if (!user?.id) {
+      setPendingDispatches([]);
+      return;
+    }
+
+    try {
+      const data = await apiClient.getPendingBookingDispatches(user.id);
+      setPendingDispatches(data);
+    } catch (error: any) {
+      showError('Không thể tải chuyến được gửi đến bạn', error.message);
+    }
+  };
+
   const loadMoreBookings = async () => {
-    if (loading || loadingMore || !hasMore) return;
+    if (!user?.id || loading || loadingMore || !hasMore) return;
     try {
       setLoadingMore(true);
       const nextPage = page + 1;
-      const data = await apiClient.getBookings({ page: nextPage, pageSize: BOOKING_PAGE_SIZE });
+      const data = await apiClient.getBookings({
+        driverVisibleTo: user.id,
+        page: nextPage,
+        pageSize: BOOKING_PAGE_SIZE,
+      });
       setBookings((current) => {
         const existingIds = new Set(current.map((booking) => booking.id));
         return [...current, ...data.filter((booking) => !existingIds.has(booking.id))];
@@ -315,16 +346,45 @@ export default function DriverBookings() {
   };
 
   useEffect(() => {
-    fetchBookings();
+    if (realtimeChannelRef.current) {
+      supabase.removeChannel(realtimeChannelRef.current);
+      realtimeChannelRef.current = null;
+    }
 
-    const channelName = `driver-bookings-${user?.id ?? 'guest'}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    if (!user?.id) {
+      setBookings([]);
+      setPendingDispatches([]);
+      setLoading(false);
+      return;
+    }
+
+    fetchBookings();
+    fetchPendingDispatches();
+
     const channel = supabase
-      .channel(channelName)
+      .channel(`driver-bookings-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, fetchBookings)
       .subscribe();
+    realtimeChannelRef.current = channel;
+
+    const dispatchChannel = supabase
+      .channel(`driver-dispatches-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'booking_dispatches', filter: `driver_id=eq.${user.id}` },
+        () => {
+          fetchPendingDispatches();
+          fetchBookings();
+        }
+      )
+      .subscribe();
+    dispatchChannelRef.current = dispatchChannel;
 
     return () => {
       supabase.removeChannel(channel);
+      if (realtimeChannelRef.current === channel) realtimeChannelRef.current = null;
+      supabase.removeChannel(dispatchChannel);
+      if (dispatchChannelRef.current === dispatchChannel) dispatchChannelRef.current = null;
     };
   }, [user?.id]);
 
@@ -336,6 +396,28 @@ export default function DriverBookings() {
     }
   }, [pendingOffer?.id]);
 
+  useEffect(() => {
+    if (!pendingDispatch) {
+      setDispatchCountdown(0);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const seconds = Math.max(0, Math.ceil((new Date(pendingDispatch.expiresAt).getTime() - Date.now()) / 1000));
+      setDispatchCountdown(seconds);
+      if (seconds <= 0) {
+        apiClient
+          .timeoutBookingDispatch(pendingDispatch.id)
+          .then(fetchPendingDispatches)
+          .catch(() => undefined);
+      }
+    };
+
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, [pendingDispatch?.id, pendingDispatch?.expiresAt]);
+
   const handleAccept = async (bookingId: string) => {
     if (!user) return;
     try {
@@ -346,6 +428,39 @@ export default function DriverBookings() {
       showSuccess('Đã nhận chuyến', 'Booking đã được cập nhật cho tài xế.');
     } catch (error: any) {
       showError('Không thể xác nhận chuyến', error.message);
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const handleAcceptDispatch = async (dispatch: BookingDispatch) => {
+    if (!user) return;
+    try {
+      setLoadingId(dispatch.bookingId);
+      await apiClient.acceptBookingDispatch(dispatch);
+      offerSheetRef.current?.dismiss();
+      setDismissedOfferId(null);
+      await Promise.all([fetchBookings(), fetchPendingDispatches()]);
+      showSuccess('Đã nhận chuyến', 'Chuyến đã được gán cho bạn.');
+    } catch (error: any) {
+      showError('Không thể nhận chuyến', error.message);
+      await fetchPendingDispatches();
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const handleRejectDispatch = async (dispatch: BookingDispatch) => {
+    try {
+      setLoadingId(dispatch.bookingId);
+      await apiClient.rejectBookingDispatch(dispatch.id);
+      offerSheetRef.current?.dismiss();
+      setDismissedOfferId(dispatch.id);
+      await Promise.all([fetchBookings(), fetchPendingDispatches()]);
+      showSuccess('Đã từ chối chuyến', 'Hệ thống sẽ gửi chuyến này tới tài xế khác.');
+    } catch (error: any) {
+      showError('Không thể từ chối chuyến', error.message);
+      await fetchPendingDispatches();
     } finally {
       setLoadingId(null);
     }
@@ -507,18 +622,23 @@ export default function DriverBookings() {
         ref={offerSheetRef}
         snapPoints={['46%']}
         enablePanDownToClose
-        onDismiss={() => pendingOffer && setDismissedOfferId(pendingOffer.id)}
+        onDismiss={() => pendingDispatch && setDismissedOfferId(pendingDispatch.id)}
         backgroundStyle={{ backgroundColor: colors.surface }}
         handleIndicatorStyle={{ backgroundColor: colors.border }}
       >
-        {pendingOffer && (
+        {pendingOffer && pendingDispatch && (
           <BottomSheetView style={{ padding: spacing.lg, gap: spacing.md }}>
             <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>
-              🚗 Bạn có chuyến mới
+              Bạn có chuyến mới
             </Text>
-            <Text style={{ color: colors.textSecondary }}>
-              {pendingOffer.bookingCode ?? 'Booking'} - {pendingOffer.passengers} khách
-            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md }}>
+              <Text style={{ color: colors.textSecondary, flex: 1 }}>
+                {pendingOffer.bookingCode ?? 'Booking'} - {pendingOffer.passengers} khách
+              </Text>
+              <Text style={{ color: dispatchCountdown <= 10 ? colors.error : colors.primary, fontWeight: '900' }}>
+                {dispatchCountdown}s
+              </Text>
+            </View>
             <View
               style={{
                 padding: spacing.md,
@@ -545,17 +665,15 @@ export default function DriverBookings() {
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               <Button
                 label="Nhận chuyến"
-                onPress={() => handleAccept(pendingOffer.id)}
+                onPress={() => handleAcceptDispatch(pendingDispatch)}
                 loading={loadingId === pendingOffer.id}
                 style={{ flex: 1 }}
               />
               <Button
-                label="Bỏ qua"
-                onPress={() => {
-                  setDismissedOfferId(pendingOffer.id);
-                  offerSheetRef.current?.dismiss();
-                }}
+                label="Từ chối"
+                onPress={() => handleRejectDispatch(pendingDispatch)}
                 variant="outline"
+                loading={loadingId === pendingOffer.id}
                 style={{ flex: 1 }}
               />
             </View>

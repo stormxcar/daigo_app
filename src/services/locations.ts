@@ -7,6 +7,7 @@ export interface LocationSuggestion {
 }
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
+const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse';
 const GOONG_API_URL = 'https://rsapi.goong.io';
 const LOCATION_CACHE_TTL = 5 * 60 * 1000;
 
@@ -135,6 +136,63 @@ export async function searchVietnamLocations(query: string): Promise<LocationSug
 
   locationCache.set(cacheKey, { expiresAt: Date.now() + LOCATION_CACHE_TTL, results });
   return results;
+}
+
+export async function reverseVietnamLocation(lat: number, lng: number): Promise<LocationSuggestion> {
+  const apiKey = process.env.EXPO_PUBLIC_GOONG_API_KEY;
+
+  if (apiKey) {
+    const params = new URLSearchParams({
+      latlng: `${lat},${lng}`,
+      api_key: apiKey,
+    });
+
+    const response = await fetch(`${GOONG_API_URL}/Geocode?${params.toString()}`);
+    if (response.ok) {
+      const data = await response.json();
+      const address = data.results?.[0]?.formatted_address;
+      if (address) {
+        return {
+          id: `goong-reverse-${lat}-${lng}`,
+          label: address,
+          lat,
+          lng,
+          provider: 'goong',
+        };
+      }
+    }
+  }
+
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lon: String(lng),
+    format: 'jsonv2',
+    addressdetails: '1',
+    'accept-language': 'vi',
+  });
+
+  const email = process.env.EXPO_PUBLIC_NOMINATIM_EMAIL;
+  if (email) params.set('email', email);
+
+  const response = await fetch(`${NOMINATIM_REVERSE_URL}?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'booking-daigo-mobile/1.0',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Không thể lấy địa chỉ từ tọa độ đã chọn');
+  }
+
+  const data = (await response.json()) as { place_id?: number; display_name?: string };
+  return {
+    id: String(data.place_id ?? `reverse-${lat}-${lng}`),
+    label: data.display_name || 'Vị trí đã chọn',
+    lat,
+    lng,
+    provider: 'nominatim',
+  };
 }
 
 export function getDistanceKm(from?: LocationSuggestion | null, to?: LocationSuggestion | null) {

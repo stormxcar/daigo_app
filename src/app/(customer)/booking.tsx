@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Calendar, Car, ChevronDown, ChevronUp, Clock, LocateFixed, MapPin, Search, SlidersHorizontal, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
@@ -13,9 +14,10 @@ import { apiClient } from '@/services/api';
 import { getDistanceKm, LocationSuggestion, searchVietnamLocations } from '@/services/locations';
 import { DrivingRoute, getDrivingRoute } from '@/services/mapRouteService';
 import { MapPreview } from '@/components/MapPreview';
+import { LazyMount } from '@/components/LazyMount';
 import { getCurrentDeviceLocation } from '@/services/deviceLocation';
 import { TERMINAL_BOOKING_STATUSES } from '@/constants';
-import { calculateBookingPrice, formatCurrency, isoDateToVietnamDate, vietnamDateToIsoDate } from '@/utils/helpers';
+import { calculateBookingPrice, formatCurrency, vietnamDateToIsoDate } from '@/utils/helpers';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 type SortMode = 'price_asc' | 'price_desc' | 'seats_desc' | 'seats_asc' | 'brand_asc' | 'name_asc';
@@ -30,13 +32,31 @@ const sortOptions: { label: string; value: SortMode }[] = [
   { label: 'Tên A-Z', value: 'name_asc' },
 ];
 
+const stringParam = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
+const numberParam = (value: string | string[] | undefined) => {
+  const parsed = Number(stringParam(value));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const pad2 = (value: number) => String(value).padStart(2, '0');
+const toVietnamDateInput = (date: Date) => `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`;
+const toTimeInput = (date: Date) => `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+const getInitialSchedule = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() + 30);
+  date.setSeconds(0, 0);
+  return date;
+};
+
 export default function BookingScreen() {
   const { colors } = useTheme();
   const { isAuthenticated, user } = useAuthStore();
+  const routeParams = useLocalSearchParams<Record<string, string | string[]>>();
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
-  const [dateInput, setDateInput] = useState(isoDateToVietnamDate(new Date().toISOString().slice(0, 10)));
-  const [time, setTime] = useState('09:00');
+  const [scheduleDate, setScheduleDate] = useState(getInitialSchedule);
+  const [dateInput, setDateInput] = useState(() => toVietnamDateInput(getInitialSchedule()));
+  const [time, setTime] = useState(() => toTimeInput(getInitialSchedule()));
+  const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
   const [passengers, setPassengers] = useState('2');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
@@ -63,6 +83,7 @@ export default function BookingScreen() {
   const [savingLocation, setSavingLocation] = useState<'pickup' | 'dropoff' | null>(null);
   const [route, setRoute] = useState<DrivingRoute | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
+  const [appliedMapSelectionKey, setAppliedMapSelectionKey] = useState('');
 
   const passengerCount = Math.max(Number(passengers) || 1, 1);
   const bookingDate = vietnamDateToIsoDate(dateInput);
@@ -81,6 +102,67 @@ export default function BookingScreen() {
   useEffect(() => {
     loadVehicles();
   }, []);
+
+  useEffect(() => {
+    const target = stringParam(routeParams.mapTarget);
+    const mapLat = numberParam(routeParams.mapLat);
+    const mapLng = numberParam(routeParams.mapLng);
+    const mapAddress = stringParam(routeParams.mapAddress);
+    const selectionKey = [target, stringParam(routeParams.mapLat), stringParam(routeParams.mapLng), mapAddress].join('|');
+
+    if (!target || !mapAddress || mapLat === null || mapLng === null || selectionKey === appliedMapSelectionKey) {
+      return;
+    }
+
+    const restoredPickupLat = numberParam(routeParams.pickupLat);
+    const restoredPickupLng = numberParam(routeParams.pickupLng);
+    const restoredDropoffLat = numberParam(routeParams.dropoffLat);
+    const restoredDropoffLng = numberParam(routeParams.dropoffLng);
+    const restoredPickupLocation = stringParam(routeParams.pickupLocation);
+    const restoredDropoffLocation = stringParam(routeParams.dropoffLocation);
+    const restoredDateInput = stringParam(routeParams.dateInput);
+    const restoredTime = stringParam(routeParams.time);
+    const restoredPassengers = stringParam(routeParams.passengers);
+    const restoredNote = stringParam(routeParams.note);
+
+    if (restoredDateInput || restoredTime) {
+      const [day, month, year] = (restoredDateInput || dateInput).split('/').map(Number);
+      const [hour, minute] = (restoredTime || time).split(':').map(Number);
+      if (day && month && year && Number.isFinite(hour) && Number.isFinite(minute)) {
+        const restoredSchedule = new Date(year, month - 1, day, hour, minute, 0, 0);
+        applySchedule(restoredSchedule, { silent: true });
+      }
+    }
+    if (restoredPassengers) setPassengers(restoredPassengers);
+    if (restoredNote !== undefined) setNote(restoredNote);
+
+    if (target === 'pickup') {
+      setPickupPoint({ id: 'map-pickup', label: mapAddress, lat: mapLat, lng: mapLng, provider: 'goong' });
+      setPickupLocation(mapAddress);
+      setPickupSuggestions([]);
+
+      if (restoredDropoffLocation) setDropoffLocation(restoredDropoffLocation);
+      if (restoredDropoffLocation && restoredDropoffLat !== null && restoredDropoffLng !== null) {
+        setDropoffPoint({ id: 'restored-dropoff', label: restoredDropoffLocation, lat: restoredDropoffLat, lng: restoredDropoffLng });
+      }
+    }
+
+    if (target === 'dropoff') {
+      setDropoffPoint({ id: 'map-dropoff', label: mapAddress, lat: mapLat, lng: mapLng, provider: 'goong' });
+      setDropoffLocation(mapAddress);
+      setDropoffSuggestions([]);
+
+      if (restoredPickupLocation) setPickupLocation(restoredPickupLocation);
+      if (restoredPickupLocation && restoredPickupLat !== null && restoredPickupLng !== null) {
+        setPickupPoint({ id: 'restored-pickup', label: restoredPickupLocation, lat: restoredPickupLat, lng: restoredPickupLng });
+      }
+    }
+
+    setRoute(null);
+    setSearched(false);
+    setSelectedVehicleId(null);
+    setAppliedMapSelectionKey(selectionKey);
+  }, [routeParams.mapTarget, routeParams.mapLat, routeParams.mapLng, routeParams.mapAddress, appliedMapSelectionKey]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -164,6 +246,37 @@ export default function BookingScreen() {
     sortMode !== 'price_asc' ? sortMode : '',
   ].filter(Boolean).length;
 
+  const applySchedule = (nextDate: Date, options?: { silent?: boolean }) => {
+    const normalized = new Date(nextDate);
+    normalized.setSeconds(0, 0);
+    if (normalized.getTime() < Date.now() - 60 * 1000) {
+      if (!options?.silent) showError('Thời gian chưa hợp lệ', 'Vui lòng chọn thời điểm trong tương lai.');
+      return false;
+    }
+
+    setScheduleDate(normalized);
+    setDateInput(toVietnamDateInput(normalized));
+    setTime(toTimeInput(normalized));
+    setRoute(null);
+    setSearched(false);
+    setSelectedVehicleId(null);
+    return true;
+  };
+
+  const handleScheduleChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    const mode = pickerMode;
+    setPickerMode(null);
+    if (event.type === 'dismissed' || !selectedDate || !mode) return;
+
+    const nextDate = new Date(scheduleDate);
+    if (mode === 'date') {
+      nextDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    } else {
+      nextDate.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+    }
+    applySchedule(nextDate);
+  };
+
   const handleSearch = async () => {
     if (!pickupPoint || !dropoffPoint || !dateInput || !time || !passengers) {
       showError('Thiếu thông tin', 'Vui lòng nhập điểm đón, điểm đến, ngày, giờ và số người.');
@@ -242,6 +355,31 @@ export default function BookingScreen() {
       setDropoffLocation(location.address);
       setDropoffSuggestions([]);
     }
+  };
+
+  const openMapPicker = (target: 'pickup' | 'dropoff') => {
+    const initialPoint = target === 'pickup' ? pickupPoint : dropoffPoint;
+    const initialLabel = target === 'pickup' ? pickupLocation : dropoffLocation;
+
+    router.push({
+      pathname: '/(customer)/map-picker' as any,
+      params: {
+        target,
+        initialLat: initialPoint ? String(initialPoint.lat) : '',
+        initialLng: initialPoint ? String(initialPoint.lng) : '',
+        initialLabel: initialLabel || '',
+        pickupLocation,
+        dropoffLocation,
+        dateInput,
+        time,
+        passengers,
+        note,
+        pickupLat: pickupPoint ? String(pickupPoint.lat) : '',
+        pickupLng: pickupPoint ? String(pickupPoint.lng) : '',
+        dropoffLat: dropoffPoint ? String(dropoffPoint.lat) : '',
+        dropoffLng: dropoffPoint ? String(dropoffPoint.lng) : '',
+      },
+    });
   };
 
   const saveLocation = async (target: 'pickup' | 'dropoff') => {
@@ -348,6 +486,14 @@ export default function BookingScreen() {
           variant="outline"
           size="sm"
           icon={<LocateFixed size={16} color={colors.primary} />}
+          style={{ marginBottom: spacing.sm }}
+        />
+        <Button
+          label="Chọn điểm đón trên bản đồ"
+          onPress={() => openMapPicker('pickup')}
+          variant="secondary"
+          size="sm"
+          icon={<MapPin size={16} color={colors.primary} />}
           style={{ marginBottom: spacing.md }}
         />
         {pickupPoint && (
@@ -383,6 +529,14 @@ export default function BookingScreen() {
             setDropoffPoint(null);
           }}
           icon={<MapPin size={20} color={colors.error} />}
+          style={{ marginBottom: spacing.md }}
+        />
+        <Button
+          label="Chọn điểm đến trên bản đồ"
+          onPress={() => openMapPicker('dropoff')}
+          variant="secondary"
+          size="sm"
+          icon={<MapPin size={16} color={colors.error} />}
           style={{ marginBottom: spacing.md }}
         />
         {savedLocations.length > 0 && (
@@ -427,42 +581,74 @@ export default function BookingScreen() {
 
         {pickupPoint && dropoffPoint && (
           <View style={{ marginBottom: spacing.lg }}>
-            <MapPreview
-              pickup={{ label: pickupLocation, lat: pickupPoint.lat, lng: pickupPoint.lng }}
-              dropoff={{ label: dropoffLocation, lat: dropoffPoint.lat, lng: dropoffPoint.lng }}
-              selectable
-              onPickupChange={(point) => {
-                setPickupPoint({ id: 'map-pickup', label: point.label, lat: point.lat, lng: point.lng });
-                setPickupLocation(point.label);
-                setPickupSuggestions([]);
-              }}
-              onDropoffChange={(point) => {
-                setDropoffPoint({ id: 'map-dropoff', label: point.label, lat: point.lat, lng: point.lng });
-                setDropoffLocation(point.label);
-                setDropoffSuggestions([]);
-              }}
-            />
+            <LazyMount minHeight={260} label="Đang tải bản đồ chọn điểm...">
+              <MapPreview
+                pickup={{ label: pickupLocation, lat: pickupPoint.lat, lng: pickupPoint.lng }}
+                dropoff={{ label: dropoffLocation, lat: dropoffPoint.lat, lng: dropoffPoint.lng }}
+                selectable
+                onPickupChange={(point) => {
+                  setPickupPoint({ id: 'map-pickup', label: point.label, lat: point.lat, lng: point.lng });
+                  setPickupLocation(point.label);
+                  setPickupSuggestions([]);
+                }}
+                onDropoffChange={(point) => {
+                  setDropoffPoint({ id: 'map-dropoff', label: point.label, lat: point.lat, lng: point.lng });
+                  setDropoffLocation(point.label);
+                  setDropoffSuggestions([]);
+                }}
+              />
+            </LazyMount>
           </View>
         )}
 
-        <View style={{ flexDirection: 'row', gap: spacing.md }}>
-          <TextInput
-            label="Ngày"
-            placeholder="dd/MM/yyyy"
-            value={dateInput}
-            onChangeText={setDateInput}
-            icon={<Calendar size={18} color={colors.textSecondary} />}
-            style={{ flex: 1, marginBottom: spacing.md }}
-          />
-          <TextInput
-            label="Giờ"
-            placeholder="HH:mm"
-            value={time}
-            onChangeText={setTime}
-            icon={<Clock size={18} color={colors.textSecondary} />}
-            style={{ flex: 1, marginBottom: spacing.md }}
-          />
+        <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}>
+          <TouchableOpacity
+            activeOpacity={0.82}
+            onPress={() => setPickerMode('date')}
+            style={{
+              flex: 1,
+              padding: spacing.md,
+              borderRadius: borderRadius.lg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.surface,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs }}>
+              <Calendar size={18} color={colors.textSecondary} />
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '700' }}>Ngày</Text>
+            </View>
+            <Text style={{ color: colors.text, fontWeight: '900' }}>{dateInput}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.82}
+            onPress={() => setPickerMode('time')}
+            style={{
+              flex: 1,
+              padding: spacing.md,
+              borderRadius: borderRadius.lg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.surface,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs }}>
+              <Clock size={18} color={colors.textSecondary} />
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '700' }}>Giờ</Text>
+            </View>
+            <Text style={{ color: colors.text, fontWeight: '900' }}>{time}</Text>
+          </TouchableOpacity>
         </View>
+        {pickerMode && (
+          <DateTimePicker
+            value={scheduleDate}
+            mode={pickerMode}
+            display="default"
+            minimumDate={new Date()}
+            is24Hour
+            onChange={handleScheduleChange}
+          />
+        )}
 
         <TextInput
           label="Ghi chú cho tài xế"
@@ -478,7 +664,12 @@ export default function BookingScreen() {
           {quickTimes.map((item) => (
             <TouchableOpacity
               key={item}
-              onPress={() => setTime(item)}
+              onPress={() => {
+                const [hour, minute] = item.split(':').map(Number);
+                const nextDate = new Date(scheduleDate);
+                nextDate.setHours(hour, minute, 0, 0);
+                applySchedule(nextDate);
+              }}
               style={{
                 paddingVertical: spacing.sm,
                 paddingHorizontal: spacing.md,

@@ -72,6 +72,7 @@ module.exports = {
     'expo-screen-orientation',
     'expo-font',
     'expo-video',
+    '@react-native-community/datetimepicker',
     [
       'expo-build-properties',
       {

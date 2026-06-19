@@ -204,6 +204,27 @@ export default function ProfileScreen() {
   }, [user?.id, fetchBookings]);
 
   useEffect(() => {
+    let mounted = true;
+    if (!user?.id) return;
+
+    apiClient
+      .getProfileSettings(user.id)
+      .then((settings) => {
+        if (!mounted) return;
+        setPushEnabled(settings.pushEnabled);
+        setSmsEnabled(settings.smsEnabled);
+        setLocationEnabled(settings.locationSharingEnabled);
+      })
+      .catch((error) => {
+        if (__DEV__) console.warn('Không thể tải cài đặt hồ sơ', error);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
     setFullName(user?.fullName ?? '');
     setEmail(user?.email ?? '');
     setPhone(user?.phone ?? '');
@@ -278,6 +299,7 @@ export default function ProfileScreen() {
     if (!next) {
       try {
         await apiClient.disablePushTokens(user.id);
+        await apiClient.updateProfileSettings(user.id, { pushEnabled: false });
         setPushEnabled(false);
         showSuccess('Đã tắt thông báo', 'Bạn sẽ không nhận push notification trên thiết bị này.');
       } catch (error: any) {
@@ -294,6 +316,7 @@ export default function ProfileScreen() {
         return;
       }
       setPushEnabled(true);
+      await apiClient.updateProfileSettings(user.id, { pushEnabled: true });
       showSuccess('Đã bật thông báo', 'Thiết bị này sẽ nhận thông báo booking/chat.');
     } catch (error: any) {
       setPushEnabled(false);
@@ -302,14 +325,22 @@ export default function ProfileScreen() {
   };
 
   const handleLocationToggle = async (next: boolean) => {
+    if (!user) return;
+
     if (!next) {
-      setLocationEnabled(false);
-      showInfo('Đã tắt chia sẻ vị trí', 'App sẽ không tự lấy GPS làm điểm đón cho đến khi bạn bật lại.');
+      try {
+        await apiClient.updateProfileSettings(user.id, { locationSharingEnabled: false });
+        setLocationEnabled(false);
+        showInfo('Đã tắt chia sẻ vị trí', 'App sẽ không tự lấy GPS làm điểm đón cho đến khi bạn bật lại.');
+      } catch (error: any) {
+        showError('Không thể lưu cài đặt', error.message || 'Vui lòng thử lại sau.');
+      }
       return;
     }
 
     try {
       const location = await getCurrentDeviceLocation();
+      await apiClient.updateProfileSettings(user.id, { locationSharingEnabled: true });
       setLocationEnabled(true);
       showSuccess('Đã bật chia sẻ vị trí', location.label);
     } catch (error: any) {
@@ -318,12 +349,18 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleSmsToggle = (next: boolean) => {
-    setSmsEnabled(next);
-    if (next) {
-      showInfo('Đã bật nhắc lịch trong app', 'SMS thật cần tích hợp nhà cung cấp SMS riêng, hiện app sẽ ưu tiên thông báo trong app/push.');
-    } else {
-      showInfo('Đã tắt nhắc lịch', 'Bạn có thể bật lại bất cứ lúc nào.');
+  const handleSmsToggle = async (next: boolean) => {
+    if (!user) return;
+    try {
+      await apiClient.updateProfileSettings(user.id, { smsEnabled: next });
+      setSmsEnabled(next);
+      if (next) {
+        showInfo('Đã bật nhắc lịch trong app', 'SMS thật cần tích hợp nhà cung cấp SMS riêng, hiện app sẽ ưu tiên thông báo trong app/push.');
+      } else {
+        showInfo('Đã tắt nhắc lịch', 'Bạn có thể bật lại bất cứ lúc nào.');
+      }
+    } catch (error: any) {
+      showError('Không thể lưu cài đặt', error.message || 'Vui lòng thử lại sau.');
     }
   };
 

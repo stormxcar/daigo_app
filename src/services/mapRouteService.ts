@@ -7,6 +7,7 @@ export interface DrivingRoute {
   coordinates: LatLng[];
   distanceMeters: number;
   duration: string;
+  durationSeconds: number;
   encodedPolyline: string;
 }
 
@@ -77,6 +78,7 @@ export async function getDrivingRoute(origin: LatLng, destination: LatLng): Prom
     coordinates: decodeGoongPolyline(encodedPolyline),
     distanceMeters: leg?.distance?.value ?? 0,
     duration: leg?.duration?.text ?? '',
+    durationSeconds: leg?.duration?.value ?? 0,
     encodedPolyline,
   };
 }

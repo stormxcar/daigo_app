@@ -1,5 +1,5 @@
 import * as WebBrowser from 'expo-web-browser';
-import { AuthCredentials, AuthResponse, BlogComment, BlogPost, Booking, ChatConversation, Message, NotificationItem, RatingReview, RegisterData, SavedLocation, User, Vehicle } from '@/types';
+import { AuthCredentials, AuthResponse, BlogComment, BlogPost, Booking, BookingDispatch, ChatConversation, Message, NotificationItem, ProfileSettings, RatingReview, RegisterData, SavedLocation, User, Vehicle } from '@/types';
 import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { supabase } from './supabase';
 import { getAuthRedirectUri } from '@/utils/authRedirect';
@@ -55,6 +55,20 @@ type DriverRow = {
   current_latitude: number | null;
   current_longitude: number | null;
   updated_location_at: string | null;
+};
+
+type ProfileSettingsRow = {
+  user_id: string;
+  push_enabled: boolean;
+  sms_enabled: boolean;
+  location_sharing_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type SupabaseResult<T> = {
+  data: T | null;
+  error: any;
 };
 
 const mapProfile = (row: ProfileRow): User => ({
@@ -180,7 +194,98 @@ const mapSavedLocation = (row: any): SavedLocation => ({
   updatedAt: row.updated_at,
 });
 
+const mapBookingDispatch = (row: any): BookingDispatch => ({
+  id: row.id,
+  bookingId: row.booking_id,
+  driverId: row.driver_id,
+  status: row.status,
+  attempt: row.attempt,
+  expiresAt: row.expires_at,
+  createdAt: row.created_at,
+  respondedAt: row.responded_at ?? undefined,
+  booking: row.booking ? mapBooking(row.booking) : undefined,
+});
+
+const mapProfileSettings = (row: ProfileSettingsRow): ProfileSettings => ({
+  userId: row.user_id,
+  pushEnabled: row.push_enabled,
+  smsEnabled: row.sms_enabled,
+  locationSharingEnabled: row.location_sharing_enabled,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+const API_CACHE_TTL_MS = 45_000;
+
+type CacheEntry<T> = {
+  expiresAt: number;
+  data: T;
+};
+
 class ApiClient {
+  private cache = new Map<string, CacheEntry<unknown>>();
+
+  private getCached<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry || entry.expiresAt <= Date.now()) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.data as T;
+  }
+
+  private setCached<T>(key: string, data: T, ttlMs = API_CACHE_TTL_MS): T {
+    this.cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+    return data;
+  }
+
+  private invalidateCache(prefix: string) {
+    Array.from(this.cache.keys())
+      .filter((key) => key.startsWith(prefix))
+      .forEach((key) => this.cache.delete(key));
+  }
+
+  private async withTimeout<T>(promise: PromiseLike<T>, timeoutMs = 15000): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Kết nối quá lâu. Vui lòng kiểm tra mạng và thử lại.')), timeoutMs);
+    });
+
+    try {
+      return await Promise.race([Promise.resolve(promise), timeout]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
+
+  private isRetryableError(error: any) {
+    const status = error?.status || error?.code;
+    if (typeof status === 'number' && status >= 400 && status < 500) return false;
+    const message = String(error?.message ?? '').toLowerCase();
+    return message.includes('network') || message.includes('fetch') || message.includes('timeout') || message.includes('quá lâu');
+  }
+
+  private async runQuery<T>(
+    operation: () => PromiseLike<SupabaseResult<T>>,
+    options?: { timeoutMs?: number; retries?: number }
+  ): Promise<T> {
+    const retries = options?.retries ?? 1;
+    let lastError: any;
+
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        const { data, error } = await this.withTimeout(operation(), options?.timeoutMs ?? 15000);
+        if (error) throw error;
+        return data as T;
+      } catch (error: any) {
+        lastError = error;
+        if (attempt >= retries || !this.isRetryableError(error)) break;
+      }
+    }
+
+    throw lastError;
+  }
+
   private async getAuthResponseFromCurrentSession(fallbackMessage: string): Promise<AuthResponse> {
     const { data: sessionData } = await supabase.auth.getSession();
     const user = await this.getCurrentUser();
@@ -363,6 +468,47 @@ class ApiClient {
     return mapProfile(updated as ProfileRow);
   }
 
+  async getProfileSettings(userId: string): Promise<ProfileSettings> {
+    const data = await this.runQuery<any>(() =>
+      supabase
+        .from('profile_settings')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle()
+    );
+
+    if (data) return mapProfileSettings(data as ProfileSettingsRow);
+
+    const inserted = await this.runQuery<any>(() =>
+      supabase
+        .from('profile_settings')
+        .insert({ user_id: userId })
+        .select('*')
+        .single()
+    );
+    return mapProfileSettings(inserted as ProfileSettingsRow);
+  }
+
+  async updateProfileSettings(userId: string, data: Partial<ProfileSettings>): Promise<ProfileSettings> {
+    const updated = await this.runQuery<any>(() =>
+      supabase
+        .from('profile_settings')
+        .upsert(
+          {
+            user_id: userId,
+            push_enabled: data.pushEnabled,
+            sms_enabled: data.smsEnabled,
+            location_sharing_enabled: data.locationSharingEnabled,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' }
+        )
+        .select('*')
+        .single()
+    );
+    return mapProfileSettings(updated as ProfileSettingsRow);
+  }
+
   async upsertPushToken(userId: string, token: string, platform: string): Promise<void> {
     const { error } = await supabase
       .from('push_tokens')
@@ -407,16 +553,23 @@ class ApiClient {
   }
 
   async getVehicles(): Promise<Vehicle[]> {
+    const cached = this.getCached<Vehicle[]>('vehicles:all');
+    if (cached) return cached;
+
     const { data, error } = await supabase
       .from('vehicles')
       .select('*, profiles!vehicles_driver_id_fkey(full_name, phone, avatar_url)')
       .order('price_per_km', { ascending: true });
 
     if (error) throw error;
-    return (data as VehicleRow[]).map(mapVehicle);
+    return this.setCached('vehicles:all', (data as VehicleRow[]).map(mapVehicle));
   }
 
   async getDriverVehicles(driverId: string): Promise<Vehicle[]> {
+    const cacheKey = `vehicles:driver:${driverId}`;
+    const cached = this.getCached<Vehicle[]>(cacheKey);
+    if (cached) return cached;
+
     const { data, error } = await supabase
       .from('vehicles')
       .select('*')
@@ -424,7 +577,7 @@ class ApiClient {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return (data as VehicleRow[]).map(mapVehicle);
+    return this.setCached(cacheKey, (data as VehicleRow[]).map(mapVehicle));
   }
 
   async getDriverStatus(profileId: string): Promise<DriverRow | null> {
@@ -504,6 +657,7 @@ class ApiClient {
       .select('*')
       .single();
     if (error) throw error;
+    this.invalidateCache('vehicles:');
     return mapVehicle(inserted as VehicleRow);
   }
 
@@ -527,15 +681,24 @@ class ApiClient {
       .select('*')
       .single();
     if (error) throw error;
+    this.invalidateCache('vehicles:');
     return mapVehicle(updated as VehicleRow);
   }
 
   async deleteVehicle(id: string): Promise<void> {
     const { error } = await supabase.from('vehicles').delete().eq('id', id);
     if (error) throw error;
+    this.invalidateCache('vehicles:');
   }
 
-  async getBookings(filters?: { status?: string; driverId?: string; customerId?: string; page?: number; pageSize?: number }): Promise<Booking[]> {
+  async getBookings(filters?: {
+    status?: string;
+    driverId?: string;
+    customerId?: string;
+    driverVisibleTo?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<Booking[]> {
     let query = supabase
       .from('bookings')
       .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
@@ -544,24 +707,43 @@ class ApiClient {
     if (filters?.status) query = query.eq('status', filters.status);
     if (filters?.driverId) query = query.eq('driver_id', filters.driverId);
     if (filters?.customerId) query = query.eq('customer_id', filters.customerId);
+    if (filters?.driverVisibleTo) {
+      query = query.or(
+        `driver_id.eq.${filters.driverVisibleTo},and(driver_id.is.null,status.eq.${BOOKING_STATUS.SEARCHING_DRIVER})`
+      );
+    }
     if (filters?.page && filters?.pageSize) {
       const from = (filters.page - 1) * filters.pageSize;
       query = query.range(from, from + filters.pageSize - 1);
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
+    const data = await this.runQuery<any[]>(() => query, { retries: 1 });
     return (data ?? []).map(mapBooking);
   }
 
   async getBookingById(id: string): Promise<Booking> {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
-      .eq('id', id)
-      .single();
-    if (error) throw error;
+    const data = await this.runQuery<any>(() =>
+      supabase
+        .from('bookings')
+        .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
+        .eq('id', id)
+        .single()
+    );
     return mapBooking(data);
+  }
+
+  async getPendingBookingDispatches(driverId: string): Promise<BookingDispatch[]> {
+    const data = await this.runQuery<any[]>(() =>
+      supabase
+        .from('booking_dispatches')
+        .select('*, booking:bookings(*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*))')
+        .eq('driver_id', driverId)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: true })
+    );
+
+    return (data ?? []).map(mapBookingDispatch);
   }
 
   async getActiveBooking(userId: string, role: User['role'] = 'customer'): Promise<Booking | null> {
@@ -614,11 +796,16 @@ class ApiClient {
       .single();
     if (error) throw error;
 
-    await supabase.from('conversations').insert({
-      booking_id: inserted.id,
-      customer_id: data.customerId,
-      driver_id: null,
-    });
+    await supabase
+      .from('conversations')
+      .upsert(
+        {
+          booking_id: inserted.id,
+          customer_id: data.customerId,
+          driver_id: null,
+        },
+        { onConflict: 'booking_id', ignoreDuplicates: true }
+      );
 
     await this.createNotificationSafely({
       userId: data.customerId ?? '',
@@ -800,6 +987,24 @@ class ApiClient {
     return booking;
   }
 
+  async acceptBookingDispatch(dispatch: BookingDispatch): Promise<Booking> {
+    return this.acceptBooking(dispatch.bookingId, dispatch.driverId);
+  }
+
+  async rejectBookingDispatch(dispatchId: string): Promise<BookingDispatch> {
+    const data = await this.runQuery<any>(() =>
+      supabase.rpc('reject_booking_dispatch', { p_dispatch_id: dispatchId })
+    );
+    return mapBookingDispatch(data);
+  }
+
+  async timeoutBookingDispatch(dispatchId: string): Promise<BookingDispatch> {
+    const data = await this.runQuery<any>(() =>
+      supabase.rpc('timeout_booking_dispatch', { p_dispatch_id: dispatchId })
+    );
+    return mapBookingDispatch(data);
+  }
+
   async getRatingForBooking(bookingId: string, fromUserId: string): Promise<RatingReview | null> {
     const { data, error } = await supabase
       .from('ratings')
@@ -830,17 +1035,22 @@ class ApiClient {
       .select('*')
       .single();
     if (error) throw error;
+    this.invalidateCache(`ratings:user:${data.toUserId}`);
     return mapRating(inserted);
   }
 
   async getRatingsForUser(userId: string): Promise<RatingReview[]> {
+    const cacheKey = `ratings:user:${userId}`;
+    const cached = this.getCached<RatingReview[]>(cacheKey);
+    if (cached) return cached;
+
     const { data, error } = await supabase
       .from('ratings')
       .select('*')
       .eq('to_user_id', userId)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return (data ?? []).map(mapRating);
+    return this.setCached(cacheKey, (data ?? []).map(mapRating));
   }
 
   async getSavedLocations(userId: string): Promise<SavedLocation[]> {
@@ -963,6 +1173,12 @@ class ApiClient {
   }
 
   async getBlogPosts(page = 1, pageSize = 10, filters?: { driverId?: string }): Promise<BlogPost[]> {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id ?? 'anonymous';
+    const cacheKey = `blog:posts:${page}:${pageSize}:${filters?.driverId ?? 'all'}:${userId}`;
+    const cached = this.getCached<BlogPost[]>(cacheKey);
+    if (cached) return cached;
+
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
     let query = supabase
@@ -977,9 +1193,7 @@ class ApiClient {
     if (error) throw error;
 
     const posts = (data ?? []).map(mapBlogPost);
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user.id;
-    if (!userId || posts.length === 0) return posts;
+    if (!userId || userId === 'anonymous' || posts.length === 0) return this.setCached(cacheKey, posts);
 
     const { data: likes } = await supabase
       .from('blog_likes')
@@ -987,7 +1201,7 @@ class ApiClient {
       .eq('user_id', userId)
       .in('post_id', posts.map((post) => post.id));
     const likedIds = new Set((likes ?? []).map((item: any) => item.post_id));
-    return posts.map((post) => ({ ...post, liked: likedIds.has(post.id) }));
+    return this.setCached(cacheKey, posts.map((post) => ({ ...post, liked: likedIds.has(post.id) })));
   }
 
   async getBlogPostById(id: string): Promise<BlogPost> {
@@ -1022,6 +1236,7 @@ class ApiClient {
       .select('*, profiles!blog_posts_driver_id_fkey(full_name, avatar_url)')
       .single();
     if (error) throw error;
+    this.invalidateCache('blog:');
     return mapBlogPost(inserted);
   }
 
@@ -1037,12 +1252,14 @@ class ApiClient {
       .select('*, profiles!blog_posts_driver_id_fkey(full_name, avatar_url)')
       .single();
     if (error) throw error;
+    this.invalidateCache('blog:');
     return mapBlogPost(updated);
   }
 
   async deleteBlogPost(id: string): Promise<void> {
     const { error } = await supabase.from('blog_posts').delete().eq('id', id);
     if (error) throw error;
+    this.invalidateCache('blog:');
   }
 
   async toggleBlogLike(postId: string, userId: string): Promise<BlogPost> {
@@ -1062,6 +1279,7 @@ class ApiClient {
       if (error) throw error;
     }
 
+    this.invalidateCache('blog:');
     return this.getBlogPostById(postId);
   }
 
@@ -1091,6 +1309,7 @@ class ApiClient {
       .select('*, profiles!blog_comments_author_id_fkey(full_name, avatar_url)')
       .single();
     if (error) throw error;
+    this.invalidateCache('blog:');
     return {
       id: data.id,
       postId: data.post_id,

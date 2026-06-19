@@ -29,6 +29,14 @@ const mapDriverLocation = (row: any): DriverLocation => ({
   createdAt: row.created_at ?? undefined,
 });
 
+type DriverLocationListener = (location: DriverLocation) => void;
+type DriverLocationSubscriptionEntry = {
+  channel: ReturnType<typeof supabase.channel>;
+  listeners: Set<DriverLocationListener>;
+};
+
+const driverLocationSubscriptions = new Map<string, DriverLocationSubscriptionEntry>();
+
 export const getDistanceMeters = (from: LocationPoint, to: LocationPoint) => {
   const radius = 6371000;
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -81,8 +89,15 @@ export function subscribeDriverLocation(
   bookingId: string,
   onChange: (location: DriverLocation) => void
 ) {
+  const existing = driverLocationSubscriptions.get(bookingId);
+  if (existing) {
+    existing.listeners.add(onChange);
+    return () => unsubscribeDriverLocation(bookingId, onChange);
+  }
+
+  const listeners = new Set<DriverLocationListener>([onChange]);
   const channel = supabase
-    .channel(`driver-location-${bookingId}-${Date.now()}`)
+    .channel(`driver-location-${bookingId}`)
     .on(
       'postgres_changes',
       {
@@ -93,15 +108,26 @@ export function subscribeDriverLocation(
       },
       (payload) => {
         if (payload.new) {
-          onChange(mapDriverLocation(payload.new));
+          const location = mapDriverLocation(payload.new);
+          listeners.forEach((listener) => listener(location));
         }
       }
     )
     .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
+  driverLocationSubscriptions.set(bookingId, { channel, listeners });
+  return () => unsubscribeDriverLocation(bookingId, onChange);
+}
+
+export function unsubscribeDriverLocation(bookingId: string, listener?: DriverLocationListener) {
+  const entry = driverLocationSubscriptions.get(bookingId);
+  if (!entry) return;
+
+  if (listener) entry.listeners.delete(listener);
+  if (!listener || entry.listeners.size === 0) {
+    supabase.removeChannel(entry.channel);
+    driverLocationSubscriptions.delete(bookingId);
+  }
 }
 
 export async function startDriverLocationWatch(
