@@ -16,6 +16,7 @@ export default function CustomerLayout() {
   const detailRoutes = [
     'notifications',
     'booking-detail',
+    'payment',
     'blog-detail',
     'chat-detail',
     'notification-detail',
@@ -23,6 +24,7 @@ export default function CustomerLayout() {
   const backHrefByRoute: Record<string, string> = {
     notifications: '/(customer)/home',
     'booking-detail': '/(customer)/booking',
+    payment: '/(customer)/booking-detail',
     'blog-detail': '/(customer)/blog',
     'chat-detail': '/(customer)/chat',
     'notification-detail': '/(customer)/notifications',
@@ -108,6 +110,13 @@ export default function CustomerLayout() {
         options={{
           href: null,
           title: 'Chi tiết chuyến đi',
+        }}
+      />
+      <Tabs.Screen
+        name="payment"
+        options={{
+          href: null,
+          title: 'Thanh toán',
         }}
       />
       <Tabs.Screen

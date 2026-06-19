@@ -1,15 +1,16 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Image, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { Camera, CheckCircle2, LogOut, Mail, MapPin, MessageSquareText, Phone, Star, UserCircle, XCircle } from 'lucide-react-native';
+import { Banknote, Camera, CheckCircle2, LogOut, Mail, MapPin, MessageSquareText, Phone, Star, UserCircle, XCircle } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Avatar, Badge, Button, Card, TextInput } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
+import { generateVietQRUrl } from '@/services/vietqrService';
 import { useAuthStore } from '@/stores/authStore';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 import { Booking, RatingReview } from '@/types';
@@ -27,6 +28,11 @@ export default function DriverProfile() {
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [address, setAddress] = useState(user?.address ?? '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '');
+  const [bankName, setBankName] = useState(user?.bankName ?? '');
+  const [bankCode, setBankCode] = useState(user?.bankCode ?? '');
+  const [bankBin, setBankBin] = useState(user?.bankBin ?? '');
+  const [bankAccountNumber, setBankAccountNumber] = useState(user?.bankAccountNumber ?? '');
+  const [bankAccountHolder, setBankAccountHolder] = useState(user?.bankAccountHolder ?? '');
   const [vehicleCount, setVehicleCount] = useState(0);
   const [bookingCount, setBookingCount] = useState(0);
   const [postCount, setPostCount] = useState(0);
@@ -39,6 +45,21 @@ export default function DriverProfile() {
   const [ratingSort, setRatingSort] = useState<RatingSort>('newest');
   const ratingSheetRef = React.useRef<BottomSheetModal>(null);
   const ratingSnapPoints = React.useMemo(() => ['72%', '92%'], []);
+  const bankQrPreviewUrl = React.useMemo(() => {
+    const bank = bankBin.trim() || bankCode.trim();
+    if (!bank || !bankAccountNumber.trim() || !bankAccountHolder.trim()) return null;
+    try {
+      return generateVietQRUrl({
+        bankBin: bankBin.trim(),
+        bankCode: bankCode.trim(),
+        accountNumber: bankAccountNumber.trim(),
+        accountName: bankAccountHolder.trim(),
+        description: 'DAIGO_PREVIEW',
+      });
+    } catch {
+      return null;
+    }
+  }, [bankAccountHolder, bankAccountNumber, bankBin, bankCode]);
 
   useEffect(() => {
     if (!user) return;
@@ -46,6 +67,11 @@ export default function DriverProfile() {
     setPhone(user.phone);
     setAddress(user.address ?? '');
     setAvatarUrl(user.avatarUrl ?? '');
+    setBankName(user.bankName ?? '');
+    setBankCode(user.bankCode ?? '');
+    setBankBin(user.bankBin ?? '');
+    setBankAccountNumber(user.bankAccountNumber ?? '');
+    setBankAccountHolder(user.bankAccountHolder ?? '');
 
     Promise.all([
       apiClient.getDriverVehicles(user.id),
@@ -143,6 +169,11 @@ export default function DriverProfile() {
         phone: phone.trim(),
         address: address.trim(),
         avatarUrl,
+        bankName: bankName.trim(),
+        bankCode: bankCode.trim(),
+        bankBin: bankBin.trim(),
+        bankAccountNumber: bankAccountNumber.trim(),
+        bankAccountHolder: bankAccountHolder.trim(),
       });
       setUser(updated);
       setEditing(false);
@@ -199,6 +230,20 @@ export default function DriverProfile() {
             <TextInput label="Họ và tên" value={fullName} onChangeText={setFullName} disabled={saving} style={{ marginBottom: spacing.md }} />
             <TextInput label="Số điện thoại" value={phone} onChangeText={setPhone} keyboardType="phone-pad" disabled={saving} style={{ marginBottom: spacing.md }} />
             <TextInput label="Địa chỉ" value={address} onChangeText={setAddress} disabled={saving} multiline numberOfLines={3} style={{ marginBottom: spacing.md }} />
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900', marginBottom: spacing.sm }}>
+              Tài khoản nhận thanh toán
+            </Text>
+            <TextInput label="Tên ngân hàng" value={bankName} onChangeText={setBankName} disabled={saving} placeholder="Ví dụ: Vietcombank" style={{ marginBottom: spacing.md }} />
+            <TextInput label="Mã ngân hàng" value={bankCode} onChangeText={setBankCode} disabled={saving} placeholder="Ví dụ: VCB" style={{ marginBottom: spacing.md }} />
+            <TextInput label="Bank BIN VietQR" value={bankBin} onChangeText={setBankBin} disabled={saving} placeholder="Ví dụ: 970436" keyboardType="numeric" style={{ marginBottom: spacing.md }} />
+            <TextInput label="Số tài khoản" value={bankAccountNumber} onChangeText={setBankAccountNumber} disabled={saving} keyboardType="numeric" style={{ marginBottom: spacing.md }} />
+            <TextInput label="Chủ tài khoản" value={bankAccountHolder} onChangeText={setBankAccountHolder} disabled={saving} style={{ marginBottom: spacing.md }} />
+            {!!bankQrPreviewUrl && (
+              <View style={{ alignItems: 'center', padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, marginBottom: spacing.md }}>
+                <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.sm }}>Preview mã QR nhận tiền</Text>
+                <Image source={{ uri: bankQrPreviewUrl }} resizeMode="contain" style={{ width: '100%', height: 220, borderRadius: borderRadius.lg, backgroundColor: 'white' }} />
+              </View>
+            )}
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               <Button label="Hủy" onPress={() => setEditing(false)} variant="secondary" style={{ flex: 1 }} disabled={saving} />
               <Button label="Lưu" onPress={saveProfile} loading={saving} disabled={saving} style={{ flex: 1 }} />
@@ -214,6 +259,12 @@ export default function DriverProfile() {
                 icon: user?.emailVerified ? <CheckCircle2 size={18} color={colors.success} /> : <XCircle size={18} color={colors.warning} />,
                 label: user?.emailVerified ? 'Tài khoản đã xác thực email' : 'Tài khoản chưa xác thực email',
               },
+              {
+                icon: <Banknote size={18} color={user?.bankAccountNumber ? colors.success : colors.warning} />,
+                label: user?.bankAccountNumber
+                  ? `${user.bankName ?? 'Ngân hàng'} - ${user.bankAccountNumber} - ${user.bankAccountHolder ?? 'Chủ tài khoản'}`
+                  : 'Chưa cấu hình tài khoản ngân hàng nhận VietQR',
+              },
             ].map((item, index) => (
               <View key={index} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
                 {item.icon}
@@ -224,6 +275,19 @@ export default function DriverProfile() {
           </>
         )}
       </Card>
+
+      {!editing && !!bankQrPreviewUrl && (
+        <Card style={{ marginBottom: spacing.lg }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
+            <Banknote size={20} color={colors.success} />
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>QR nhận thanh toán</Text>
+          </View>
+          <Image source={{ uri: bankQrPreviewUrl }} resizeMode="contain" style={{ width: '100%', height: 260, borderRadius: borderRadius.lg, backgroundColor: 'white' }} />
+          <Text style={{ color: colors.textSecondary, marginTop: spacing.md, lineHeight: 21 }}>
+            Đây là mã QR preview từ tài khoản ngân hàng của bạn. Khi khách thanh toán chuyến cụ thể, app sẽ tự thêm số tiền và nội dung chuyển khoản riêng.
+          </Text>
+        </Card>
+      )}
 
       <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg }}>
         {[

@@ -39,8 +39,14 @@ async function reverseGeocodeWithNominatim(lat: number, lng: number) {
 }
 
 export async function getCurrentDeviceLocation(): Promise<DeviceLocation> {
-  const permission = await Location.requestForegroundPermissionsAsync();
-  if (permission.status !== 'granted') {
+  // Check existing permission first to avoid showing the dialog multiple times
+  const existing = await Location.getForegroundPermissionsAsync();
+  let status = existing.status;
+  if (status !== 'granted') {
+    const requested = await Location.requestForegroundPermissionsAsync();
+    status = requested.status;
+  }
+  if (status !== 'granted') {
     throw new Error('Bạn cần cho phép truy cập vị trí để dùng GPS.');
   }
 

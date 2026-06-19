@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
 import { Heart, MessageCircle, Share2 } from "lucide-react-native";
 import { useTheme } from "@/theme";
@@ -13,6 +13,7 @@ import { BlogPost } from "@/types";
 import { showError, showSuccess, showWarning } from "@/utils/toast";
 import { shareBlogPostNative } from "@/utils/share";
 import { BlogMediaGrid } from "@/components/BlogMediaGrid";
+import { useVideoFeedPlayback } from "@/hooks/useVideoFeedPlayback";
 
 const BLOG_FILTERS = [
   { key: "all", label: "Tất cả" },
@@ -170,172 +171,194 @@ export default function BlogScreen() {
     return result;
   }, [posts, search, activeFilter, activeSort]);
 
-  return (
-    <Screen scroll refreshing={loading} onRefresh={loadPosts}>
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
-        <SearchFilterBar
-          searchValue={search}
-          onSearchChange={setSearch}
-          placeholder="Tìm bài viết, tài xế..."
-          filters={BLOG_FILTERS}
-          activeFilter={activeFilter}
-          onFilterChange={setActiveFilter}
-          sortOptions={BLOG_SORTS}
-          activeSort={activeSort}
-          onSortChange={(key) => setActiveSort(key || "newest")}
-          resultCount={loading ? undefined : filteredPosts.length}
-          resultLabel="bài viết"
-        />
-      </View>
+  const videoPlayback = useVideoFeedPlayback(filteredPosts);
 
-      {loading ? (
-        <>
-          <BlogPostSkeleton />
-          <BlogPostSkeleton />
-          <BlogPostSkeleton />
-        </>
-      ) : (
-        filteredPosts.map((post) => (
+  const renderPost = ({ item: post }: { item: BlogPost }) => (
+    <TouchableOpacity
+      activeOpacity={0.86}
+      onPress={() =>
+        router.push({
+          pathname: "/(customer)/blog-detail" as any,
+          params: { id: post.id },
+        })
+      }
+    >
+      <Card style={{ marginBottom: spacing.lg }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.md,
+            marginBottom: spacing.md,
+          }}
+        >
+          <Image
+            source={{ uri: post.driverAvatar }}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: colors.surfaceAlt,
+            }}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              {post.driverName}
+            </Text>
+            <Text
+              style={{
+                color: colors.textSecondary,
+                fontSize: fontSize.xs,
+              }}
+            >
+              {new Date(post.createdAt).toLocaleDateString("vi-VN")}
+            </Text>
+          </View>
+        </View>
+        <Text
+          style={{
+            color: colors.text,
+            lineHeight: 22,
+            marginBottom: spacing.md,
+          }}
+        >
+          {post.caption}
+        </Text>
+        {post.mediaUrls.length > 0 && (
+          <View style={{ marginBottom: spacing.md }}>
+            <BlogMediaGrid
+              urls={post.mediaUrls}
+              types={post.mediaTypes}
+              height={230}
+              active={videoPlayback.isVideoActive(post.id)}
+              preload={videoPlayback.shouldPreloadVideo(post.id)}
+            />
+          </View>
+        )}
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+          }}
+        >
           <TouchableOpacity
-            key={post.id}
-            activeOpacity={0.86}
-            onPress={() =>
+            onPress={() => toggleLike(post)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.xs,
+            }}
+          >
+            <Heart
+              size={14}
+              color={post.liked ? colors.error : colors.textSecondary}
+              fill={post.liked ? colors.error : "transparent"}
+            />
+            <Text style={{ color: colors.textSecondary }}>
+              {post.likes}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              if (!requireAuth("bình luận bài viết")) return;
               router.push({
                 pathname: "/(customer)/blog-detail" as any,
                 params: { id: post.id },
-              })
-            }
+              });
+            }}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.xs,
+            }}
           >
-            <Card style={{ marginBottom: spacing.lg }}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing.md,
-                  marginBottom: spacing.md,
-                }}
-              >
-                <Image
-                  source={{ uri: post.driverAvatar }}
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 22,
-                    backgroundColor: colors.surfaceAlt,
-                  }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    {post.driverName}
-                  </Text>
-                  <Text
-                    style={{
-                      color: colors.textSecondary,
-                      fontSize: fontSize.xs,
-                    }}
-                  >
-                    {new Date(post.createdAt).toLocaleDateString("vi-VN")}
-                  </Text>
-                </View>
-              </View>
-              <Text
-                style={{
-                  color: colors.text,
-                  lineHeight: 22,
-                  marginBottom: spacing.md,
-                }}
-              >
-                {post.caption}
-              </Text>
-              {post.mediaUrls.length > 0 && (
-                <View style={{ marginBottom: spacing.md }}>
-                  <BlogMediaGrid
-                    urls={post.mediaUrls}
-                    types={post.mediaTypes}
-                    height={230}
-                  />
-                </View>
-              )}
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                }}
-              >
-                <TouchableOpacity
-                  onPress={() => toggleLike(post)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing.xs,
-                  }}
-                >
-                  <Heart
-                    size={14}
-                    color={post.liked ? colors.error : colors.textSecondary}
-                    fill={post.liked ? colors.error : "transparent"}
-                  />
-                  <Text style={{ color: colors.textSecondary }}>
-                    {post.likes}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    if (!requireAuth("bình luận bài viết")) return;
-                    router.push({
-                      pathname: "/(customer)/blog-detail" as any,
-                      params: { id: post.id },
-                    });
-                  }}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing.xs,
-                  }}
-                >
-                  <MessageCircle size={14} color={colors.info} />
-                  <Text style={{ color: colors.textSecondary }}>
-                    {post.comments}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => sharePost(post)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: spacing.xs,
-                  }}
-                >
-                  <Share2 size={14} color={colors.primary} />
-                  <Text style={{ color: colors.textSecondary }}>Chia sẻ</Text>
-                </TouchableOpacity>
-              </View>
-            </Card>
+            <MessageCircle size={14} color={colors.info} />
+            <Text style={{ color: colors.textSecondary }}>
+              {post.comments}
+            </Text>
           </TouchableOpacity>
-        ))
-      )}
-      {!loading && filteredPosts.length === 0 && (
-        <Text
-          style={{
-            color: colors.textSecondary,
-            textAlign: "center",
-            marginTop: spacing.xl,
-          }}
-        >
-          {search || activeFilter !== "all"
-            ? "Không tìm thấy bài viết phù hợp."
-            : "Chưa có bài viết trong database."}
-        </Text>
-      )}
-      {!loading && hasMore && activeFilter === "all" && !search.trim() && (
-        <Button
-          label={loadingMore ? "Đang tải thêm..." : "Tải thêm bài viết"}
-          onPress={loadMorePosts}
-          variant="outline"
-          loading={loadingMore}
-          disabled={loadingMore}
-        />
-      )}
+          <TouchableOpacity
+            onPress={() => sharePost(post)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.xs,
+            }}
+          >
+            <Share2 size={14} color={colors.primary} />
+            <Text style={{ color: colors.textSecondary }}>Chia sẻ</Text>
+          </TouchableOpacity>
+        </View>
+      </Card>
+    </TouchableOpacity>
+  );
+
+  return (
+    <Screen>
+      <FlatList
+        data={loading ? [] : filteredPosts}
+        keyExtractor={(item) => item.id}
+        renderItem={renderPost}
+        refreshing={loading}
+        onRefresh={loadPosts}
+        onEndReached={() => {
+          if (activeFilter === "all" && !search.trim()) loadMorePosts();
+        }}
+        onEndReachedThreshold={0.35}
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={6}
+        removeClippedSubviews
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        viewabilityConfig={videoPlayback.viewabilityConfig}
+        onViewableItemsChanged={videoPlayback.onViewableItemsChanged}
+        ListHeaderComponent={
+          <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
+            <SearchFilterBar
+              searchValue={search}
+              onSearchChange={setSearch}
+              placeholder="Tìm bài viết, tài xế..."
+              filters={BLOG_FILTERS}
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+              sortOptions={BLOG_SORTS}
+              activeSort={activeSort}
+              onSortChange={(key) => setActiveSort(key || "newest")}
+              resultCount={loading ? undefined : filteredPosts.length}
+              resultLabel="bài viết"
+            />
+            {loading && (
+              <>
+                <BlogPostSkeleton />
+                <BlogPostSkeleton />
+                <BlogPostSkeleton />
+              </>
+            )}
+          </View>
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <Button label="Đang tải thêm..." onPress={() => undefined} variant="outline" loading disabled />
+          ) : null
+        }
+        ListEmptyComponent={
+          !loading ? (
+            <Text
+              style={{
+                color: colors.textSecondary,
+                textAlign: "center",
+                marginTop: spacing.xl,
+              }}
+            >
+              {search || activeFilter !== "all"
+                ? "Không tìm thấy bài viết phù hợp."
+                : "Chưa có bài viết trong database."}
+            </Text>
+          ) : null
+        }
+        contentContainerStyle={{ paddingBottom: spacing.lg }}
+      />
     </Screen>
   );
 }

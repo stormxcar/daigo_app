@@ -8,6 +8,11 @@ export interface User {
   phone: string;
   avatarUrl?: string;
   address?: string;
+  bankName?: string;
+  bankCode?: string;
+  bankBin?: string;
+  bankAccountNumber?: string;
+  bankAccountHolder?: string;
   emailVerified?: boolean;
   role: UserRole;
   createdAt: string;
@@ -48,6 +53,10 @@ export type BookingStatus =
   | 'DRIVER_CANCELLED'
   | 'EXPIRED';
 
+export type PaymentMethod = 'cash' | 'bank_transfer' | 'vietqr';
+export type PaymentStatus = 'pending' | 'submitted' | 'driver_verified' | 'rejected' | 'expired';
+export type BookingPaymentStatus = 'unpaid' | 'pending' | 'submitted' | 'paid' | 'rejected' | 'expired';
+
 export interface Booking {
   id: string;
   bookingCode?: string;
@@ -72,6 +81,8 @@ export interface Booking {
   driverPhone: string;
   estimatedPrice: number;
   actualPrice?: number;
+  paymentStatus?: BookingPaymentStatus;
+  paymentMethod?: PaymentMethod;
   distance?: number;
   createdAt: string;
   updatedAt: string;
@@ -85,6 +96,30 @@ export interface Booking {
   cancelledAt?: string;
   cancelledBy?: 'CUSTOMER' | 'DRIVER' | 'SYSTEM';
   cancelReason?: string;
+}
+
+export interface Payment {
+  id: string;
+  bookingId: string;
+  customerId: string;
+  driverId: string;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  bankName?: string;
+  bankCode?: string;
+  bankBin?: string;
+  bankAccountNumber?: string;
+  bankAccountHolder?: string;
+  transferContent: string;
+  qrUrl?: string;
+  proofImageUrl?: string;
+  driverNote?: string;
+  createdAt: string;
+  updatedAt: string;
+  submittedAt?: string;
+  verifiedAt?: string;
+  rejectedAt?: string;
 }
 
 export type TripPhase = 'pickup' | 'dropoff';
@@ -130,6 +165,7 @@ export type NotificationType =
   | 'driver_cancel'
   | 'trip_done'
   | 'booking_update'
+  | 'payment_update'
   | 'blog_interaction'
   | 'system';
 
@@ -163,6 +199,7 @@ export interface Message {
 export interface ChatConversation {
   id: string;
   threadIds?: string[];
+  bookingId?: string;
   participantId: string;
   participantName: string;
   participantPhone?: string;
@@ -210,6 +247,26 @@ export interface RegisterData extends AuthCredentials {
   phone: string;
   confirmPassword: string;
   role?: UserRole;
+}
+
+export type CallType = 'agora' | 'phone';
+export type CallStatus = 'ringing' | 'accepted' | 'rejected' | 'missed' | 'ended' | 'failed';
+
+export interface CallSession {
+  id: string;
+  bookingId?: string;
+  chatId?: string;
+  callerId: string;
+  receiverId: string;
+  callType: CallType;
+  agoraChannel?: string;
+  status: CallStatus;
+  startedAt?: string;
+  acceptedAt?: string;
+  endedAt?: string;
+  durationSeconds?: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AuthResponse {

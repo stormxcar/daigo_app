@@ -14,6 +14,7 @@ import { MapPreview } from '@/components/MapPreview';
 import { RealtimeTripMap } from '@/components/RealtimeTripMap';
 import { BookingTimeline } from '@/components/BookingTimeline';
 import { LazyMount } from '@/components/LazyMount';
+import { PaymentStatusBadge, getPaymentStatusLabel } from '@/components/PaymentStatusBadge';
 import { getDriverLocation, subscribeDriverLocation } from '@/services/driverLocation';
 import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { BOOKING_STATUS, CUSTOMER_CANCEL_REASONS } from '@/constants';
@@ -232,6 +233,29 @@ export default function BookingDetailScreen() {
               </View>
             </View>
           ))}
+        </Card>
+
+        <Card style={{ marginBottom: spacing.lg }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.md }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>Thanh toán</Text>
+              <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+                {(booking.actualPrice ?? booking.estimatedPrice).toLocaleString('vi-VN')} VND
+              </Text>
+            </View>
+            <PaymentStatusBadge status={booking.paymentStatus} />
+          </View>
+          <Text style={{ color: colors.textSecondary, lineHeight: 21, marginBottom: spacing.md }}>
+            {booking.driverId
+              ? `Trạng thái hiện tại: ${getPaymentStatusLabel(booking.paymentStatus)}. Bạn có thể chọn tiền mặt hoặc VietQR/chuyển khoản.`
+              : 'Chuyến đi chưa có tài xế nhận nên chưa thể chọn thanh toán.'}
+          </Text>
+          <Button
+            label={booking.paymentStatus === 'paid' ? 'Xem thanh toán' : 'Thanh toán'}
+            onPress={() => router.push({ pathname: '/(customer)/payment' as any, params: { bookingId: booking.id } })}
+            disabled={!booking.driverId}
+            variant={booking.paymentStatus === 'paid' ? 'outline' : 'primary'}
+          />
         </Card>
 
         {!!booking.cancelReason && (

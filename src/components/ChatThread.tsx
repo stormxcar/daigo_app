@@ -3,16 +3,21 @@ import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Linkin
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
-import { Image as ImageIcon, MoreVertical, Phone, Reply, Send, ShieldCheck, X } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { Image as ImageIcon, Reply, Send, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { apiClient } from '@/services/api';
+import { callService } from '@/services/callService';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
 import { supabase } from '@/services/supabase';
 import { ChatConversation, Message, User } from '@/types';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
+import { ChatHeader } from '@/components/ChatHeader';
+import { CallOptionsBottomSheet } from '@/components/CallOptionsBottomSheet';
 
 type ChatThreadProps = {
   conversation: ChatConversation;
@@ -38,6 +43,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
   const [participantTyping, setParticipantTyping] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const callOptionsRef = useRef<BottomSheetModal>(null);
 
   const messages = useMemo(() => [...conversation.messages].reverse(), [conversation.messages]);
   const lastOwnMessageId = useMemo(
@@ -180,6 +186,58 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
     Alert.alert('Tùy chọn tin nhắn', undefined, actions);
   };
 
+  const startAgoraCall = async () => {
+    if (!conversation.participantId) {
+      showError('Không thể gọi', 'Không tìm thấy người nhận cuộc gọi.');
+      return;
+    }
+    try {
+      callOptionsRef.current?.dismiss();
+      const call = await callService.createAgoraCall({
+        callerId: user.id,
+        receiverId: conversation.participantId,
+        callerName: user.fullName,
+        chatId: conversation.id,
+        bookingId: conversation.bookingId,
+      });
+      router.push({ pathname: '/call' as any, params: { callId: call.id, mode: 'caller' } });
+    } catch (error: any) {
+      showError('Không thể bắt đầu cuộc gọi', error.message);
+    }
+  };
+
+  const callPhoneNumber = async () => {
+    callOptionsRef.current?.dismiss();
+    if (!conversation.participantPhone) {
+      showWarning('Chưa có số điện thoại', 'Người dùng này chưa cập nhật số điện thoại.');
+      return;
+    }
+
+    Alert.alert(
+      'Gọi số điện thoại',
+      'Cuộc gọi này sẽ mở ứng dụng điện thoại và có thể phát sinh cước nhà mạng.',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Gọi',
+          onPress: async () => {
+            try {
+              await callService.createPhoneCallLog({
+                callerId: user.id,
+                receiverId: conversation.participantId,
+                chatId: conversation.id,
+                bookingId: conversation.bookingId,
+              });
+              await Linking.openURL(`tel:${conversation.participantPhone}`);
+            } catch (error: any) {
+              showError('Không thể gọi điện thoại', error.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const fromMe = item.sender === 'user';
     const showSeen = fromMe && item.id === lastOwnMessageId;
@@ -264,61 +322,12 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 18}
     >
-      <View
-        style={{
-          paddingHorizontal: spacing.lg,
-          paddingTop: spacing.md,
-          paddingBottom: spacing.md,
-          backgroundColor: colors.background,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-        }}
-      >
-        <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
-          <Image
-            source={{ uri: conversation.participantAvatar }}
-            style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: colors.surfaceAlt }}
-          />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }} numberOfLines={1}>
-              {conversation.participantName}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs }}>
-              <ShieldCheck size={13} color={colors.success} />
-              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
-                {roleLabel} - Tin nhắn bảo mật theo chuyến
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            onPress={() => conversation.participantPhone && Linking.openURL(`tel:${conversation.participantPhone}`)}
-            disabled={!conversation.participantPhone}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: conversation.participantPhone ? colors.primary : colors.surfaceAlt,
-              opacity: conversation.participantPhone ? 1 : 0.5,
-            }}
-          >
-            <Phone size={18} color={conversation.participantPhone ? 'white' : colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: colors.surfaceAlt,
-            }}
-          >
-            <MoreVertical size={18} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <ChatHeader
+        conversation={conversation}
+        roleLabel={roleLabel}
+        onCallPress={startAgoraCall}
+        onMenuPress={() => callOptionsRef.current?.present()}
+      />
 
       <FlatList
         data={messages}
@@ -446,6 +455,13 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
           )}
         </View>
       </Modal>
+      <CallOptionsBottomSheet
+        ref={callOptionsRef}
+        hasPhone={!!conversation.participantPhone}
+        onAgoraCall={startAgoraCall}
+        onPhoneCall={callPhoneNumber}
+        onCancel={() => callOptionsRef.current?.dismiss()}
+      />
     </KeyboardAvoidingView>
   );
 }

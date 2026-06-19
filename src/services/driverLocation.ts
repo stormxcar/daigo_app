@@ -110,8 +110,14 @@ export async function startDriverLocationWatch(
   phase: TripPhase,
   onChange: (location: DriverLocation) => void
 ) {
-  const permission = await Location.requestForegroundPermissionsAsync();
-  if (permission.status !== 'granted') {
+  // Check existing permission first to avoid showing the dialog multiple times
+  const existing = await Location.getForegroundPermissionsAsync();
+  let permStatus = existing.status;
+  if (permStatus !== 'granted') {
+    const requested = await Location.requestForegroundPermissionsAsync();
+    permStatus = requested.status;
+  }
+  if (permStatus !== 'granted') {
     throw new Error('Bạn cần cấp quyền vị trí để chia sẻ GPS chuyến đi.');
   }
 
@@ -140,7 +146,7 @@ export async function startDriverLocationWatch(
         });
         onChange(location);
       } catch (error) {
-        console.warn('Không thể cập nhật GPS tài xế', error);
+        if (__DEV__) console.warn('Không thể cập nhật GPS tài xế', error);
       }
     }
   );

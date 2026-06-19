@@ -31,15 +31,20 @@ import {
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing, shadows } from '@/theme/tokens';
 import { showError, showInfo, showSuccess } from '@/utils/toast';
+import { VideoLoadingOverlay } from '@/components/VideoLoadingOverlay';
+import { buildCloudinaryVideoPosterUrl, buildOptimizedCloudinaryVideoUrl, shouldUseHlsVideo } from '@/services/videoOptimizationService';
 
 interface BlogMediaGridProps {
   urls: string[];
   types: ('image' | 'video')[];
   height?: number;
+  active?: boolean;
+  preload?: boolean;
 }
 
 function FullscreenVideo({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (videoPlayer) => {
+  const sourceUri = useMemo(() => buildOptimizedCloudinaryVideoUrl(uri, { width: 1080, hls: shouldUseHlsVideo() }), [uri]);
+  const player = useVideoPlayer(sourceUri, (videoPlayer) => {
     videoPlayer.loop = false;
     videoPlayer.muted = false;
   });
@@ -56,8 +61,54 @@ function FullscreenVideo({ uri }: { uri: string }) {
 }
 
 // ─── Custom Video Player ──────────────────────────────────────────────────────
-function InlineVideo({ uri, onDownload, onOpen }: { uri: string; onDownload: () => void; onOpen: () => void }) {
-  const player = useVideoPlayer(uri, (videoPlayer) => {
+function InlineVideo({
+  uri,
+  active,
+  preload,
+  onDownload,
+  onOpen,
+}: {
+  uri: string;
+  active: boolean;
+  preload: boolean;
+  onDownload: () => void;
+  onOpen: () => void;
+}) {
+  const posterUri = useMemo(() => buildCloudinaryVideoPosterUrl(uri, { width: 720 }), [uri]);
+
+  if (!active && !preload) {
+    return (
+      <TouchableOpacity activeOpacity={0.9} onPress={onOpen} style={styles.videoWrapper}>
+        {!!posterUri && <Image source={{ uri: posterUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />}
+        <View style={styles.videoGradientBottom} pointerEvents="none" />
+        <VideoLoadingOverlay label="VIDEO" />
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <MountedInlineVideo
+      uri={uri}
+      active={active}
+      onDownload={onDownload}
+      onOpen={onOpen}
+    />
+  );
+}
+
+function MountedInlineVideo({
+  uri,
+  active,
+  onDownload,
+  onOpen,
+}: {
+  uri: string;
+  active: boolean;
+  onDownload: () => void;
+  onOpen: () => void;
+}) {
+  const sourceUri = useMemo(() => buildOptimizedCloudinaryVideoUrl(uri, { width: 720, hls: shouldUseHlsVideo() }), [uri]);
+  const player = useVideoPlayer(sourceUri, (videoPlayer) => {
     videoPlayer.loop = false;
     videoPlayer.muted = true;
     videoPlayer.timeUpdateEventInterval = 0.5;
@@ -67,6 +118,7 @@ function InlineVideo({ uri, onDownload, onOpen }: { uri: string; onDownload: () 
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showControls, setShowControls] = useState(true);
+  const [buffering, setBuffering] = useState(false);
   const controlsOpacity = useRef(new Animated.Value(1)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -106,6 +158,7 @@ function InlineVideo({ uri, onDownload, onOpen }: { uri: string; onDownload: () 
     } else {
       player.play();
       setIsPlaying(true);
+      setBuffering(true);
       scheduleHide();
     }
   };
@@ -133,10 +186,18 @@ function InlineVideo({ uri, onDownload, onOpen }: { uri: string; onDownload: () 
   };
 
   useEffect(() => {
+    if (!active && player.playing) {
+      player.pause();
+      setIsPlaying(false);
+    }
+  }, [active, player]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setProgress(player.currentTime || 0);
       setDuration(player.duration || 0);
       setIsPlaying(player.playing);
+      if (player.playing && player.currentTime > 0) setBuffering(false);
     }, 500);
 
     return () => {
@@ -163,6 +224,7 @@ function InlineVideo({ uri, onDownload, onOpen }: { uri: string; onDownload: () 
           ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
         }}
       />
+      {buffering && <VideoLoadingOverlay loading label="Đang tải..." />}
 
       {/* Gradient overlay */}
       <View style={styles.videoGradientTop} pointerEvents="none" />
@@ -215,7 +277,7 @@ function InlineVideo({ uri, onDownload, onOpen }: { uri: string; onDownload: () 
 }
 
 // ─── Main Grid ────────────────────────────────────────────────────────────────
-export function BlogMediaGrid({ urls, types, height = 260 }: BlogMediaGridProps) {
+export function BlogMediaGrid({ urls, types, height = 260, active = true, preload = false }: BlogMediaGridProps) {
   const { colors } = useTheme();
   const { width, height: windowHeight } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -324,7 +386,13 @@ export function BlogMediaGrid({ urls, types, height = 260 }: BlogMediaGridProps)
               style={[styles.tile, tileStyle(index), { backgroundColor: colors.surfaceAlt }]}
             >
               {isVideo ? (
-                <InlineVideo uri={url} onDownload={() => handleVideoDownload(url)} onOpen={() => openMedia(index)} />
+                <InlineVideo
+                  uri={url}
+                  active={active}
+                  preload={preload}
+                  onDownload={() => handleVideoDownload(url)}
+                  onOpen={() => openMedia(index)}
+                />
               ) : (
                 <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
               )}

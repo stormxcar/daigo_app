@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import {
   BarChart3,
@@ -16,12 +17,13 @@ import { useAuthStore } from '@/stores/authStore';
 
 export default function DriverLayout() {
   const { colors } = useTheme();
-  const { isAuthenticated, user } = useAuthStore();
-  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'blog-detail'];
+  const { isAuthenticated, isSessionRestored, user } = useAuthStore();
+  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'payment-review', 'blog-detail'];
   const backHrefByRoute: Record<string, string> = {
     notifications: '/(driver)/dashboard',
     'chat-detail': '/(driver)/chat',
     'booking-detail': '/(driver)/bookings',
+    'payment-review': '/(driver)/booking-detail',
     'blog-detail': '/(driver)/blog',
   };
 
@@ -30,6 +32,17 @@ export default function DriverLayout() {
       router.replace('/(customer)/home');
     }
   }, [isAuthenticated, user?.role]);
+
+  // While the initial session restore is still in progress, show a neutral
+  // loading screen instead of AuthRequired — this prevents a false redirect
+  // to the login screen during startup or background token refresh.
+  if (!isSessionRestored) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
@@ -144,6 +157,13 @@ export default function DriverLayout() {
         options={{
           href: null,
           title: 'Chi tiết chuyến đi',
+        }}
+      />
+      <Tabs.Screen
+        name="payment-review"
+        options={{
+          href: null,
+          title: 'Xác nhận thanh toán',
         }}
       />
       <Tabs.Screen

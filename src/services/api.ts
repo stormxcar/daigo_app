@@ -35,6 +35,11 @@ type ProfileRow = {
   phone: string;
   avatar_url: string | null;
   address: string;
+  bank_name?: string | null;
+  bank_code?: string | null;
+  bank_bin?: string | null;
+  bank_account_number?: string | null;
+  bank_account_holder?: string | null;
   email_verified: boolean;
   role: User['role'];
   created_at: string;
@@ -59,6 +64,11 @@ const mapProfile = (row: ProfileRow): User => ({
   phone: row.phone,
   avatarUrl: row.avatar_url ?? undefined,
   address: row.address ?? '',
+  bankName: row.bank_name ?? undefined,
+  bankCode: row.bank_code ?? undefined,
+  bankBin: row.bank_bin ?? undefined,
+  bankAccountNumber: row.bank_account_number ?? undefined,
+  bankAccountHolder: row.bank_account_holder ?? undefined,
   emailVerified: row.email_verified,
   role: row.role,
   createdAt: row.created_at,
@@ -114,6 +124,8 @@ const mapBooking = (row: any): Booking => {
     driverPhone: driver?.phone ?? '',
     estimatedPrice: row.estimated_price,
     actualPrice: row.actual_price ?? undefined,
+    paymentStatus: row.payment_status ?? 'unpaid',
+    paymentMethod: row.payment_method ?? undefined,
     distance: row.distance ? Number(row.distance) : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -338,6 +350,11 @@ class ApiClient {
         phone: data.phone,
         address: data.address,
         avatar_url: data.avatarUrl,
+        bank_name: data.bankName,
+        bank_code: data.bankCode,
+        bank_bin: data.bankBin,
+        bank_account_number: data.bankAccountNumber,
+        bank_account_holder: data.bankAccountHolder,
       })
       .eq('id', userId)
       .select('*')
@@ -913,7 +930,9 @@ class ApiClient {
         relatedBookingId: data.relatedBookingId,
         relatedPostId: data.relatedPostId,
       },
-    }).catch((error) => console.warn('Không thể gửi push notification', error));
+    }).catch((error) => {
+      if (__DEV__) console.warn('Không thể gửi push notification', error);
+    });
     return notification;
   }
 
@@ -921,7 +940,7 @@ class ApiClient {
     try {
       return await this.createNotification(data);
     } catch (error) {
-      console.warn('Không thể tạo thông báo phụ trợ', error);
+      if (__DEV__) console.warn('Không thể tạo thông báo phụ trợ', error);
       return null;
     }
   }
@@ -1118,6 +1137,7 @@ class ApiClient {
 
       return {
         id: row.id,
+        bookingId: row.booking_id ?? undefined,
         threadIds: [row.id],
         participantId: participant?.id ?? '',
         participantName: participant?.full_name ?? 'Tài xế sẽ xác nhận',
@@ -1150,6 +1170,7 @@ class ApiClient {
       grouped.set(key, {
         ...existing,
         id: keepCurrentId ? conversation.id : existing.id,
+        bookingId: keepCurrentId ? conversation.bookingId : existing.bookingId,
         threadIds: Array.from(new Set([...(existing.threadIds ?? [existing.id]), ...(conversation.threadIds ?? [conversation.id])])),
         unreadCount: existing.unreadCount + conversation.unreadCount,
         messages: mergedMessages,

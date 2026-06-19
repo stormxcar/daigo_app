@@ -17,10 +17,14 @@ import { apiClient } from "@/services/api";
 import { supabase } from "@/services/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { AppToast } from "@/components/AppToast";
+import { IncomingCallModal } from "@/components/IncomingCallModal";
+import { useIncomingCall } from "@/hooks/useIncomingCall";
 import { registerPushNotifications } from "@/services/pushNotifications";
 import { showError, showSuccess } from "@/utils/toast";
 
 export default function RootLayout() {
+  const currentUser = useAuthStore((state) => state.user);
+  const { incomingCall, clearIncomingCall } = useIncomingCall(currentUser);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -51,15 +55,29 @@ export default function RootLayout() {
     let mounted = true;
 
     apiClient.getCurrentUser().then(async (user) => {
-      if (!mounted || !user) return;
-      const { data } = await supabase.auth.getSession();
-      useAuthStore.getState().restoreSession(user, data.session?.access_token ?? "");
-      registerPushNotifications(user.id).catch(() => undefined);
-    }).catch(() => undefined);
+      if (!mounted) return;
+      if (user) {
+        const { data } = await supabase.auth.getSession();
+        useAuthStore.getState().restoreSession(user, data.session?.access_token ?? "");
+        registerPushNotifications(user.id).catch(() => undefined);
+      } else {
+        // No active session – mark as checked so layouts can render the login guard
+        useAuthStore.setState({ isSessionRestored: true });
+      }
+    }).catch(() => {
+      if (mounted) {
+        useAuthStore.setState({ isSessionRestored: true });
+      }
+    });
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Only clear the session on an explicit sign-out.
+      // Ignoring TOKEN_REFRESHED / INITIAL_SESSION null intermediates prevents
+      // the app from being kicked back to login during background token refresh.
       if (!session?.user) {
-        useAuthStore.setState({ user: null, token: null, isAuthenticated: false });
+        if (event === 'SIGNED_OUT') {
+          useAuthStore.setState({ user: null, token: null, isAuthenticated: false });
+        }
         return;
       }
 
@@ -134,7 +152,9 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" options={{ animation: "none" }} />
           <Stack.Screen name="(customer)" options={{ animation: "none" }} />
           <Stack.Screen name="(driver)" options={{ animation: "none" }} />
+          <Stack.Screen name="call" options={{ animation: "slide_from_bottom" }} />
         </Stack>
+        <IncomingCallModal call={incomingCall} onClose={clearIncomingCall} />
         <AppToast />
       </BottomSheetModalProvider>
     </GestureHandlerRootView>

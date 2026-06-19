@@ -1,0 +1,218 @@
+import React, { useEffect, useState } from 'react';
+import { Text, TouchableOpacity, View } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router';
+import { Banknote, CheckCircle2, Clock, CreditCard, RotateCcw, ShieldAlert } from 'lucide-react-native';
+import { Button, Card } from '@/components/BaseComponents';
+import { PaymentStatusBadge } from '@/components/PaymentStatusBadge';
+import { Screen } from '@/components/ScreenComponents';
+import { VietQRCard } from '@/components/VietQRCard';
+import { usePayment } from '@/hooks/usePayment';
+import { apiClient } from '@/services/api';
+import { paymentService } from '@/services/paymentService';
+import { useAuthStore } from '@/stores/authStore';
+import { useTheme } from '@/theme';
+import { borderRadius, spacing } from '@/theme/tokens';
+import { Booking, PaymentMethod } from '@/types';
+import { showError, showSuccess } from '@/utils/toast';
+
+export default function CustomerPaymentScreen() {
+  const { colors } = useTheme();
+  const { bookingId } = useLocalSearchParams<{ bookingId?: string }>();
+  const { user } = useAuthStore();
+  const { payment, setPayment, loading, error, createOrGetPayment } = usePayment(bookingId);
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [booting, setBooting] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!bookingId) return;
+    apiClient
+      .getBookingById(bookingId)
+      .then(setBooking)
+      .catch((loadError) => showError('Không thể tải chuyến đi', loadError.message))
+      .finally(() => setBooting(false));
+  }, [bookingId]);
+
+  const ensurePayment = async (method: PaymentMethod) => {
+    if (!booking || !user) return;
+    try {
+      await createOrGetPayment(booking, user, method);
+      showSuccess('Đã chọn phương thức thanh toán', method === 'cash' ? 'Bạn sẽ thanh toán tiền mặt cho tài xế.' : 'Mã VietQR đã sẵn sàng.');
+    } catch (paymentError: any) {
+      showError('Không thể tạo thanh toán', paymentError.message);
+    }
+  };
+
+  const markTransferred = async () => {
+    if (!payment) return;
+    try {
+      setSubmitting(true);
+      const updated = await paymentService.markTransferSubmitted(payment);
+      setPayment(updated);
+      showSuccess('Đã báo chuyển khoản', 'Tài xế sẽ kiểm tra giao dịch và xác nhận.');
+    } catch (submitError: any) {
+      showError('Không thể cập nhật thanh toán', submitError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (booting || loading) {
+    return (
+      <Screen padding>
+        <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>Đang tải thanh toán...</Text>
+      </Screen>
+    );
+  }
+
+  if (!booking) {
+    return (
+      <Screen padding>
+        <Card>
+          <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.sm }}>Không tìm thấy chuyến đi</Text>
+          <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>{error || 'Vui lòng quay lại và thử lại.'}</Text>
+          <Button label="Quay lại" onPress={() => router.back()} variant="outline" />
+        </Card>
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen scroll>
+      <Card style={{ marginBottom: spacing.lg }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>
+              Thanh toán chuyến đi
+            </Text>
+            <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+              {booking.bookingCode ?? booking.id.slice(0, 8)}
+            </Text>
+          </View>
+          <PaymentStatusBadge status={payment?.paymentStatus ?? booking.paymentStatus} size="md" />
+        </View>
+      </Card>
+
+      {!payment ? (
+        <Card style={{ marginBottom: spacing.lg }}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.sm }}>
+            Chọn phương thức thanh toán
+          </Text>
+          <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.md }}>
+            Bạn có thể trả tiền mặt trực tiếp cho tài xế hoặc chuyển khoản bằng VietQR nếu tài xế đã cấu hình tài khoản ngân hàng.
+          </Text>
+          <View style={{ gap: spacing.md }}>
+            <TouchableOpacity
+              onPress={() => ensurePayment('cash')}
+              activeOpacity={0.82}
+              style={{ padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, flexDirection: 'row', gap: spacing.md }}
+            >
+              <Banknote size={24} color={colors.success} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: '900' }}>Tiền mặt</Text>
+                <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>Thanh toán trực tiếp, tài xế xác nhận khi nhận tiền.</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => ensurePayment('vietqr')}
+              activeOpacity={0.82}
+              style={{ padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, flexDirection: 'row', gap: spacing.md }}
+            >
+              <CreditCard size={24} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: '900' }}>VietQR / chuyển khoản</Text>
+                <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>Quét QR hoặc copy thông tin chuyển khoản của tài xế.</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </Card>
+      ) : (
+        <>
+          {(payment.paymentStatus === 'pending' || payment.paymentStatus === 'rejected') && (
+            <>
+              {payment.paymentStatus === 'rejected' && (
+                <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}>
+                  <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                    <ShieldAlert size={22} color={colors.error} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.xs }}>Thanh toán bị từ chối</Text>
+                      <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>
+                        {payment.driverNote || 'Tài xế chưa xác nhận được khoản thanh toán. Vui lòng kiểm tra lại với tài xế.'}
+                      </Text>
+                    </View>
+                  </View>
+                </Card>
+              )}
+              {payment.paymentMethod === 'cash' ? (
+                <Card style={{ marginBottom: spacing.lg }}>
+                  <Banknote size={34} color={colors.success} />
+                  <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginTop: spacing.md, marginBottom: spacing.sm }}>
+                    Thanh toán tiền mặt
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
+                    Bạn thanh toán trực tiếp cho tài xế. Tài xế sẽ xác nhận đã nhận tiền trong app.
+                  </Text>
+                </Card>
+              ) : (
+                <>
+                  <VietQRCard payment={payment} />
+                  <Button
+                    label="Tôi đã chuyển khoản"
+                    onPress={markTransferred}
+                    loading={submitting}
+                    disabled={submitting}
+                  />
+                </>
+              )}
+            </>
+          )}
+
+          {payment.paymentStatus === 'submitted' && (
+            <Card style={{ marginBottom: spacing.lg }}>
+              <View
+                style={{
+                  width: 54,
+                  height: 54,
+                  borderRadius: borderRadius.full,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: colors.surfaceAlt,
+                  marginBottom: spacing.md,
+                }}
+              >
+                <Clock size={26} color={colors.warning} />
+              </View>
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.sm }}>
+                Đang chờ tài xế xác nhận
+              </Text>
+              <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
+                Tài xế sẽ kiểm tra giao dịch và xác nhận đã nhận tiền. Trạng thái sẽ tự cập nhật realtime.
+              </Text>
+            </Card>
+          )}
+
+          {payment.paymentStatus === 'driver_verified' && (
+            <Card style={{ marginBottom: spacing.lg }}>
+              <CheckCircle2 size={42} color={colors.success} />
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginTop: spacing.md, marginBottom: spacing.sm }}>
+                Thanh toán thành công
+              </Text>
+              <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
+                Tài xế đã xác nhận nhận tiền cho chuyến đi này.
+              </Text>
+            </Card>
+          )}
+
+          {payment.paymentStatus === 'expired' && (
+            <Card style={{ marginBottom: spacing.lg }}>
+              <RotateCcw size={32} color={colors.error} />
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginTop: spacing.md }}>
+                Phiên thanh toán đã hết hạn
+              </Text>
+            </Card>
+          )}
+        </>
+      )}
+    </Screen>
+  );
+}

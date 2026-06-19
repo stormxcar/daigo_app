@@ -87,13 +87,15 @@ export default function LoginScreen() {
       router.replace(response.user.role === 'customer' ? '/(customer)/home' : '/(driver)/dashboard');
       showSuccess('Đăng nhập Google thành công', `Xin chào ${response.user.fullName}.`);
     } catch (err: any) {
-      console.warn('Google login failed', {
-        message: err?.message,
-        name: err?.name,
-        code: err?.code,
-        status: err?.status,
-        details: err,
-      });
+      if (__DEV__) {
+        console.warn('Google login failed', {
+          message: err?.message,
+          name: err?.name,
+          code: err?.code,
+          status: err?.status,
+          details: err,
+        });
+      }
       const message = toVietnameseAuthError(err?.message);
       setGoogleError(message);
       showError(message);

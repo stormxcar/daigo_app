@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Banknote, Car, Clock, Mail, MapPin, Navigation, Phone, Route, User, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
@@ -9,6 +9,7 @@ import { Screen } from '@/components/ScreenComponents';
 import { RealtimeTripMap } from '@/components/RealtimeTripMap';
 import { BookingTimeline } from '@/components/BookingTimeline';
 import { LazyMount } from '@/components/LazyMount';
+import { PaymentStatusBadge, getPaymentStatusLabel } from '@/components/PaymentStatusBadge';
 import { apiClient } from '@/services/api';
 import {
   getDistanceMeters,
@@ -407,6 +408,23 @@ export default function DriverBookingDetail() {
           <Text style={{ color: colors.primary, fontSize: 22, fontWeight: '900' }}>
             {(booking.actualPrice ?? booking.estimatedPrice).toLocaleString('vi-VN')} VND
           </Text>
+        </View>
+        <View style={{ marginTop: spacing.md, padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.sm }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontWeight: '900' }}>Trạng thái thanh toán</Text>
+              <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+                {getPaymentStatusLabel(booking.paymentStatus)}
+              </Text>
+            </View>
+            <PaymentStatusBadge status={booking.paymentStatus} />
+          </View>
+          <Button
+            label="Xem / xác nhận thanh toán"
+            onPress={() => router.push({ pathname: '/(driver)/payment-review' as any, params: { bookingId: booking.id } })}
+            variant="outline"
+            size="sm"
+          />
         </View>
       </Card>
 

@@ -4,6 +4,7 @@ module.exports = {
   version: '1.0.0',
   sdkVersion: '54.0.0',
   orientation: 'portrait',
+  jsEngine: 'hermes',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
   splash: {
@@ -11,12 +12,21 @@ module.exports = {
     resizeMode: 'contain',
     backgroundColor: '#1d4ed8',
   },
-  assetBundlePatterns: ['**/*'],
+  assetBundlePatterns: [
+    'assets/icon.png',
+    'assets/adaptive-icon.png',
+    'assets/splash.png',
+    'assets/favicon.png',
+  ],
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'com.daigo.booking',
+    infoPlist: {
+      NSMicrophoneUsageDescription: 'Ứng dụng cần microphone để gọi thoại giữa khách hàng và tài xế.',
+    },
   },
   android: {
+    permissions: ['RECORD_AUDIO'],
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#1d4ed8',
@@ -62,6 +72,16 @@ module.exports = {
     'expo-screen-orientation',
     'expo-font',
     'expo-video',
+    [
+      'expo-build-properties',
+      {
+        android: {
+          enableProguardInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
+          useLegacyPackaging: false,
+        },
+      },
+    ],
     '@maplibre/maplibre-react-native',
   ],
   scheme: 'daigobooking',

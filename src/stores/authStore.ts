@@ -8,6 +8,8 @@ interface AuthStore {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  /** True once the initial session-restore attempt has completed (success or not). */
+  isSessionRestored: boolean;
   error: string | null;
   login: (credentials: AuthCredentials) => Promise<{ user: User; token: string }>;
   register: (data: RegisterData) => Promise<{ user: User; token: string }>;
@@ -29,6 +31,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   token: null,
   isLoading: false,
   isAuthenticated: false,
+  isSessionRestored: false,
   error: null,
 
   login: async (credentials) => {
@@ -147,6 +150,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
 
   restoreSession: (user, token) => {
-    set({ user, token, isAuthenticated: true, isLoading: false, error: null });
+    set({ user, token, isAuthenticated: true, isLoading: false, isSessionRestored: true, error: null });
   },
 }));
