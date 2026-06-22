@@ -42,6 +42,18 @@ export default function AuthLayout() {
         }}
       />
       <Stack.Screen 
+        name="phone-otp" 
+        options={{
+          title: 'Xác minh điện thoại',
+        }}
+      />
+      <Stack.Screen 
+        name="driver-register" 
+        options={{
+          title: 'Đăng ký tài xế',
+        }}
+      />
+      <Stack.Screen 
         name="forgot-password" 
         options={{
           title: 'Quên mật khẩu',

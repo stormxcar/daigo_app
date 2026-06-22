@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
 import { Image as ImageIcon, MessageCircle } from "lucide-react-native";
 import { useTheme } from "@/theme";
 import { borderRadius, fontSize, spacing } from "@/theme/tokens";
 import { AuthRequired } from "@/components/AuthRequired";
-import { Button, Card, Skeleton } from "@/components/BaseComponents";
+import { Button, Skeleton } from "@/components/BaseComponents";
 import { Screen } from "@/components/ScreenComponents";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
 import { useAuthStore } from "@/stores/authStore";
@@ -36,6 +36,7 @@ export default function ChatScreen() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [activeSort, setActiveSort] = useState("newest");
+  const channelInstanceId = useRef(Math.random().toString(36).slice(2)).current;
 
   const refreshConversations = async () => {
     if (!user) return;
@@ -63,37 +64,41 @@ export default function ChatScreen() {
 
   useEffect(() => {
     if (!user) return;
+    let active = true;
 
     initialLoad();
 
+    const refreshFromRealtime = () => {
+      if (!active) return;
+      apiClient
+        .getConversations(user.id)
+        .then((items) => {
+          if (active) setConversations(items);
+        })
+        .catch((error) => {
+          if (active) setError(error.message);
+        });
+    };
+
     const channel = supabase
-      .channel(`chat-list-${user.id}`)
+      .channel(`chat-list-${user.id}-${channelInstanceId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
-        () => {
-          apiClient
-            .getConversations(user.id)
-            .then(setConversations)
-            .catch((error) => setError(error.message));
-        },
+        refreshFromRealtime,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "messages" },
-        () => {
-          apiClient
-            .getConversations(user.id)
-            .then(setConversations)
-            .catch((error) => setError(error.message));
-        },
+        refreshFromRealtime,
       )
       .subscribe();
 
     return () => {
+      active = false;
       supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, channelInstanceId]);
 
   const filteredConversations = useMemo(() => {
     let result = [...conversations];
@@ -129,6 +134,17 @@ export default function ChatScreen() {
   if (!isAuthenticated) {
     return (
       <AuthRequired description="Bạn cần đăng nhập để trò chuyện với tài xế." />
+    );
+  }
+
+  if (!user?.phoneVerified) {
+    return (
+      <AuthRequired
+        title="Xác minh số điện thoại"
+        description="Bạn cần xác minh SĐT bằng OTP trước khi chat hoặc gọi tài xế."
+        actionLabel="Xác minh SĐT"
+        onActionPress={() => router.push({ pathname: "/(auth)/phone-otp" as any, params: { redirectTo: "/(customer)/chat" } })}
+      />
     );
   }
 
@@ -189,7 +205,16 @@ export default function ChatScreen() {
             })
           }
         >
-          <Card style={{ marginBottom: spacing.md }}>
+          <View
+            style={{
+              backgroundColor: colors.surface,
+              borderTopWidth: 1,
+              borderBottomWidth: 1,
+              borderColor: colors.border,
+              paddingHorizontal: spacing.lg,
+              paddingVertical: spacing.md,
+            }}
+          >
             <View
               style={{
                 flexDirection: "row",
@@ -282,7 +307,7 @@ export default function ChatScreen() {
                 )}
               </View>
             </View>
-          </Card>
+          </View>
         </TouchableOpacity>
       ))}
       {!loading && filteredConversations.length === 0 && (

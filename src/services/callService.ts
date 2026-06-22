@@ -55,6 +55,26 @@ async function createCallNotification(data: {
   }
 }
 
+async function createCallChatMessage(call: CallSessionRow, status: CallStatus) {
+  if (!call.chat_id) return;
+  const text =
+    status === 'rejected'
+      ? 'Cuộc gọi đã bị từ chối'
+      : status === 'failed'
+        ? 'Cuộc gọi không thành công'
+        : 'Cuộc gọi nhỡ';
+
+  try {
+    await supabase.from('messages').insert({
+      conversation_id: call.chat_id,
+      sender_id: call.caller_id,
+      text,
+    });
+  } catch {
+    // Call state should not fail just because the auxiliary chat log cannot be written.
+  }
+}
+
 class CallService {
   async createAgoraCall(data: {
     callerId: string;
@@ -137,12 +157,20 @@ class CallService {
       .select('*')
       .single();
     if (error) throw error;
+
+    const row = data as CallSessionRow;
+    const isUnansweredEnd = status === 'ended' && !row.accepted_at;
+    if (['rejected', 'missed', 'failed'].includes(status) || isUnansweredEnd) {
+      await createCallChatMessage(row, isUnansweredEnd ? 'missed' : status);
+    }
+
     return mapCallSession(data as CallSessionRow);
   }
 
   subscribeIncomingCalls(userId: string, onIncoming: (call: CallSession) => void) {
+    const instanceId = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel(`incoming-calls-${userId}`)
+      .channel(`incoming-calls-${userId}-${instanceId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: `receiver_id=eq.${userId}` },
@@ -158,8 +186,9 @@ class CallService {
   }
 
   subscribeCallSession(callId: string, onChange: (call: CallSession) => void) {
+    const instanceId = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel(`call-session-${callId}`)
+      .channel(`call-session-${callId}-${instanceId}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: `id=eq.${callId}` },

@@ -10,9 +10,14 @@ import {
 import { useTheme } from '@/theme';
 import { AppHeader } from '@/components/AppHeader';
 import { LiquidTabBar } from '@/components/LiquidTabBar';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function CustomerLayout() {
   const { colors } = useTheme();
+  const { user } = useAuthStore();
+  const missingVerificationCount = user
+    ? [!user.emailVerified, !user.phoneVerified].filter(Boolean).length
+    : 0;
   const detailRoutes = [
     'notifications',
     'booking-detail',
@@ -97,6 +102,7 @@ export default function CustomerLayout() {
         name="profile"
         options={{
           title: 'Hồ sơ',
+          tabBarBadge: missingVerificationCount > 0 ? '!' : undefined,
           tabBarIcon: ({ color, size }) => (
             <UserCircle color={color} size={size} />
           ),

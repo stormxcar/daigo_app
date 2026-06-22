@@ -19,6 +19,10 @@ export default function SplashScreen() {
   const dotScale3 = useRef(new Animated.Value(0.6)).current;
 
   useEffect(() => {
+    let active = true;
+    let dotsAnimation: Animated.CompositeAnimation | null = null;
+    let taglineTimer: ReturnType<typeof setTimeout> | undefined;
+    let dotsTimer: ReturnType<typeof setTimeout> | undefined;
     // Logo entrance animation
     Animated.parallel([
       Animated.spring(logoScale, {
@@ -35,7 +39,8 @@ export default function SplashScreen() {
     ]).start();
 
     // Tagline fade in after logo
-    setTimeout(() => {
+    taglineTimer = setTimeout(() => {
+      if (!active) return;
       Animated.timing(taglineOpacity, {
         toValue: 1,
         duration: 500,
@@ -45,7 +50,8 @@ export default function SplashScreen() {
 
     // Loading dots pulse loop
     const loopDots = () => {
-      Animated.sequence([
+      if (!active) return;
+      dotsAnimation = Animated.sequence([
         Animated.spring(dotScale1, { toValue: 1, friction: 3, useNativeDriver: true }),
         Animated.spring(dotScale2, { toValue: 1, friction: 3, useNativeDriver: true }),
         Animated.spring(dotScale3, { toValue: 1, friction: 3, useNativeDriver: true }),
@@ -56,9 +62,10 @@ export default function SplashScreen() {
           Animated.spring(dotScale3, { toValue: 0.6, friction: 3, useNativeDriver: true }),
         ]),
         Animated.delay(100),
-      ]).start(() => loopDots());
+      ]);
+      dotsAnimation.start(() => loopDots());
     };
-    setTimeout(loopDots, 800);
+    dotsTimer = setTimeout(loopDots, 800);
 
     const timer = setTimeout(() => {
       if (isAuthenticated) {
@@ -68,7 +75,13 @@ export default function SplashScreen() {
       }
     }, 2800);
 
-    return () => clearTimeout(timer);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      if (taglineTimer) clearTimeout(taglineTimer);
+      if (dotsTimer) clearTimeout(dotsTimer);
+      dotsAnimation?.stop();
+    };
   }, [isAuthenticated, user?.role]);
 
   return (

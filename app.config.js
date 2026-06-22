@@ -27,6 +27,7 @@ module.exports = {
   },
   android: {
     permissions: ['RECORD_AUDIO'],
+    googleServicesFile: './google-services.json',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#1d4ed8',
@@ -84,6 +85,8 @@ module.exports = {
       },
     ],
     '@maplibre/maplibre-react-native',
+    '@react-native-firebase/app',
+    '@react-native-firebase/auth',
   ],
   scheme: 'daigobooking',
   backgroundColor: '#1d4ed8',

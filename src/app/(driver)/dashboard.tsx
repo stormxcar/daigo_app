@@ -13,6 +13,7 @@ import { BlogPost, Booking, RatingReview, Vehicle } from '@/types';
 import { DeviceLocation, getCurrentDeviceLocation } from '@/services/deviceLocation';
 import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { showError, showSuccess } from '@/utils/toast';
+import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 
 type RangeMode = 'day' | 'month' | 'year';
 
@@ -160,6 +161,7 @@ export default function DriverDashboard() {
     const maxValue = Math.max(...buckets.map((item) => item.revenue), 1);
     return buckets.map((bucket) => ({ ...bucket, height: Math.max(8, Math.round((bucket.revenue / maxValue) * 132)) }));
   }, [bookings, mode]);
+  const recentBookings = useMemo(() => bookings.slice(0, 5), [bookings]);
 
   const summaryCards = [
     { label: 'Doanh thu', value: money(stats.revenue), icon: <Wallet size={20} color={colors.primary} /> },
@@ -227,6 +229,67 @@ export default function DriverDashboard() {
           </Card>
         ))}
       </View>}
+
+      {!loading && (
+        <Card style={{ marginBottom: spacing.lg }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Chuyến đi gần đây</Text>
+            <Button
+              label="Xem tất cả"
+              size="sm"
+              variant="outline"
+              onPress={() => router.push('/(driver)/bookings' as any)}
+            />
+          </View>
+          {recentBookings.length === 0 ? (
+            <View style={{ padding: spacing.lg, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
+              <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.xs }}>Chưa có chuyến đi</Text>
+              <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>
+                Khi bạn nhận hoặc hoàn thành chuyến, danh sách gần đây sẽ hiển thị tại đây.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: spacing.md }}>
+              {recentBookings.map((booking) => {
+                const statusInfo = getBookingStatusInfo(booking.status);
+                const amount = booking.actualPrice ?? booking.estimatedPrice ?? 0;
+                return (
+                  <TouchableOpacity
+                    key={booking.id}
+                    activeOpacity={0.82}
+                    onPress={() => router.push({ pathname: '/(driver)/booking-detail' as any, params: { id: booking.id } })}
+                    style={{
+                      padding: spacing.md,
+                      borderRadius: borderRadius.lg,
+                      backgroundColor: colors.surfaceAlt,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.sm }}>
+                      <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontWeight: '900' }}>
+                        {booking.pickupLocation}
+                      </Text>
+                      <Text style={{ color: colors.primary, fontWeight: '900' }}>{money(amount)}</Text>
+                    </View>
+                    <Text numberOfLines={1} style={{ color: colors.textSecondary, marginBottom: spacing.sm }}>
+                      đến {booking.dropoffLocation}
+                    </Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md }}>
+                      <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs }}>
+                        {booking.time} - {formatVietnamDate(booking.date)}
+                      </Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '800' }}>
+                        {statusInfo.label}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </Card>
+      )}
 
       {!loading && (
         <Card style={{ marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.primaryLight }}>

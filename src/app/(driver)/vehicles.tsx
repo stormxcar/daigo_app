@@ -514,7 +514,17 @@ export default function DriverVehicles() {
         </>
       ) : (
         filteredVehicles.slice(0, visibleCount).map((vehicle) => (
-          <Card key={vehicle.id} style={{ marginBottom: spacing.lg }}>
+          <View
+            key={vehicle.id}
+            style={{
+              backgroundColor: colors.surface,
+              borderTopWidth: 1,
+              borderBottomWidth: 1,
+              borderColor: colors.border,
+              paddingHorizontal: spacing.lg,
+              paddingVertical: spacing.md,
+            }}
+          >
             {!!vehicle.image && (
               <Image
                 source={{ uri: vehicle.image }}
@@ -626,7 +636,7 @@ export default function DriverVehicles() {
                 disabled={saving}
               />
             </View>
-          </Card>
+          </View>
         ))
       )}
 

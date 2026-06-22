@@ -7,7 +7,6 @@ import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { useAuth } from '@/hooks/useAuth';
 import { Eye, EyeOff, User, Mail, Phone, Lock } from 'lucide-react-native';
-import { UserRole } from '@/types';
 import { isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
 import { DAIGO_LOGO_URL } from '@/constants/branding';
 import { showError as showErrorToast, showInfo, showSuccess } from '@/utils/toast';
@@ -23,7 +22,6 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [role, setRole] = useState<UserRole>('customer');
   const [localError, setLocalError] = useState('');
 
   const showError = (message: string) => {
@@ -70,7 +68,6 @@ export default function RegisterScreen() {
         phone,
         password,
         confirmPassword,
-        role,
       });
       if (response.token) {
         router.replace(response.user.role === 'driver' ? '/(driver)/dashboard' : '/(customer)/home');
@@ -184,33 +181,6 @@ export default function RegisterScreen() {
           style={{ marginBottom: spacing.lg }}
         />
 
-        <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '600', marginBottom: spacing.sm }}>
-          Loại tài khoản
-        </Text>
-        <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg }}>
-          {[
-            { label: 'Khách hàng', value: 'customer' as const },
-            { label: 'Tài xế', value: 'driver' as const },
-          ].map((item) => (
-            <TouchableOpacity
-              key={item.value}
-              onPress={() => setRole(item.value)}
-              disabled={isLoading}
-              style={{
-                flex: 1,
-                paddingVertical: spacing.md,
-                borderRadius: borderRadius.md,
-                alignItems: 'center',
-                backgroundColor: role === item.value ? colors.primary : colors.surfaceAlt,
-              }}
-            >
-              <Text style={{ color: role === item.value ? 'white' : colors.text, fontWeight: '700' }}>
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
         <TextInput
           label="Mật khẩu"
           placeholder="Nhập mật khẩu"
@@ -267,6 +237,25 @@ export default function RegisterScreen() {
 
       <View
         style={{
+          padding: spacing.md,
+          borderRadius: borderRadius.md,
+          backgroundColor: colors.surfaceAlt,
+          marginBottom: spacing.lg,
+        }}
+      >
+        <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.xs }}>
+          Bạn muốn lái xe cùng Daigo?
+        </Text>
+        <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, lineHeight: 20, marginBottom: spacing.md }}>
+          Tài xế xác minh số điện thoại trước, sau đó bổ sung hồ sơ xe và giấy tờ.
+        </Text>
+        <TouchableOpacity onPress={() => router.push('/(auth)/driver-register')} disabled={isLoading}>
+          <Text style={{ color: colors.primary, fontWeight: '800' }}>Đăng ký làm tài xế</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View
+        style={{
           flexDirection: 'row',
           justifyContent: 'center',
           alignItems: 'center',
@@ -288,6 +277,8 @@ export default function RegisterScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      <View style={{ height: spacing['4xl'] }} />
     </Screen>
   );
 }

@@ -1,5 +1,8 @@
 // User Types
 export type UserRole = 'customer' | 'driver';
+export type AccountType = 'customer' | 'driver' | 'both';
+export type DriverOnboardingStatus = 'incomplete' | 'submitted' | 'completed';
+export type KycStatus = 'incomplete' | 'pending' | 'approved' | 'rejected';
 
 export interface User {
   id: string;
@@ -14,6 +17,11 @@ export interface User {
   bankAccountNumber?: string;
   bankAccountHolder?: string;
   emailVerified?: boolean;
+  phoneVerified?: boolean;
+  phoneVerifiedAt?: string;
+  accountType?: AccountType;
+  driverOnboardingStatus?: DriverOnboardingStatus;
+  kycStatus?: KycStatus;
   role: UserRole;
   createdAt: string;
   updatedAt: string;
@@ -24,6 +32,7 @@ export interface ProfileSettings {
   pushEnabled: boolean;
   smsEnabled: boolean;
   locationSharingEnabled: boolean;
+  hasSeenAppTour: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -271,6 +280,23 @@ export interface RegisterData extends AuthCredentials {
   phone: string;
   confirmPassword: string;
   role?: UserRole;
+}
+
+export interface PhoneOtpData {
+  phone: string;
+}
+
+export interface VerifyPhoneOtpData extends PhoneOtpData {
+  token: string;
+}
+
+export interface DriverOnboardingData {
+  fullName: string;
+  email?: string;
+  avatarUrl?: string;
+  cccdNumber?: string;
+  licenseNumber?: string;
+  documentUrls?: string[];
 }
 
 export type CallType = 'agora' | 'phone';

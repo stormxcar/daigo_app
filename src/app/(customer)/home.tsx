@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import { Image, Linking, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Linking, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { CalendarClock, Car, LocateFixed, MapPin, Phone, ShieldCheck, Star } from 'lucide-react-native';
 import { useTheme } from '@/theme';
@@ -15,6 +15,8 @@ import { RecommendedVehicleCarousel } from '@/components/RecommendedVehicleCarou
 import { RecentTripsCarousel } from '@/components/RecentTripsCarousel';
 import { NewsUpdatesList } from '@/components/NewsUpdatesList';
 import { ActiveTripSheet } from '@/components/ActiveTripSheet';
+import { DestinationPlace, DestinationSearchInput } from '@/components/DestinationSearchInput';
+import { AppTourGuide } from '@/components/AppTourGuide';
 
 import { HelpSupportRow } from '@/components/HelpSupportRow';
 import { useVehicles } from '@/hooks/useVehicles';
@@ -34,7 +36,16 @@ function DriverVehicleCard({ vehicle }: { vehicle: Vehicle }) {
   };
 
   return (
-    <Card style={{ marginBottom: spacing.lg }}>
+    <View
+      style={{
+        backgroundColor: colors.surface,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: colors.border,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+      }}
+    >
       {!!vehicle.image && (
         <Image
           source={{ uri: vehicle.image }}
@@ -100,7 +111,7 @@ function DriverVehicleCard({ vehicle }: { vehicle: Vehicle }) {
           icon={<Phone size={18} color={colors.text} />}
         />
       </View>
-    </Card>
+    </View>
   );
 }
 
@@ -138,6 +149,9 @@ export default function HomeScreen() {
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<DeviceLocation | null>(null);
+  const [destinationQuery, setDestinationQuery] = useState('');
+  const [tourPromptVisible, setTourPromptVisible] = useState(false);
+  const [tourVisible, setTourVisible] = useState(false);
 
   useEffect(() => {
     fetchVehicles();
@@ -146,6 +160,20 @@ export default function HomeScreen() {
     }
     apiClient.getBlogPosts(1, 6).then(setBlogPosts).catch(() => setBlogPosts([]));
     getCurrentDeviceLocation().then(setCurrentLocation).catch(() => undefined);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setTourPromptVisible(false);
+      setTourVisible(false);
+      return;
+    }
+    apiClient
+      .getProfileSettings(user.id)
+      .then((settings) => {
+        if (!settings.hasSeenAppTour) setTourPromptVisible(true);
+      })
+      .catch(() => undefined);
   }, [user?.id]);
 
   const refreshHome = async () => {
@@ -160,6 +188,43 @@ export default function HomeScreen() {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const openBookingWithDestination = (destination: DestinationPlace) => {
+    setDestinationQuery(destination.name || destination.address);
+    router.push({
+      pathname: '/(customer)/booking' as any,
+      params: {
+        destinationPlaceId: destination.placeId,
+        destinationName: destination.name,
+        destinationAddress: destination.address,
+        destinationLat: destination.latitude !== undefined ? String(destination.latitude) : '',
+        destinationLng: destination.longitude !== undefined ? String(destination.longitude) : '',
+      },
+    });
+  };
+
+  const openBookingWithDestinationText = (text: string) => {
+    if (!text.trim()) return;
+    router.push({
+      pathname: '/(customer)/booking' as any,
+      params: {
+        destinationText: text.trim(),
+      },
+    });
+  };
+
+  const markTourSeen = async () => {
+    if (user?.id) {
+      await apiClient.updateProfileSettings(user.id, { hasSeenAppTour: true }).catch(() => undefined);
+    }
+    setTourPromptVisible(false);
+    setTourVisible(false);
+  };
+
+  const startTour = () => {
+    setTourPromptVisible(false);
+    setTourVisible(true);
   };
 
 const isLoggedIn = !!user?.id;
@@ -212,6 +277,23 @@ const activeTrip = isLoggedIn
         role="customer"
         onOpenDetail={(id) => router.push({ pathname: '/(customer)/booking-detail' as any, params: { id } })}
       />
+      <Modal visible={tourPromptVisible} transparent animationType="fade" onRequestClose={markTourSeen}>
+        <View style={{ flex: 1, justifyContent: 'center', padding: spacing.lg, backgroundColor: 'rgba(15,23,42,0.58)' }}>
+          <Card>
+            <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900', marginBottom: spacing.sm }}>
+              Bạn có muốn xem hướng dẫn nhanh cách sử dụng Daigo không?
+            </Text>
+            <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.lg }}>
+              Mình sẽ giới thiệu nhanh các khu vực chính như nhập điểm đến, đặt xe, tin tức, thông báo và hồ sơ.
+            </Text>
+            <View style={{ gap: spacing.md }}>
+              <Button label="Có, hướng dẫn tôi" onPress={startTour} />
+              <Button label="Bỏ qua" onPress={markTourSeen} variant="outline" />
+            </View>
+          </Card>
+        </View>
+      </Modal>
+      <AppTourGuide visible={tourVisible} onDone={markTourSeen} onSkip={markTourSeen} />
 
       {/* ─── GREETING + LOGO SECTION (Grab pattern) ─── */}
       <View style={{ marginBottom: spacing.xl, paddingHorizontal: spacing.md }}>
@@ -247,6 +329,15 @@ const activeTrip = isLoggedIn
           </Text>
         </View>
       </View>
+
+      <DestinationSearchInput
+        value={destinationQuery}
+        onChangeText={setDestinationQuery}
+        onSelectPlace={openBookingWithDestination}
+        onSubmitText={openBookingWithDestinationText}
+        currentLocation={currentLocation}
+        containerStyle={{ marginBottom: spacing.xl, paddingHorizontal: spacing.md }}
+      />
 
       <Card style={{ marginBottom: spacing.xl, backgroundColor: colors.primary}}>
         <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center', marginBottom: spacing.md }}>

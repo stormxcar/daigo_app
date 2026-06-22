@@ -178,6 +178,26 @@ export function LiquidTabBar({
                     </Text>
                   </View>
                 )}
+                {route.name !== 'chat' && options.tabBarBadge !== undefined && options.tabBarBadge !== null && (
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      minWidth: 19,
+                      height: 19,
+                      borderRadius: borderRadius.full,
+                      backgroundColor: colors.warning,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingHorizontal: 5,
+                    }}
+                  >
+                    <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>
+                      {String(options.tabBarBadge)}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text
                 numberOfLines={1}

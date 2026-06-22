@@ -183,7 +183,16 @@ export default function BlogScreen() {
         })
       }
     >
-      <Card style={{ marginBottom: spacing.lg }}>
+      <View
+        style={{
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+        }}
+      >
         <View
           style={{
             flexDirection: "row",
@@ -289,7 +298,7 @@ export default function BlogScreen() {
             <Text style={{ color: colors.textSecondary }}>Chia sẻ</Text>
           </TouchableOpacity>
         </View>
-      </Card>
+      </View>
     </TouchableOpacity>
   );
 

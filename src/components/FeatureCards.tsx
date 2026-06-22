@@ -274,10 +274,18 @@ export const BookingCard: FC<BookingCardProps> = ({
   const statusInfo = getBookingStatusInfo(status);
 
   return (
-    <Card
+    <TouchableOpacity
       onPress={onPress}
-      pressable={!!onPress}
-      style={{ marginVertical: spacing.md }}
+      activeOpacity={onPress ? 0.82 : 1}
+      disabled={!onPress}
+      style={{
+        backgroundColor: colors.surface,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: colors.border,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+      }}
     >
       <View
         style={{
@@ -376,7 +384,7 @@ export const BookingCard: FC<BookingCardProps> = ({
           </Text>
         </View>
       </View>
-    </Card>
+    </TouchableOpacity>
   );
 };
 

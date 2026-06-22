@@ -4,6 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Banknote, CheckCircle2, Clock, CreditCard, RotateCcw, ShieldAlert } from 'lucide-react-native';
 import { Button, Card } from '@/components/BaseComponents';
 import { PaymentStatusBadge } from '@/components/PaymentStatusBadge';
+import { AuthRequired } from '@/components/AuthRequired';
 import { Screen } from '@/components/ScreenComponents';
 import { VietQRCard } from '@/components/VietQRCard';
 import { usePayment } from '@/hooks/usePayment';
@@ -22,10 +23,31 @@ const formatRemainingTime = (milliseconds: number) => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
+function PaymentSection({ children, style }: { children: React.ReactNode; style?: any }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+
 export default function CustomerPaymentScreen() {
   const { colors } = useTheme();
   const { bookingId } = useLocalSearchParams<{ bookingId?: string }>();
-  const { user } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const { payment, setPayment, loading, error, createOrGetPayment } = usePayment(bookingId);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [booting, setBooting] = useState(true);
@@ -67,6 +89,26 @@ export default function CustomerPaymentScreen() {
       })
       .catch(() => undefined);
   }, [payment?.id, vietQrExpired]);
+
+  if (!isAuthenticated) {
+    return <AuthRequired description="Bạn cần đăng nhập để thanh toán chuyến đi." />;
+  }
+
+  if (!user?.phoneVerified) {
+    return (
+      <AuthRequired
+        title="Xác minh số điện thoại"
+        description="Bạn cần xác minh SĐT bằng OTP trước khi thanh toán."
+        actionLabel="Xác minh SĐT"
+        onActionPress={() =>
+          router.push({
+            pathname: '/(auth)/phone-otp' as any,
+            params: { redirectTo: bookingId ? `/(customer)/payment?bookingId=${bookingId}` : '/(customer)/payment' },
+          })
+        }
+      />
+    );
+  }
 
   const ensurePayment = async (method: PaymentMethod) => {
     if (!booking || !user) return;
@@ -118,7 +160,7 @@ export default function CustomerPaymentScreen() {
 
   return (
     <Screen scroll>
-      <Card style={{ marginBottom: spacing.lg }}>
+      <PaymentSection>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md }}>
           <View style={{ flex: 1 }}>
             <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>
@@ -130,10 +172,10 @@ export default function CustomerPaymentScreen() {
           </View>
           <PaymentStatusBadge status={payment?.paymentStatus ?? booking.paymentStatus} size="md" />
         </View>
-      </Card>
+      </PaymentSection>
 
       {!payment ? (
-        <Card style={{ marginBottom: spacing.lg }}>
+        <PaymentSection>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.sm }}>
             Chọn phương thức thanh toán
           </Text>
@@ -164,13 +206,13 @@ export default function CustomerPaymentScreen() {
               </View>
             </TouchableOpacity>
           </View>
-        </Card>
+        </PaymentSection>
       ) : (
         <>
           {(payment.paymentStatus === 'pending' || payment.paymentStatus === 'rejected') && (
             <>
               {payment.paymentStatus === 'rejected' && (
-                <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}>
+                <PaymentSection style={{ backgroundColor: colors.surfaceAlt }}>
                   <View style={{ flexDirection: 'row', gap: spacing.md }}>
                     <ShieldAlert size={22} color={colors.error} />
                     <View style={{ flex: 1 }}>
@@ -180,10 +222,10 @@ export default function CustomerPaymentScreen() {
                       </Text>
                     </View>
                   </View>
-                </Card>
+                </PaymentSection>
               )}
               {payment.paymentMethod === 'cash' ? (
-                <Card style={{ marginBottom: spacing.lg }}>
+                <PaymentSection>
                   <Banknote size={34} color={colors.success} />
                   <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginTop: spacing.md, marginBottom: spacing.sm }}>
                     Thanh toán tiền mặt
@@ -191,11 +233,11 @@ export default function CustomerPaymentScreen() {
                   <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
                     Bạn thanh toán trực tiếp cho tài xế. Tài xế sẽ xác nhận đã nhận tiền trong app.
                   </Text>
-                </Card>
+                </PaymentSection>
               ) : (
                 <>
                   <VietQRCard payment={payment} />
-                  <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}>
+                  <PaymentSection style={{ backgroundColor: colors.surfaceAlt }}>
                     <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
                       <Clock size={22} color={vietQrExpired ? colors.error : colors.primary} />
                       <View style={{ flex: 1 }}>
@@ -207,7 +249,7 @@ export default function CustomerPaymentScreen() {
                         </Text>
                       </View>
                     </View>
-                  </Card>
+                  </PaymentSection>
                   <Button
                     label={vietQrExpired ? 'Mã đã hết hạn' : 'Tôi đã chuyển khoản'}
                     onPress={markTransferred}
@@ -220,7 +262,7 @@ export default function CustomerPaymentScreen() {
           )}
 
           {payment.paymentStatus === 'submitted' && (
-            <Card style={{ marginBottom: spacing.lg }}>
+            <PaymentSection>
               <View
                 style={{
                   width: 54,
@@ -240,11 +282,11 @@ export default function CustomerPaymentScreen() {
               <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
                 Tài xế sẽ kiểm tra giao dịch và xác nhận đã nhận tiền. Trạng thái sẽ tự cập nhật realtime.
               </Text>
-            </Card>
+            </PaymentSection>
           )}
 
           {payment.paymentStatus === 'driver_verified' && (
-            <Card style={{ marginBottom: spacing.lg }}>
+            <PaymentSection>
               <CheckCircle2 size={42} color={colors.success} />
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginTop: spacing.md, marginBottom: spacing.sm }}>
                 Thanh toán thành công
@@ -252,11 +294,11 @@ export default function CustomerPaymentScreen() {
               <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
                 Tài xế đã xác nhận nhận tiền cho chuyến đi này.
               </Text>
-            </Card>
+            </PaymentSection>
           )}
 
           {payment.paymentStatus === 'expired' && (
-            <Card style={{ marginBottom: spacing.lg }}>
+            <PaymentSection>
               <RotateCcw size={32} color={colors.error} />
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginTop: spacing.md }}>
                 Phiên thanh toán đã hết hạn
@@ -270,7 +312,7 @@ export default function CustomerPaymentScreen() {
                 loading={loading}
                 icon={<RotateCcw size={18} color="white" />}
               />
-            </Card>
+            </PaymentSection>
           )}
         </>
       )}

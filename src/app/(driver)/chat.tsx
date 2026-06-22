@@ -1,10 +1,10 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
 import { Image as ImageIcon, MessageCircle } from "lucide-react-native";
 import { useTheme } from "@/theme";
 import { borderRadius, fontSize, spacing } from "@/theme/tokens";
-import { Button, Card } from "@/components/BaseComponents";
+import { Button } from "@/components/BaseComponents";
 import { EmptyState, Screen } from "@/components/ScreenComponents";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
 import { apiClient } from "@/services/api";
@@ -34,6 +34,7 @@ export default function DriverChat() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [activeSort, setActiveSort] = useState("newest");
+  const channelInstanceId = useRef(Math.random().toString(36).slice(2)).current;
 
   const refreshConversations = async () => {
     if (!user) return;
@@ -49,37 +50,41 @@ export default function DriverChat() {
 
   useEffect(() => {
     if (!user) return;
+    let active = true;
 
     refreshConversations();
 
+    const refreshFromRealtime = () => {
+      if (!active) return;
+      apiClient
+        .getConversations(user.id)
+        .then((items) => {
+          if (active) setConversations(items);
+        })
+        .catch((error) => {
+          if (active) setError(error.message);
+        });
+    };
+
     const channel = supabase
-      .channel(`driver-chat-list-${user.id}`)
+      .channel(`driver-chat-list-${user.id}-${channelInstanceId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
-        () => {
-          apiClient
-            .getConversations(user.id)
-            .then(setConversations)
-            .catch((error) => setError(error.message));
-        },
+        refreshFromRealtime,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "messages" },
-        () => {
-          apiClient
-            .getConversations(user.id)
-            .then(setConversations)
-            .catch((error) => setError(error.message));
-        },
+        refreshFromRealtime,
       )
       .subscribe();
 
     return () => {
+      active = false;
       supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, channelInstanceId]);
 
   const filteredConversations = useMemo(() => {
     let result = [...conversations];
@@ -137,7 +142,16 @@ export default function DriverChat() {
             })
           }
         >
-          <Card style={{ marginBottom: spacing.md }}>
+          <View
+            style={{
+              backgroundColor: colors.surface,
+              borderTopWidth: 1,
+              borderBottomWidth: 1,
+              borderColor: colors.border,
+              paddingHorizontal: spacing.lg,
+              paddingVertical: spacing.md,
+            }}
+          >
             <View
               style={{
                 flexDirection: "row",
@@ -230,7 +244,7 @@ export default function DriverChat() {
                 )}
               </View>
             </View>
-          </Card>
+          </View>
         </TouchableOpacity>
       ))}
 

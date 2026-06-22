@@ -53,16 +53,16 @@ export const Button: FC<ButtonProps> = ({
 
   const sizeStyles = {
     sm: {
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.md,
+      paddingVertical: 7,
+      paddingHorizontal: spacing.sm,
     },
     md: {
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.lg,
+      paddingVertical: 9,
+      paddingHorizontal: spacing.md,
     },
     lg: {
-      paddingVertical: spacing.lg,
-      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
     },
   };
 
@@ -90,7 +90,7 @@ export const Button: FC<ButtonProps> = ({
       ) : (
         <>
           {icon && icon}
-          <Text style={{ color: textColor, fontWeight: '600', fontSize: fontSize.base }}>
+          <Text style={{ color: textColor, fontWeight: '700', fontSize: size === 'lg' ? fontSize.base : fontSize.sm }}>
             {label}
           </Text>
         </>

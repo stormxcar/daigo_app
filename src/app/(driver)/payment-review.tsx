@@ -12,6 +12,24 @@ import { spacing } from '@/theme/tokens';
 import { Booking, Payment } from '@/types';
 import { showError, showSuccess } from '@/utils/toast';
 
+function PaymentReviewSection({ children }: { children: React.ReactNode }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        backgroundColor: colors.surface,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: colors.border,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
 export default function DriverPaymentReviewScreen() {
   const { colors } = useTheme();
   const { bookingId, paymentId } = useLocalSearchParams<{ bookingId?: string; paymentId?: string }>();
@@ -112,7 +130,7 @@ export default function DriverPaymentReviewScreen() {
 
   return (
     <Screen scroll>
-      <Card style={{ marginBottom: spacing.lg }}>
+      <PaymentReviewSection>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md }}>
           <View style={{ flex: 1 }}>
             <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>Xác nhận thanh toán</Text>
@@ -122,9 +140,9 @@ export default function DriverPaymentReviewScreen() {
           </View>
           <PaymentStatusBadge status={payment.paymentStatus} size="md" />
         </View>
-      </Card>
+      </PaymentReviewSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <PaymentReviewSection>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
           Thông tin thanh toán
         </Text>
@@ -145,9 +163,9 @@ export default function DriverPaymentReviewScreen() {
             <Text style={{ color: colors.text, fontWeight: '800', marginTop: spacing.xs }}>{value}</Text>
           </View>
         ))}
-      </Card>
+      </PaymentReviewSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <PaymentReviewSection>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
           Ghi chú khi từ chối
         </Text>
@@ -179,7 +197,7 @@ export default function DriverPaymentReviewScreen() {
             style={{ flex: 1 }}
           />
         </View>
-      </Card>
+      </PaymentReviewSection>
     </Screen>
   );
 }

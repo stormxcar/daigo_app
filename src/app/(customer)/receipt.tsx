@@ -21,6 +21,27 @@ const paymentMethodLabel = {
   vietqr: 'VietQR',
 };
 
+function ReceiptSection({ children, style }: { children: React.ReactNode; style?: any }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+
 const escapeHtml = (value?: string | number | null) =>
   String(value ?? 'Chưa có')
     .replace(/&/g, '&amp;')
@@ -227,7 +248,7 @@ export default function CustomerReceiptScreen() {
 
   return (
     <Screen scroll>
-      <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.primary }}>
+      <ReceiptSection style={{ backgroundColor: colors.primary, borderColor: colors.primary }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
           <View
             style={{
@@ -251,9 +272,9 @@ export default function CustomerReceiptScreen() {
         <Text style={{ color: '#ffffff', fontSize: 28, fontWeight: '900' }}>
           {formatCurrency(total)}
         </Text>
-      </Card>
+      </ReceiptSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <ReceiptSection>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
           <MapPin size={20} color={colors.primary} />
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Lộ trình</Text>
@@ -261,9 +282,9 @@ export default function CustomerReceiptScreen() {
         <InfoRow label="Điểm đón" value={booking.pickupLocation} />
         <InfoRow label="Điểm đến" value={booking.dropoffLocation} />
         <InfoRow label="Quãng đường" value={booking.distance ? `${booking.distance} km` : 'Chưa có'} />
-      </Card>
+      </ReceiptSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <ReceiptSection>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
           <CalendarClock size={20} color={colors.info} />
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Thời gian</Text>
@@ -271,9 +292,9 @@ export default function CustomerReceiptScreen() {
         <InfoRow label="Lịch đặt" value={`${booking.time} - ${formatVietnamDate(booking.date)}`} />
         <InfoRow label="Bắt đầu chuyến" value={booking.startedAt ? new Date(booking.startedAt).toLocaleString('vi-VN') : undefined} />
         <InfoRow label="Hoàn thành" value={booking.completedAt ? new Date(booking.completedAt).toLocaleString('vi-VN') : undefined} />
-      </Card>
+      </ReceiptSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <ReceiptSection>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
           <User size={20} color={colors.primary} />
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Người đi và tài xế</Text>
@@ -282,9 +303,9 @@ export default function CustomerReceiptScreen() {
         <InfoRow label="Số điện thoại customer" value={booking.customerPhone} />
         <InfoRow label="Driver" value={booking.driverName} />
         <InfoRow label="Số điện thoại driver" value={booking.driverPhone} />
-      </Card>
+      </ReceiptSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <ReceiptSection>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
           <Car size={20} color={colors.warning} />
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Xe</Text>
@@ -293,9 +314,9 @@ export default function CustomerReceiptScreen() {
         <InfoRow label="Biển số" value={booking.vehicle?.licensePlate} />
         <InfoRow label="Màu xe" value={booking.vehicle?.color} />
         <InfoRow label="Số ghế" value={booking.vehicle?.seats ? `${booking.vehicle.seats} chỗ` : undefined} />
-      </Card>
+      </ReceiptSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <ReceiptSection>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
           <Banknote size={20} color={colors.success} />
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Thanh toán</Text>
@@ -306,16 +327,16 @@ export default function CustomerReceiptScreen() {
         <InfoRow label="Phương thức" value={paymentMethod ? paymentMethodLabel[paymentMethod] : 'Chưa chọn'} />
         <InfoRow label="Giá/km" value={pricePerKm ? `${pricePerKm.toLocaleString('vi-VN')} VND/km` : undefined} />
         <InfoRow label="Tổng tiền" value={formatCurrency(total)} />
-      </Card>
+      </ReceiptSection>
 
       {!!booking.note && (
-        <Card style={{ marginBottom: spacing.lg }}>
+        <ReceiptSection>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
             <Navigation size={20} color={colors.textSecondary} />
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Ghi chú</Text>
           </View>
           <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>{booking.note}</Text>
-        </Card>
+        </ReceiptSection>
       )}
 
       <View style={{ gap: spacing.md, marginBottom: spacing.lg }}>

@@ -3,7 +3,6 @@ import { FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
-import { Card } from '@/components/BaseComponents';
 import { BlogPost } from '@/types';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Newspaper, Play } from 'lucide-react-native';
@@ -50,7 +49,16 @@ export const NewsUpdatesList: React.FC<{
 
           return (
             <TouchableOpacity activeOpacity={0.84} onPress={() => onPostPress?.(item)}>
-              <Card style={{ width: 228, padding: spacing.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border }}>
+              <View
+                style={{
+                  width: 228,
+                  padding: spacing.md,
+                  backgroundColor: colors.surface,
+                  borderTopWidth: 1,
+                  borderBottomWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
                 {hasRemoteMedia && firstMediaType === 'video' ? (
                   <View style={{ width: '100%', height: 100, borderRadius: borderRadius.sm, marginBottom: spacing.xs, overflow: 'hidden', backgroundColor: colors.surface }}>
                     <NewsVideoPreview uri={firstMediaUrl} />
@@ -97,7 +105,7 @@ export const NewsUpdatesList: React.FC<{
                 <Text style={{ fontSize: fontSize.xs, color: colors.textSecondary, marginTop: spacing.xs }}>
                   {item.driverName} - {new Date(item.createdAt).toLocaleDateString('vi-VN')}
                 </Text>
-              </Card>
+              </View>
             </TouchableOpacity>
           );
         }}

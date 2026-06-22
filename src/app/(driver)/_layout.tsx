@@ -18,6 +18,9 @@ import { useAuthStore } from '@/stores/authStore';
 export default function DriverLayout() {
   const { colors } = useTheme();
   const { isAuthenticated, isSessionRestored, user } = useAuthStore();
+  const missingVerificationCount = user
+    ? [!user.emailVerified, !user.phoneVerified].filter(Boolean).length
+    : 0;
   const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'payment-review', 'blog-detail'];
   const backHrefByRoute: Record<string, string> = {
     notifications: '/(driver)/dashboard',
@@ -133,6 +136,7 @@ export default function DriverLayout() {
         name="profile"
         options={{
           title: 'Hồ sơ',
+          tabBarBadge: missingVerificationCount > 0 ? '!' : undefined,
           tabBarIcon: ({ color, size }) => (
             <UserCircle color={color} size={size} />
           ),

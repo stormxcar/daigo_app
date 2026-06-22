@@ -2,7 +2,6 @@ import React from 'react';
 import { Image, Share, Text, TouchableOpacity, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Copy, Share2 } from 'lucide-react-native';
-import { Card } from '@/components/BaseComponents';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Payment } from '@/types';
@@ -36,7 +35,16 @@ export function VietQRCard({ payment }: Props) {
   ];
 
   return (
-    <Card style={{ marginBottom: spacing.lg }}>
+    <View
+      style={{
+        backgroundColor: colors.surface,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: colors.border,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+      }}
+    >
       <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
         Quét VietQR để chuyển khoản
       </Text>
@@ -111,6 +119,6 @@ export function VietQRCard({ payment }: Props) {
           <Text style={{ color: colors.primary, fontWeight: '800' }}>Chia sẻ QR</Text>
         </TouchableOpacity>
       )}
-    </Card>
+    </View>
   );
 }

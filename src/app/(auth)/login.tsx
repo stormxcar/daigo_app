@@ -360,6 +360,19 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
 
+      <View style={{ alignItems: 'center', marginTop: spacing.lg, gap: spacing.sm }}>
+      
+        <TouchableOpacity onPress={() => router.push('/(auth)/driver-register')} disabled={isLoading || googleLoading}>
+          <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: '800' }}>
+            Bạn muốn làm tài xế
+          </Text>
+        </TouchableOpacity>
+        <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
+          Đã có tài khoản tài xế? Dùng Email hoặc Google ở trên
+        </Text>
+      </View>
+
+      <View style={{ height: spacing['4xl'] }} />
     </Screen>
   );
 }

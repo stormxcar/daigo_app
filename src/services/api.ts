@@ -1,8 +1,9 @@
 import * as WebBrowser from 'expo-web-browser';
-import { AuthCredentials, AuthResponse, BlogComment, BlogPost, Booking, BookingDispatch, ChatConversation, Message, NotificationItem, ProfileSettings, RatingReview, RegisterData, SavedLocation, User, Vehicle } from '@/types';
+import { AuthCredentials, AuthResponse, BlogComment, BlogPost, Booking, BookingDispatch, ChatConversation, DriverOnboardingData, Message, NotificationItem, ProfileSettings, RatingReview, RegisterData, SavedLocation, User, Vehicle } from '@/types';
 import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { supabase } from './supabase';
 import { getAuthRedirectUri } from '@/utils/authRedirect';
+import { firebasePhoneAuth } from './firebasePhoneAuth';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -41,6 +42,11 @@ type ProfileRow = {
   bank_account_number?: string | null;
   bank_account_holder?: string | null;
   email_verified: boolean;
+  phone_verified?: boolean | null;
+  phone_verified_at?: string | null;
+  account_type?: User['accountType'] | null;
+  driver_onboarding_status?: User['driverOnboardingStatus'] | null;
+  kyc_status?: User['kycStatus'] | null;
   role: User['role'];
   created_at: string;
   updated_at: string;
@@ -62,6 +68,7 @@ type ProfileSettingsRow = {
   push_enabled: boolean;
   sms_enabled: boolean;
   location_sharing_enabled: boolean;
+  has_seen_app_tour: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -84,6 +91,11 @@ const mapProfile = (row: ProfileRow): User => ({
   bankAccountNumber: row.bank_account_number ?? undefined,
   bankAccountHolder: row.bank_account_holder ?? undefined,
   emailVerified: row.email_verified,
+  phoneVerified: !!row.phone_verified,
+  phoneVerifiedAt: row.phone_verified_at ?? undefined,
+  accountType: row.account_type ?? row.role,
+  driverOnboardingStatus: row.driver_onboarding_status ?? 'incomplete',
+  kycStatus: row.kyc_status ?? 'incomplete',
   role: row.role,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -211,9 +223,26 @@ const mapProfileSettings = (row: ProfileSettingsRow): ProfileSettings => ({
   pushEnabled: row.push_enabled,
   smsEnabled: row.sms_enabled,
   locationSharingEnabled: row.location_sharing_enabled,
+  hasSeenAppTour: row.has_seen_app_tour ?? false,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
+
+export const normalizeVietnamPhone = (value: string) => {
+  const cleaned = value.trim().replace(/[^\d+]/g, '');
+  if (!cleaned) return '';
+  if (cleaned.startsWith('+')) return cleaned;
+  if (cleaned.startsWith('84')) return `+${cleaned}`;
+  if (cleaned.startsWith('0')) return `+84${cleaned.slice(1)}`;
+  return `+84${cleaned}`;
+};
+
+export const isValidVietnamPhone = (value: string) => /^\+84\d{9,10}$/.test(normalizeVietnamPhone(value));
+export const TEST_PHONE_OTP = '123456';
+export const isTestPhoneOtpEnabled = () =>
+  process.env.EXPO_PUBLIC_ENABLE_TEST_PHONE_OTP === 'true' ||
+  (__DEV__ && process.env.EXPO_PUBLIC_ENV !== 'production');
+export const isFirebasePhoneAuthEnabled = () => process.env.EXPO_PUBLIC_PHONE_AUTH_PROVIDER === 'firebase';
 
 const API_CACHE_TTL_MS = 45_000;
 
@@ -288,10 +317,66 @@ class ApiClient {
 
   private async getAuthResponseFromCurrentSession(fallbackMessage: string): Promise<AuthResponse> {
     const { data: sessionData } = await supabase.auth.getSession();
-    const user = await this.getCurrentUser();
+    const user = await this.ensureCurrentUserProfile();
     if (!user || !sessionData.session) throw new Error(fallbackMessage);
 
     return { token: sessionData.session.access_token, user };
+  }
+
+  private async ensureCurrentUserProfile(overrides?: Partial<User>): Promise<User | null> {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const authUser = sessionData.session?.user;
+    if (!authUser) return null;
+
+    const { data: existing, error: existingError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .maybeSingle();
+    if (existingError) throw existingError;
+
+    const fullName =
+      overrides?.fullName ||
+      existing?.full_name ||
+      (authUser.user_metadata?.full_name as string | undefined) ||
+      (authUser.email ? authUser.email.split('@')[0] : '') ||
+      authUser.phone ||
+      'Người dùng Daigo';
+    const phone = normalizeVietnamPhone(overrides?.phone || existing?.phone || authUser.phone || '');
+    const email = overrides?.email || existing?.email || authUser.email || '';
+    const avatarUrl =
+      overrides?.avatarUrl ||
+      existing?.avatar_url ||
+      (authUser.user_metadata?.avatar_url as string | undefined) ||
+      undefined;
+
+    const payload = {
+      id: authUser.id,
+      full_name: fullName,
+      email,
+      phone,
+      avatar_url: avatarUrl,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (!existing) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert(payload)
+        .select('*')
+        .single();
+      if (error) throw error;
+      return mapProfile(data as ProfileRow);
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(payload)
+      .eq('id', authUser.id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return mapProfile(data as ProfileRow);
   }
 
   async getCurrentUser(): Promise<User | null> {
@@ -303,9 +388,10 @@ class ApiClient {
       .from('profiles')
       .select('*')
       .eq('id', authUser.id)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) return this.ensureCurrentUserProfile();
     return mapProfile(data as ProfileRow);
   }
 
@@ -313,7 +399,7 @@ class ApiClient {
     const { data, error } = await supabase.auth.signInWithPassword(credentials);
     if (error) throw error;
 
-    const user = await this.getCurrentUser();
+    const user = await this.ensureCurrentUserProfile();
     if (!user || !data.session) throw new Error('Không tìm thấy hồ sơ người dùng');
 
     return { token: data.session.access_token, user };
@@ -375,7 +461,7 @@ class ApiClient {
     });
     if (error) throw error;
 
-    const user = await this.getCurrentUser();
+    const user = await this.ensureCurrentUserProfile();
     if (!user || !data.session) throw new Error('Không tìm thấy hồ sơ người dùng');
 
     return { token: data.session.access_token, user };
@@ -396,7 +482,7 @@ class ApiClient {
     });
     if (error) throw error;
 
-    const user = await this.getCurrentUser();
+    const user = await this.ensureCurrentUserProfile();
     if (!user || !data.session) throw new Error('Không tìm thấy phiên đặt lại mật khẩu');
 
     return { token: data.session.access_token, user };
@@ -405,6 +491,104 @@ class ApiClient {
   async updatePassword(password: string) {
     const { error } = await supabase.auth.updateUser({ password });
     if (error) throw error;
+  }
+
+  async sendPhoneOtp(phone: string) {
+    const normalizedPhone = normalizeVietnamPhone(phone);
+    if (!isValidVietnamPhone(normalizedPhone)) {
+      throw new Error('Số điện thoại không hợp lệ. Vui lòng nhập số Việt Nam hợp lệ.');
+    }
+
+    if (isFirebasePhoneAuthEnabled()) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error('Vui lòng đăng nhập bằng Email hoặc Google trước khi xác minh SĐT.');
+      }
+      await firebasePhoneAuth.sendOtp(normalizedPhone);
+      return;
+    }
+
+    if (isTestPhoneOtpEnabled()) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error('OTP test chỉ dùng sau khi bạn đăng nhập bằng Email hoặc Google.');
+      }
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: normalizedPhone,
+    });
+    if (error) throw error;
+  }
+
+  async verifyPhoneOtp(phone: string, token: string, profileData?: Partial<User>): Promise<AuthResponse> {
+    const normalizedPhone = normalizeVietnamPhone(phone);
+    const cleanToken = token.trim();
+    if (!isValidVietnamPhone(normalizedPhone)) {
+      throw new Error('Số điện thoại không hợp lệ.');
+    }
+    if (!/^\d{6}$/.test(cleanToken)) {
+      throw new Error('Mã OTP phải gồm 6 chữ số.');
+    }
+
+    if (isFirebasePhoneAuthEnabled()) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error('Vui lòng đăng nhập bằng Email hoặc Google trước khi xác minh SĐT.');
+      }
+      const verifiedPhone = await firebasePhoneAuth.confirmOtp(cleanToken);
+      await firebasePhoneAuth.updatePhoneVerificationInSupabase(verifiedPhone);
+      await firebasePhoneAuth.clearFirebaseSession();
+      const user = await this.getCurrentUser();
+      if (!user) throw new Error('Không tìm thấy hồ sơ sau khi xác minh SĐT.');
+      return { token: sessionData.session.access_token, user };
+    }
+
+    if (isTestPhoneOtpEnabled()) {
+      if (cleanToken !== TEST_PHONE_OTP) {
+        throw new Error('Mã OTP test không hợp lệ.');
+      }
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error('OTP test chỉ dùng sau khi bạn đăng nhập bằng Email hoặc Google.');
+      }
+      const { data, error } = await supabase.rpc('verify_test_phone_otp', {
+        p_phone: normalizedPhone,
+        p_token: cleanToken,
+      });
+      if (error) throw error;
+      const user = mapProfile(data as ProfileRow);
+      return { token: sessionData.session.access_token, user };
+    }
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: normalizedPhone,
+      token: cleanToken,
+      type: 'sms',
+    });
+    if (error) throw error;
+
+    const user = await this.ensureCurrentUserProfile({
+      ...profileData,
+      phone: normalizedPhone,
+    });
+    if (!user || !data.session) throw new Error('Không tìm thấy phiên xác minh số điện thoại');
+
+    return { token: data.session.access_token, user };
+  }
+
+  async startDriverOnboarding(data: DriverOnboardingData): Promise<User> {
+    const { data: profile, error } = await supabase.rpc('start_driver_onboarding', {
+      p_full_name: data.fullName,
+      p_email: data.email ?? null,
+      p_avatar_url: data.avatarUrl ?? null,
+      p_cccd_number: data.cccdNumber ?? null,
+      p_license_number: data.licenseNumber ?? null,
+      p_document_urls: data.documentUrls ?? [],
+    });
+    if (error) throw error;
+    return mapProfile(profile as ProfileRow);
   }
 
   async register(data: RegisterData): Promise<AuthResponse> {
@@ -416,7 +600,7 @@ class ApiClient {
         data: {
           full_name: data.fullName,
           phone: data.phone,
-          role: data.role ?? 'customer',
+          role: 'customer',
         },
       },
     });
@@ -430,14 +614,22 @@ class ApiClient {
           fullName: data.fullName,
           email: data.email,
           phone: data.phone,
-          role: data.role ?? 'customer',
+          role: 'customer',
+          accountType: 'customer',
+          phoneVerified: false,
+          driverOnboardingStatus: 'incomplete',
+          kycStatus: 'incomplete',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
       };
     }
 
-    const user = await this.getCurrentUser();
+    const user = await this.ensureCurrentUserProfile({
+      fullName: data.fullName,
+      email: data.email,
+      phone: data.phone,
+    });
     if (!user) throw new Error('Không tìm thấy hồ sơ người dùng');
     return { token: signUpData.session.access_token, user };
   }
@@ -499,6 +691,7 @@ class ApiClient {
             push_enabled: data.pushEnabled,
             sms_enabled: data.smsEnabled,
             location_sharing_enabled: data.locationSharingEnabled,
+            has_seen_app_tour: data.hasSeenAppTour,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'user_id' }

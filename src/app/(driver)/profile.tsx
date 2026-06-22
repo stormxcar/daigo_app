@@ -3,7 +3,21 @@ import { Image, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { Banknote, Camera, CheckCircle2, LogOut, Mail, MapPin, MessageSquareText, Phone, Star, UserCircle, XCircle } from 'lucide-react-native';
+import {
+  Banknote,
+  Camera,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  LogOut,
+  Mail,
+  MapPin,
+  MessageSquareText,
+  Phone,
+  Star,
+  UserCircle,
+  XCircle,
+} from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Avatar, Badge, Button, Card, TextInput } from '@/components/BaseComponents';
@@ -18,6 +32,102 @@ import { formatVietnamDate } from '@/utils/helpers';
 
 type RatingFilter = 'all' | '5' | '4' | '3' | '2' | '1' | 'commented';
 type RatingSort = 'newest' | 'oldest';
+type DriverProfileSectionKey = 'account' | 'info' | 'payment' | 'stats' | 'rating';
+
+function ProfileSection({
+  title,
+  subtitle,
+  icon,
+  expanded,
+  onToggle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  const { colors } = useTheme();
+  const ChevronIcon = expanded ? ChevronUp : ChevronDown;
+
+  return (
+    <View
+      style={{
+        backgroundColor: colors.surface,
+        borderTopWidth: 1,
+        borderBottomWidth: 0,
+        borderColor: colors.border,
+      }}
+    >
+      <TouchableOpacity
+        activeOpacity={0.82}
+        onPress={onToggle}
+        style={{
+          minHeight: 58,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: spacing.md,
+        }}
+      >
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          {!!icon && (
+            <View
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: borderRadius.full,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: colors.surfaceAlt,
+              }}
+            >
+              {icon}
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>{title}</Text>
+            {!!subtitle && (
+              <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 3 }}>
+                {subtitle}
+              </Text>
+            )}
+          </View>
+        </View>
+        <ChevronIcon size={20} color={colors.textSecondary} />
+      </TouchableOpacity>
+      {expanded && <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}>{children}</View>}
+    </View>
+  );
+}
+
+function StatCell({ label, value, icon }: { label: string; value: string | number; icon?: React.ReactNode }) {
+  const { colors } = useTheme();
+
+  return (
+    <View
+      style={{
+        width: '50%',
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.sm,
+        borderColor: colors.border,
+        borderBottomWidth: 1,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs }}>
+        {icon}
+        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>{value}</Text>
+      </View>
+      <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, textAlign: 'center', marginTop: spacing.xs }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
 
 export default function DriverProfile() {
   const { colors } = useTheme();
@@ -43,6 +153,13 @@ export default function DriverProfile() {
   const [driverBookings, setDriverBookings] = useState<Booking[]>([]);
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
   const [ratingSort, setRatingSort] = useState<RatingSort>('newest');
+  const [expandedSections, setExpandedSections] = useState<Record<DriverProfileSectionKey, boolean>>({
+    account: true,
+    info: true,
+    payment: false,
+    stats: true,
+    rating: true,
+  });
   const ratingSheetRef = React.useRef<BottomSheetModal>(null);
   const ratingSnapPoints = React.useMemo(() => ['72%', '92%'], []);
   const bankQrPreviewUrl = React.useMemo(() => {
@@ -190,41 +307,103 @@ export default function DriverProfile() {
     router.replace('/(auth)/login');
   };
 
+  const toggleSection = (section: DriverProfileSectionKey) => {
+    setExpandedSections((current) => ({ ...current, [section]: !current[section] }));
+  };
+
   return (
     <Screen scroll>
-      <Card style={{ marginBottom: spacing.lg, alignItems: 'center' }}>
-        <TouchableOpacity activeOpacity={0.84} onPress={editing ? pickAvatar : undefined} disabled={!editing || saving}>
-          <View>
-            <Avatar source={avatarUrl ? { uri: avatarUrl } : undefined} initials={initials} size="lg" style={{ marginBottom: spacing.md }} />
-            {editing && (
-              <View
-                style={{
-                  position: 'absolute',
-                  right: -4,
-                  bottom: spacing.md,
-                  width: 28,
-                  height: 28,
-                  borderRadius: borderRadius.full,
-                  backgroundColor: colors.primary,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Camera size={15} color="white" />
-              </View>
-            )}
+      <ProfileSection
+        title="Tài khoản tài xế"
+        subtitle={user?.email || 'Hồ sơ cá nhân'}
+        icon={<UserCircle size={18} color={colors.primary} />}
+        expanded={expandedSections.account}
+        onToggle={() => toggleSection('account')}
+      >
+        <View style={{ alignItems: 'center' }}>
+          <TouchableOpacity activeOpacity={0.84} onPress={editing ? pickAvatar : undefined} disabled={!editing || saving}>
+            <View>
+              <Avatar source={avatarUrl ? { uri: avatarUrl } : undefined} initials={initials} size="lg" style={{ marginBottom: spacing.md }} />
+              {editing && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    right: -4,
+                    bottom: spacing.md,
+                    width: 28,
+                    height: 28,
+                    borderRadius: borderRadius.full,
+                    backgroundColor: colors.primary,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Camera size={15} color="white" />
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text }}>{user?.fullName}</Text>
+          <Text style={{ fontSize: fontSize.sm, color: colors.textSecondary, marginTop: spacing.xs }}>{user?.email}</Text>
+          <View style={{ marginTop: spacing.md }}>
+            <Badge label={user?.emailVerified ? 'Email đã xác thực' : 'Email chưa xác thực'} variant={user?.emailVerified ? 'success' : 'warning'} />
           </View>
-        </TouchableOpacity>
-
-        <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text }}>{user?.fullName}</Text>
-        <Text style={{ fontSize: fontSize.sm, color: colors.textSecondary, marginTop: spacing.xs }}>{user?.email}</Text>
-        <View style={{ marginTop: spacing.md }}>
-          <Badge label={user?.emailVerified ? 'Email đã xác thực' : 'Email chưa xác thực'} variant={user?.emailVerified ? 'success' : 'warning'} />
+          <View style={{ marginTop: spacing.sm }}>
+            <Badge label={user?.phoneVerified ? 'SĐT đã xác thực' : 'SĐT chưa xác thực'} variant={user?.phoneVerified ? 'success' : 'warning'} />
+          </View>
+          {(!user?.emailVerified || !user?.phoneVerified) && (
+            <View
+              style={{
+                alignSelf: 'stretch',
+                marginTop: spacing.md,
+                backgroundColor: colors.warning + '12',
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: colors.warning + '55',
+              }}
+            >
+              {!user?.emailVerified && (
+                <View style={{ padding: spacing.md, borderBottomWidth: !user?.phoneVerified ? 1 : 0, borderBottomColor: colors.warning + '35' }}>
+                  <Text style={{ color: colors.text, fontWeight: '900' }}>Email chưa được xác thực</Text>
+                  <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 }}>
+                    Xác thực email để bảo vệ tài khoản tài xế và nhận thông báo vận hành.
+                  </Text>
+                  <Button
+                    label="Xác thực email"
+                    onPress={() => router.push({ pathname: '/(auth)/verify-email' as any, params: { email: user?.email } })}
+                    variant="outline"
+                    size="sm"
+                    style={{ marginTop: spacing.sm }}
+                  />
+                </View>
+              )}
+              {!user?.phoneVerified && (
+                <View style={{ padding: spacing.md }}>
+                  <Text style={{ color: colors.text, fontWeight: '900' }}>Số điện thoại chưa được xác thực</Text>
+                  <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 }}>
+                    Xác thực SĐT để nhận chuyến, chat, gọi khách và xử lý thanh toán ổn định hơn.
+                  </Text>
+                  <Button
+                    label="Xác thực SĐT"
+                    onPress={() => router.push({ pathname: '/(auth)/phone-otp' as any, params: { redirectTo: '/(driver)/profile' } })}
+                    size="sm"
+                    style={{ marginTop: spacing.sm }}
+                  />
+                </View>
+              )}
+            </View>
+          )}
         </View>
-      </Card>
+      </ProfileSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Thông tin tài xế</Text>
+      <ProfileSection
+        title="Thông tin tài xế"
+        subtitle={editing ? 'Đang chỉnh sửa hồ sơ' : user?.phone || 'Số điện thoại, địa chỉ, ngân hàng'}
+        icon={<Phone size={18} color={colors.primary} />}
+        expanded={expandedSections.info}
+        onToggle={() => toggleSection('info')}
+      >
         {editing ? (
           <>
             <TextInput label="Họ và tên" value={fullName} onChangeText={setFullName} disabled={saving} style={{ marginBottom: spacing.md }} />
@@ -260,57 +439,77 @@ export default function DriverProfile() {
                 label: user?.emailVerified ? 'Tài khoản đã xác thực email' : 'Tài khoản chưa xác thực email',
               },
               {
+                icon: user?.phoneVerified ? <CheckCircle2 size={18} color={colors.success} /> : <XCircle size={18} color={colors.warning} />,
+                label: user?.phoneVerified ? 'Số điện thoại đã xác thực' : 'Số điện thoại chưa xác thực',
+              },
+              {
                 icon: <Banknote size={18} color={user?.bankAccountNumber ? colors.success : colors.warning} />,
                 label: user?.bankAccountNumber
                   ? `${user.bankName ?? 'Ngân hàng'} - ${user.bankAccountNumber} - ${user.bankAccountHolder ?? 'Chủ tài khoản'}`
                   : 'Chưa cấu hình tài khoản ngân hàng nhận VietQR',
               },
             ].map((item, index) => (
-              <View key={index} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
+              <View
+                key={index}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.md,
+                  paddingVertical: spacing.sm,
+                  borderBottomWidth: index === 5 ? 0 : 1,
+                  borderBottomColor: colors.border,
+                }}
+              >
                 {item.icon}
                 <Text style={{ color: colors.text, flex: 1 }}>{item.label}</Text>
               </View>
             ))}
-            <Button label="Chỉnh sửa hồ sơ" onPress={() => setEditing(true)} size="sm" icon={<UserCircle size={18} color="white" />} />
+            <Button label="Chỉnh sửa hồ sơ" onPress={() => setEditing(true)} size="sm" icon={<UserCircle size={18} color="white" />} style={{ marginTop: spacing.md }} />
           </>
         )}
-      </Card>
+      </ProfileSection>
 
       {!editing && !!bankQrPreviewUrl && (
-        <Card style={{ marginBottom: spacing.lg }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
-            <Banknote size={20} color={colors.success} />
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>QR nhận thanh toán</Text>
-          </View>
+        <ProfileSection
+          title="QR nhận thanh toán"
+          subtitle="Preview tài khoản nhận tiền của tài xế"
+          icon={<Banknote size={18} color={colors.success} />}
+          expanded={expandedSections.payment}
+          onToggle={() => toggleSection('payment')}
+        >
           <Image source={{ uri: bankQrPreviewUrl }} resizeMode="contain" style={{ width: '100%', height: 260, borderRadius: borderRadius.lg, backgroundColor: 'white' }} />
           <Text style={{ color: colors.textSecondary, marginTop: spacing.md, lineHeight: 21 }}>
             Đây là mã QR preview từ tài khoản ngân hàng của bạn. Khi khách thanh toán chuyến cụ thể, app sẽ tự thêm số tiền và nội dung chuyển khoản riêng.
           </Text>
-        </Card>
+        </ProfileSection>
       )}
 
-      <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg }}>
-        {[
-          { label: 'Xe', value: vehicleCount },
-          { label: 'Chuyến', value: bookingCount },
-          { label: 'Bài viết', value: postCount },
-          { label: 'Điểm', value: driverRating.toFixed(1), icon: <Star size={16} color={colors.warning} fill={colors.warning} /> },
-        ].map((item) => (
-          <Card key={item.label} style={{ flex: 1, alignItems: 'center', minHeight: 88 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-              {'icon' in item ? item.icon : null}
-              <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>{item.value}</Text>
-            </View>
-            <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: spacing.xs }}>{item.label}</Text>
-          </Card>
-        ))}
-      </View>
+      <ProfileSection
+        title="Tổng quan hoạt động"
+        subtitle={`${bookingCount} chuyến - ${vehicleCount} xe - ${postCount} bài viết`}
+        icon={<Star size={18} color={colors.warning} fill={colors.warning} />}
+        expanded={expandedSections.stats}
+        onToggle={() => toggleSection('stats')}
+      >
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -spacing.sm }}>
+          <StatCell label="Xe" value={vehicleCount} />
+          <StatCell label="Chuyến" value={bookingCount} />
+          <StatCell label="Bài viết" value={postCount} />
+          <StatCell label="Điểm" value={driverRating.toFixed(1)} icon={<Star size={16} color={colors.warning} fill={colors.warning} />} />
+        </View>
+      </ProfileSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <ProfileSection
+        title="Đánh giá tài xế"
+        subtitle={`${ratingCount} lượt đánh giá từ khách hàng`}
+        icon={<MessageSquareText size={18} color={colors.primary} />}
+        expanded={expandedSections.rating}
+        onToggle={() => toggleSection('rating')}
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md }}>
           <View>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Đánh giá tài xế</Text>
-            <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>{ratingCount} lượt đánh giá từ khách hàng</Text>
+            <Text style={{ color: colors.text, fontWeight: '900' }}>Điểm trung bình</Text>
+            <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>Tổng hợp từ các chuyến đã hoàn thành</Text>
           </View>
           <View style={{ alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
@@ -341,9 +540,11 @@ export default function DriverProfile() {
           icon={<MessageSquareText size={16} color={colors.primary} />}
           style={{ marginTop: spacing.lg }}
         />
-      </Card>
+      </ProfileSection>
 
-      <Button label="Đăng xuất" onPress={handleLogout} variant="danger" icon={<LogOut size={20} color="white" />} disabled={saving} />
+      <View style={{ backgroundColor: colors.surface, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border, padding: spacing.lg }}>
+        <Button label="Đăng xuất" onPress={handleLogout} variant="danger" icon={<LogOut size={20} color="white" />} disabled={saving} />
+      </View>
 
       <BottomSheetModal
         ref={ratingSheetRef}

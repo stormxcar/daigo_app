@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "536512596275",
+    "project_id": "daigoapp-4231a",
+    "storage_bucket": "daigoapp-4231a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:536512596275:android:df00543e5a73df4d521646",
+        "android_client_info": {
+          "package_name": "com.daigo.booking"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAeE5sv7l2mbM535bJcfY-foY6NTTKU8Ak"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

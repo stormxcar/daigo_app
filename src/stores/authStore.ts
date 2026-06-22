@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AuthCredentials, RegisterData, User } from '@/types';
+import { AuthCredentials, DriverOnboardingData, RegisterData, User } from '@/types';
 import { apiClient } from '@/services/api';
 import { toVietnameseAuthError } from '@/utils/authValidation';
 
@@ -14,6 +14,9 @@ interface AuthStore {
   login: (credentials: AuthCredentials) => Promise<{ user: User; token: string }>;
   register: (data: RegisterData) => Promise<{ user: User; token: string }>;
   loginWithGoogle: (redirectTo: string) => Promise<{ user: User; token: string }>;
+  sendPhoneOtp: (phone: string) => Promise<void>;
+  verifyPhoneOtp: (phone: string, token: string, profileData?: Partial<User>) => Promise<{ user: User; token: string }>;
+  startDriverOnboarding: (data: DriverOnboardingData) => Promise<User>;
   resendSignupOtp: (email: string) => Promise<void>;
   verifySignupOtp: (email: string, token: string) => Promise<{ user: User; token: string }>;
   resetPassword: (email: string, redirectTo?: string) => Promise<void>;
@@ -81,6 +84,50 @@ export const useAuthStore = create<AuthStore>((set) => ({
       return response;
     } catch (error: any) {
       set({ error: toVietnameseAuthError(error.message) || 'Đăng nhập Google không thành công', isLoading: false });
+      throw error;
+    }
+  },
+
+  sendPhoneOtp: async (phone) => {
+    set({ isLoading: true, error: null });
+    try {
+      await apiClient.sendPhoneOtp(phone);
+      set({ isLoading: false });
+    } catch (error: any) {
+      set({ error: toVietnameseAuthError(error.message) || 'Không thể gửi OTP điện thoại', isLoading: false });
+      throw error;
+    }
+  },
+
+  verifyPhoneOtp: async (phone, token, profileData) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await apiClient.verifyPhoneOtp(phone, token, profileData);
+      set({
+        user: response.user,
+        token: response.token,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      return response;
+    } catch (error: any) {
+      set({ error: toVietnameseAuthError(error.message) || 'OTP điện thoại không hợp lệ', isLoading: false });
+      throw error;
+    }
+  },
+
+  startDriverOnboarding: async (data) => {
+    set({ isLoading: true, error: null });
+    try {
+      const user = await apiClient.startDriverOnboarding(data);
+      set({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      return user;
+    } catch (error: any) {
+      set({ error: toVietnameseAuthError(error.message) || 'Không thể cập nhật hồ sơ tài xế', isLoading: false });
       throw error;
     }
   },

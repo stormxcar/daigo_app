@@ -28,10 +28,10 @@ export function AppHeader({
 }: AppHeaderProps) {
   const { colors, isDark, toggleTheme } = useTheme();
   const { user, isAuthenticated } = useAuthStore();
-  const { unreadCount, fetchNotifications } = useNotifications(user?.id);
   const insets = useSafeAreaInsets();
   const pulse = useRef(new Animated.Value(1)).current;
   const shouldShowNotifications = showNotifications && isAuthenticated && !!user?.id;
+  const { unreadCount, fetchNotifications } = useNotifications(shouldShowNotifications ? user?.id : undefined);
 
   useEffect(() => {
     if (!shouldShowNotifications) return;

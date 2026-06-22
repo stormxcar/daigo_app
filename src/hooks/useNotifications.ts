@@ -4,34 +4,43 @@ import { apiClient } from '@/services/api';
 import { supabase } from '@/services/supabase';
 
 export const useNotifications = (userId?: string) => {
-  const store = useNotificationStore();
+  const notifications = useNotificationStore((state) => state.notifications);
+  const unreadCount = useNotificationStore((state) => state.unreadCount);
+  const isLoading = useNotificationStore((state) => state.isLoading);
+  const error = useNotificationStore((state) => state.error);
+  const setNotifications = useNotificationStore((state) => state.setNotifications);
+  const markNotificationAsRead = useNotificationStore((state) => state.markAsRead);
+  const clearNotifications = useNotificationStore((state) => state.clearNotifications);
+  const setLoading = useNotificationStore((state) => state.setLoading);
+  const setError = useNotificationStore((state) => state.setError);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const instanceIdRef = useRef(Math.random().toString(36).slice(2));
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) {
-      store.clearNotifications();
-      store.setLoading(false);
+      clearNotifications();
+      setLoading(false);
       return;
     }
     try {
-      store.setLoading(true);
+      setLoading(true);
       const notifications = await apiClient.getNotifications(userId);
-      store.setNotifications(notifications);
-      store.setLoading(false);
+      setNotifications(notifications);
+      setLoading(false);
     } catch (err: any) {
-      store.setError(err.message);
-      store.setLoading(false);
+      setError(err.message);
+      setLoading(false);
     }
-  }, [userId]);
+  }, [clearNotifications, setError, setLoading, setNotifications, userId]);
 
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
       await apiClient.markNotificationAsRead(notificationId);
-      store.markAsRead(notificationId);
+      markNotificationAsRead(notificationId);
     } catch (err: any) {
-      store.setError(err.message);
+      setError(err.message);
     }
-  }, []);
+  }, [markNotificationAsRead, setError]);
 
   useEffect(() => {
     if (channelRef.current) {
@@ -40,31 +49,36 @@ export const useNotifications = (userId?: string) => {
     }
 
     if (!userId) {
-      store.clearNotifications();
-      store.setLoading(false);
+      clearNotifications();
+      setLoading(false);
       return;
     }
 
+    let active = true;
     const channel = supabase
-      .channel(`notifications-${userId}`)
+      .channel(`notifications-${userId}-${instanceIdRef.current}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         () => {
-          fetchNotifications();
+          if (active) fetchNotifications();
         }
       )
       .subscribe();
     channelRef.current = channel;
 
     return () => {
+      active = false;
       supabase.removeChannel(channel);
       if (channelRef.current === channel) channelRef.current = null;
     };
-  }, [userId, fetchNotifications]);
+  }, [clearNotifications, fetchNotifications, setLoading, userId]);
 
   return {
-    ...store,
+    notifications,
+    unreadCount,
+    isLoading,
+    error,
     fetchNotifications,
     markAsRead,
   };

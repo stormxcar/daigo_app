@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import {
@@ -9,6 +9,7 @@ import {
   LayoutGrid,
   LayoutList,
   MapPin,
+  MoreVertical,
   Users,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
@@ -58,14 +59,14 @@ function BookingListRow({
       style={[
         {
           backgroundColor: colors.surface,
-          marginHorizontal: spacing.lg,
-          marginBottom: spacing.sm,
-          borderRadius: borderRadius.lg,
-          padding: spacing.md,
+          borderTopWidth: 1,
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
           flexDirection: 'row',
           alignItems: 'center',
           gap: spacing.md,
-          ...shadows.sm,
         },
       ]}
     >
@@ -466,6 +467,23 @@ export default function DriverBookings() {
     }
   };
 
+  const openBookingActions = (booking: Booking) => {
+    const actions: { text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }[] = [
+      { text: 'Xem chi tiết', onPress: () => goToDetail(booking.id) },
+    ];
+
+    if (booking.status === BOOKING_STATUS.SEARCHING_DRIVER) {
+      actions.push({ text: 'Xác nhận chuyến', onPress: () => handleAccept(booking.id) });
+    }
+
+    if (!TERMINAL_BOOKING_STATUSES.includes(booking.status as any)) {
+      actions.push({ text: 'Hủy chuyến', style: 'destructive', onPress: () => handleCancel(booking.id) });
+    }
+
+    actions.push({ text: 'Đóng', style: 'cancel' });
+    Alert.alert('Tùy chọn chuyến đi', booking.bookingCode ?? undefined, actions);
+  };
+
   const handleCancel = async (bookingId: string) => {
     try {
       setLoadingId(bookingId);
@@ -533,9 +551,40 @@ export default function DriverBookings() {
         </View>
       ) : layoutMode === 'card' ? (
         /* ══ CARD VIEW ══ */
-        <View style={{ paddingHorizontal: spacing.lg }}>
+        <View>
           {visibleBookings.map((booking) => (
-            <Card key={booking.id} style={{ marginBottom: spacing.lg }}>
+            <View
+              key={booking.id}
+              style={{
+                backgroundColor: colors.surface,
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: colors.border,
+                paddingHorizontal: spacing.lg,
+                paddingVertical: spacing.md,
+                position: 'relative',
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => openBookingActions(booking)}
+                activeOpacity={0.78}
+                style={{
+                  position: 'absolute',
+                  right: spacing.sm,
+                  top: spacing.sm,
+                  zIndex: 3,
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: colors.surfaceAlt,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <MoreVertical size={18} color={colors.text} />
+              </TouchableOpacity>
               <BookingCard
                 {...booking}
                 onPress={() => goToDetail(booking.id)}
@@ -555,28 +604,7 @@ export default function DriverBookings() {
                   <Text style={{ color: colors.textSecondary, lineHeight: 20 }}>{booking.note}</Text>
                 </View>
               )}
-              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
-                {booking.status === BOOKING_STATUS.SEARCHING_DRIVER && (
-                  <Button
-                    label="Xác nhận"
-                    onPress={() => handleAccept(booking.id)}
-                    loading={loadingId === booking.id}
-                    size="sm"
-                    style={{ flex: 1 }}
-                  />
-                )}
-                {!TERMINAL_BOOKING_STATUSES.includes(booking.status as any) && (
-                  <Button
-                    label="Hủy"
-                    onPress={() => handleCancel(booking.id)}
-                    loading={loadingId === booking.id}
-                    variant="danger"
-                    size="sm"
-                    style={{ flex: 1 }}
-                  />
-                )}
-              </View>
-            </Card>
+            </View>
           ))}
         </View>
       ) : (

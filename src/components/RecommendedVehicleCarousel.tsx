@@ -2,7 +2,6 @@ import React from 'react';
 import { FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
-import { Card } from '@/components/BaseComponents';
 import { Vehicle } from '@/types';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Car } from 'lucide-react-native';
@@ -27,7 +26,16 @@ export const RecommendedVehicleCarousel: React.FC<{
         contentContainerStyle={{ gap: spacing.md }}
         renderItem={({ item }) => (
           <TouchableOpacity activeOpacity={0.84} onPress={() => onVehiclePress?.(item)}>
-            <Card style={{ width: 172, padding: spacing.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border }}>
+            <View
+              style={{
+                width: 172,
+                padding: spacing.md,
+                backgroundColor: colors.surface,
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
             {item.image?.startsWith('http') ? (
               <Image
                 source={{ uri: item.image }}
@@ -45,7 +53,7 @@ export const RecommendedVehicleCarousel: React.FC<{
             <Text numberOfLines={1} style={{ fontSize: fontSize.xs, color: colors.textSecondary, marginTop: spacing.xs }}>
               {item.licensePlate} - {item.seats} chỗ
             </Text>
-          </Card>
+          </View>
           </TouchableOpacity>
         )}
       />

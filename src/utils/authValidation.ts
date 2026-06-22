@@ -19,6 +19,12 @@ export const toVietnameseAuthError = (message?: string) => {
   if (lower.includes('otp') || lower.includes('token')) return 'Mã OTP không hợp lệ hoặc đã hết hạn.';
   if (lower.includes('network') || lower.includes('fetch')) return 'Kết nối mạng không ổn định. Vui lòng thử lại.';
   if (lower.includes('unsupported provider')) return 'Google chưa được bật trong Supabase Auth Providers.';
+  if (lower.includes('permission denied') && lower.includes('profiles')) {
+    return 'Tài khoản đăng nhập thành công nhưng app chưa đọc được bảng hồ sơ profiles. Đây là lỗi quyền database Supabase, không phải sai email/mật khẩu.';
+  }
+  if (lower.includes('permission denied')) {
+    return 'Tài khoản đăng nhập thành công nhưng database từ chối quyền truy cập. Vui lòng kiểm tra quyền bảng/RLS trong Supabase.';
+  }
   if (lower.includes('error sending recovery email') || lower.includes('error sending confirmation email')) {
     return 'Không thể gửi email xác thực/đặt lại mật khẩu. Vui lòng kiểm tra cấu hình SMTP trong Supabase Auth, đặc biệt SMTP user/password và email gửi đi.';
   }

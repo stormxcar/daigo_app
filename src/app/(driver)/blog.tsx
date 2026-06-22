@@ -361,7 +361,17 @@ export default function DriverBlog() {
           <DriverBlogSkeleton />
         </>
       ) : filteredPosts.map((post) => (
-        <Card key={post.id} style={{ marginBottom: spacing.lg }}>
+        <View
+          key={post.id}
+          style={{
+            backgroundColor: colors.surface,
+            borderTopWidth: 1,
+            borderBottomWidth: 1,
+            borderColor: colors.border,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.md,
+          }}
+        >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
             <Image source={{ uri: post.driverAvatar }} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceAlt }} />
             <View style={{ flex: 1 }}>
@@ -417,7 +427,7 @@ export default function DriverBlog() {
             </TouchableOpacity>
             <Text style={{ color: colors.textSecondary }}><Share2 size={14} color={colors.primary} /> Chia sẻ</Text>
           </View>
-        </Card>
+        </View>
       ))}
 
       {!loading && filteredPosts.length === 0 && (

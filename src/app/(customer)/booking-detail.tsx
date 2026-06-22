@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banknote, Car, CheckCircle2, Clock, FileText, MapPin, Navigation, Phone, Route, Star, User } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { Button, Card, TextInput } from '@/components/BaseComponents';
+import { Button, TextInput } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
@@ -29,6 +29,33 @@ const ETA_ACTIVE_STATUSES = [
   BOOKING_STATUS.DRIVER_ARRIVING,
   BOOKING_STATUS.DRIVER_ARRIVED,
 ] as const;
+
+function DetailSection({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: any;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
 
 const formatEta = (seconds: number) => {
   const minutes = Math.max(1, Math.round(seconds / 60));
@@ -312,24 +339,24 @@ export default function BookingDetailScreen() {
 
     return (
       <Screen scroll>
-        <Card style={{ marginBottom: spacing.lg }}>
+        <DetailSection>
           <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800', marginBottom: spacing.sm }}>
             {booking.bookingCode ?? 'Chuyến đi'}
           </Text>
           <Text style={{ color: colors.textSecondary }}>
             {getBookingStatusInfo(booking.status).label} - {booking.time} - {formatVietnamDate(booking.date)}
           </Text>
-        </Card>
+        </DetailSection>
 
-        <Card style={{ marginBottom: spacing.lg }}>
+        <DetailSection>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>
             Trạng thái chuyến đi
           </Text>
           <BookingTimeline status={booking.status} />
-        </Card>
+        </DetailSection>
 
         {booking.status === BOOKING_STATUS.SEARCHING_DRIVER && (
-          <Card style={{ marginBottom: spacing.lg, alignItems: 'center' }}>
+          <DetailSection style={{ alignItems: 'center' }}>
             <Animated.View
               style={{
                 width: 82,
@@ -358,14 +385,13 @@ export default function BookingDetailScreen() {
               size="sm"
               style={{ marginTop: spacing.md }}
             />
-          </Card>
+          </DetailSection>
         )}
 
         {/* Cảnh báo chờ quá lâu — hiện sau 5 phút */}
         {booking.status === BOOKING_STATUS.SEARCHING_DRIVER && waitingSeconds > 300 && (
-          <Card
+          <DetailSection
             style={{
-              marginBottom: spacing.lg,
               borderWidth: 1.5,
               borderColor: colors.warning,
               backgroundColor: colors.warning + '10',
@@ -400,11 +426,11 @@ export default function BookingDetailScreen() {
                 size="sm"
               />
             </View>
-          </Card>
+          </DetailSection>
         )}
 
         {!!booking.driverId && ETA_ACTIVE_STATUSES.includes(booking.status as any) && (
-          <Card style={{ marginBottom: spacing.lg }}>
+          <DetailSection>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
               Tài xế đang đến điểm đón
             </Text>
@@ -478,11 +504,11 @@ export default function BookingDetailScreen() {
                 </Text>
               )}
             </View>
-          </Card>
+          </DetailSection>
         )}
 
         {existingBookingHasMap && (
-          <Card style={{ marginBottom: spacing.lg }}>
+          <DetailSection>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
               Theo dõi tài xế realtime
             </Text>
@@ -498,10 +524,10 @@ export default function BookingDetailScreen() {
                 showControls={false}
               />
             </LazyMount>
-          </Card>
+          </DetailSection>
         )}
 
-        <Card style={{ marginBottom: spacing.lg }}>
+        <DetailSection>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>
             Thông tin chuyến đi
           </Text>
@@ -519,9 +545,9 @@ export default function BookingDetailScreen() {
               </View>
             </View>
           ))}
-        </Card>
+        </DetailSection>
 
-        <Card style={{ marginBottom: spacing.lg }}>
+        <DetailSection>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.md }}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>Thanh toán</Text>
@@ -542,21 +568,21 @@ export default function BookingDetailScreen() {
             disabled={!booking.driverId}
             variant={booking.paymentStatus === 'paid' ? 'outline' : 'primary'}
           />
-        </Card>
+        </DetailSection>
 
         {!!booking.cancelReason && (
-          <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}>
+          <DetailSection style={{ backgroundColor: colors.surfaceAlt }}>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
               Lý do hủy chuyến
             </Text>
             <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
               {booking.cancelReason}
             </Text>
-          </Card>
+          </DetailSection>
         )}
 
         {[BOOKING_STATUS.SEARCHING_DRIVER, BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED].includes(booking.status as any) && (
-          <Card style={{ marginBottom: spacing.lg }}>
+          <DetailSection>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
               Hủy chuyến
             </Text>
@@ -588,11 +614,11 @@ export default function BookingDetailScreen() {
               disabled={loading}
               variant="danger"
             />
-          </Card>
+          </DetailSection>
         )}
 
         {booking.status === BOOKING_STATUS.TRIP_COMPLETED && !!booking.driverId && (
-          <Card style={{ marginBottom: spacing.lg }}>
+          <DetailSection>
             <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center', marginBottom: spacing.md }}>
               <FileText size={24} color={colors.primary} />
               <View style={{ flex: 1 }}>
@@ -609,11 +635,11 @@ export default function BookingDetailScreen() {
               onPress={() => router.push({ pathname: '/(customer)/receipt' as any, params: { bookingId: booking.id } })}
               variant="outline"
             />
-          </Card>
+          </DetailSection>
         )}
 
         {booking.status === BOOKING_STATUS.TRIP_COMPLETED && !!booking.driverId && (
-          <Card style={{ marginBottom: spacing.lg }}>
+          <DetailSection>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
               Đánh giá tài xế
             </Text>
@@ -661,7 +687,7 @@ export default function BookingDetailScreen() {
                 <Button label="Gửi đánh giá" onPress={submitRating} loading={loading} disabled={loading} />
               </>
             )}
-          </Card>
+          </DetailSection>
         )}
       </Screen>
     );
@@ -669,7 +695,7 @@ export default function BookingDetailScreen() {
 
   return (
     <Screen scroll>
-      <Card style={{ marginBottom: spacing.lg }}>
+      <DetailSection>
         <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700', marginBottom: spacing.md }}>
           Tóm tắt chuyến đi
         </Text>
@@ -687,9 +713,9 @@ export default function BookingDetailScreen() {
             </View>
           </View>
         ))}
-      </Card>
+      </DetailSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <DetailSection>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: spacing.md }}>
           Bản đồ hành trình
         </Text>
@@ -708,9 +734,9 @@ export default function BookingDetailScreen() {
           </Text>
           <Text style={{ color: colors.textSecondary }}>{params.routeDuration ? `Dự kiến ${params.routeDuration}` : 'Dự kiến theo Goong'}</Text>
         </View>
-      </Card>
+      </DetailSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <DetailSection>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: spacing.md }}>
           Tài xế và xe
         </Text>
@@ -744,9 +770,9 @@ export default function BookingDetailScreen() {
           </View>
           <Phone size={18} color={colors.primary} />
         </View>
-      </Card>
+      </DetailSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <DetailSection>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: spacing.md }}>
           Thanh toán
         </Text>
@@ -766,15 +792,15 @@ export default function BookingDetailScreen() {
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs }}>
           Giá đã bao gồm phí nền tảng và phụ phí giờ cao điểm nếu có. Khoảng cách lấy theo lộ trình Goong thực tế.
         </Text>
-      </Card>
+      </DetailSection>
 
       {!!params.note && (
-        <Card style={{ marginBottom: spacing.lg }}>
+        <DetailSection>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: spacing.sm }}>
             Ghi chú cho tài xế
           </Text>
           <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>{params.note}</Text>
-        </Card>
+        </DetailSection>
       )}
 
       <View style={{ paddingBottom: Math.max(insets.bottom, spacing.lg) }}>

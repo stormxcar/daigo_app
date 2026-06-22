@@ -1,8 +1,9 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Calendar, Car, ChevronDown, ChevronUp, Clock, LocateFixed, MapPin, Search, SlidersHorizontal, Users } from 'lucide-react-native';
+import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { Briefcase, Calendar, Car, ChevronDown, ChevronUp, Clock, Heart, Home, LocateFixed, MapPin, Search, SlidersHorizontal, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, TextInput } from '@/components/BaseComponents';
@@ -21,6 +22,7 @@ import { calculateBookingPrice, formatCurrency, vietnamDateToIsoDate } from '@/u
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 type SortMode = 'price_asc' | 'price_desc' | 'seats_desc' | 'seats_asc' | 'brand_asc' | 'name_asc';
+type SavedLocationTarget = 'pickup' | 'dropoff';
 
 const quickTimes = ['07:00', '09:00', '12:00', '15:00', '18:00', '20:00'];
 const sortOptions: { label: string; value: SortMode }[] = [
@@ -51,6 +53,7 @@ export default function BookingScreen() {
   const { colors } = useTheme();
   const { isAuthenticated, user } = useAuthStore();
   const routeParams = useLocalSearchParams<Record<string, string | string[]>>();
+  const savedLocationsSheetRef = useRef<BottomSheetModal>(null);
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
   const [scheduleDate, setScheduleDate] = useState(getInitialSchedule);
@@ -80,10 +83,14 @@ export default function BookingScreen() {
   const [locationLoading, setLocationLoading] = useState<'pickup' | 'dropoff' | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
+  const [savedLocationsLoading, setSavedLocationsLoading] = useState(false);
+  const [savedLocationsError, setSavedLocationsError] = useState<string | null>(null);
+  const [savedLocationTarget, setSavedLocationTarget] = useState<SavedLocationTarget>('pickup');
   const [savingLocation, setSavingLocation] = useState<'pickup' | 'dropoff' | null>(null);
   const [route, setRoute] = useState<DrivingRoute | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [appliedMapSelectionKey, setAppliedMapSelectionKey] = useState('');
+  const [appliedDestinationKey, setAppliedDestinationKey] = useState('');
 
   const passengerCount = Math.max(Number(passengers) || 1, 1);
   const bookingDate = vietnamDateToIsoDate(dateInput);
@@ -102,6 +109,52 @@ export default function BookingScreen() {
   useEffect(() => {
     loadVehicles();
   }, []);
+
+  useEffect(() => {
+    const destinationAddress = stringParam(routeParams.destinationAddress);
+    const destinationName = stringParam(routeParams.destinationName);
+    const destinationText = stringParam(routeParams.destinationText);
+    const destinationPlaceId = stringParam(routeParams.destinationPlaceId);
+    const destinationLat = numberParam(routeParams.destinationLat);
+    const destinationLng = numberParam(routeParams.destinationLng);
+    const destinationLabel = destinationAddress || destinationName || destinationText;
+    const destinationKey = [
+      destinationPlaceId,
+      destinationLabel,
+      stringParam(routeParams.destinationLat),
+      stringParam(routeParams.destinationLng),
+    ].join('|');
+
+    if (!destinationLabel || destinationKey === appliedDestinationKey) return;
+
+    setDropoffLocation(destinationLabel);
+    setDropoffSuggestions([]);
+    if (destinationLat !== null && destinationLng !== null) {
+      setDropoffPoint({
+        id: destinationPlaceId || 'home-destination',
+        label: destinationLabel,
+        lat: destinationLat,
+        lng: destinationLng,
+        provider: 'goong',
+      });
+    } else {
+      setDropoffPoint(null);
+      showWarning('Cần chọn đúng địa điểm', 'Vui lòng chọn điểm đến từ danh sách gợi ý để app lấy tọa độ trước khi tìm xe.');
+    }
+
+    setRoute(null);
+    setSearched(false);
+    setSelectedVehicleId(null);
+    setAppliedDestinationKey(destinationKey);
+  }, [
+    routeParams.destinationPlaceId,
+    routeParams.destinationName,
+    routeParams.destinationAddress,
+    routeParams.destinationText,
+    routeParams.destinationLat,
+    routeParams.destinationLng,
+    appliedDestinationKey,
+  ]);
 
   useEffect(() => {
     const target = stringParam(routeParams.mapTarget);
@@ -166,7 +219,16 @@ export default function BookingScreen() {
 
   useEffect(() => {
     if (!user?.id) return;
-    apiClient.getSavedLocations(user.id).then(setSavedLocations).catch(() => setSavedLocations([]));
+    setSavedLocationsLoading(true);
+    setSavedLocationsError(null);
+    apiClient
+      .getSavedLocations(user.id)
+      .then(setSavedLocations)
+      .catch((error) => {
+        setSavedLocations([]);
+        setSavedLocationsError(error.message || 'Không thể tải địa điểm đã lưu.');
+      })
+      .finally(() => setSavedLocationsLoading(false));
   }, [user?.id]);
 
   useEffect(() => {
@@ -355,6 +417,26 @@ export default function BookingScreen() {
       setDropoffLocation(location.address);
       setDropoffSuggestions([]);
     }
+    setRoute(null);
+    setSearched(false);
+    setSelectedVehicleId(null);
+  };
+
+  const openSavedLocations = (target: SavedLocationTarget) => {
+    setSavedLocationTarget(target);
+    savedLocationsSheetRef.current?.present();
+  };
+
+  const selectSavedLocation = (location: SavedLocation) => {
+    applySavedLocation(location, savedLocationTarget);
+    savedLocationsSheetRef.current?.dismiss();
+  };
+
+  const savedLocationIcon = (type: SavedLocation['type']) => {
+    if (type === 'home') return <Home size={20} color={colors.primary} />;
+    if (type === 'work') return <Briefcase size={20} color={colors.primary} />;
+    if (type === 'favorite') return <Heart size={20} color={colors.primary} />;
+    return <MapPin size={20} color={colors.primary} />;
   };
 
   const openMapPicker = (target: 'pickup' | 'dropoff') => {
@@ -446,6 +528,17 @@ export default function BookingScreen() {
     return <AuthRequired description="Bạn cần đăng nhập để đặt xe và xem lịch sử chuyến đi." />;
   }
 
+  if (!user?.phoneVerified) {
+    return (
+      <AuthRequired
+        title="Xác minh số điện thoại"
+        description="Bạn cần xác minh SĐT bằng OTP trước khi đặt xe hoặc lưu địa điểm."
+        actionLabel="Xác minh SĐT"
+        onActionPress={() => router.push({ pathname: '/(auth)/phone-otp' as any, params: { redirectTo: '/(customer)/booking' } })}
+      />
+    );
+  }
+
   return (
     <Screen scroll refreshing={isLoadingVehicles} onRefresh={loadVehicles}>
       <Card style={{ marginBottom: spacing.lg }}>
@@ -464,21 +557,14 @@ export default function BookingScreen() {
           icon={<MapPin size={20} color={colors.primary} />}
           style={{ marginBottom: spacing.md }}
         />
-        {savedLocations.length > 0 && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
-            {savedLocations.slice(0, 4).map((location) => (
-              <TouchableOpacity
-                key={`pickup-${location.id}`}
-                onPress={() => applySavedLocation(location, 'pickup')}
-                style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: borderRadius.full, backgroundColor: colors.surfaceAlt }}
-              >
-                <Text style={{ color: colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
-                  Đón: {location.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        <Button
+          label="Địa điểm đã lưu"
+          onPress={() => openSavedLocations('pickup')}
+          variant="secondary"
+          size="sm"
+          icon={<Heart size={16} color={colors.primary} />}
+          style={{ marginBottom: spacing.md }}
+        />
         <Button
           label="Dùng vị trí hiện tại"
           onPress={handleUseCurrentLocation}
@@ -539,21 +625,14 @@ export default function BookingScreen() {
           icon={<MapPin size={16} color={colors.error} />}
           style={{ marginBottom: spacing.md }}
         />
-        {savedLocations.length > 0 && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
-            {savedLocations.slice(0, 4).map((location) => (
-              <TouchableOpacity
-                key={`dropoff-${location.id}`}
-                onPress={() => applySavedLocation(location, 'dropoff')}
-                style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: borderRadius.full, backgroundColor: colors.surfaceAlt }}
-              >
-                <Text style={{ color: colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
-                  Đến: {location.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        <Button
+          label="Địa điểm đã lưu"
+          onPress={() => openSavedLocations('dropoff')}
+          variant="secondary"
+          size="sm"
+          icon={<Heart size={16} color={colors.error} />}
+          style={{ marginBottom: spacing.md }}
+        />
         {dropoffPoint && (
           <Button
             label="Lưu điểm đến này"
@@ -890,10 +969,10 @@ export default function BookingScreen() {
 
       {searched && (
         <View style={{ marginBottom: spacing.xl }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: spacing.sm }}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: spacing.sm, paddingHorizontal: spacing.lg }}>
             Xe phù hợp
           </Text>
-          <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: spacing.md }}>
+          <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: spacing.md , paddingHorizontal: spacing.lg}}>
             {vehicles.length} xe khớp ngày {dateInput}, giờ {time}, {passengerCount} hành khách
             {routeDistance ? `, lộ trình Goong khoảng ${routeDistance} km` : ''}
             {route?.duration ? `, ${route.duration}` : ''}
@@ -935,12 +1014,13 @@ export default function BookingScreen() {
                 }}
                 activeOpacity={0.82}
                 style={{
-                  padding: spacing.lg,
-                  borderRadius: borderRadius.lg,
+                  paddingHorizontal: spacing.lg,
+                  paddingVertical: spacing.md,
                   backgroundColor: colors.surface,
-                  borderWidth: selected ? 2 : 1,
+                  borderTopWidth: 1,
+                  borderBottomWidth: 1,
+                  borderLeftWidth: selected ? 4 : 0,
                   borderColor: selected ? colors.primary : colors.border,
-                  marginBottom: spacing.md,
                 }}
               >
                 <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' }}>
@@ -1023,6 +1103,83 @@ export default function BookingScreen() {
           />
         </View>
       )}
+      <BottomSheetModal
+        ref={savedLocationsSheetRef}
+        snapPoints={['48%', '76%']}
+        backgroundStyle={{ backgroundColor: colors.surface }}
+        handleIndicatorStyle={{ backgroundColor: colors.border }}
+      >
+        <BottomSheetScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}>
+          <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900', marginBottom: spacing.xs }}>
+            Địa điểm đã lưu
+          </Text>
+          <Text style={{ color: colors.textSecondary, lineHeight: 21, marginBottom: spacing.lg }}>
+            Chọn một địa điểm để điền vào {savedLocationTarget === 'pickup' ? 'điểm đón' : 'điểm đến'}.
+          </Text>
+
+          {!user?.id ? (
+            <View style={{ padding: spacing.lg, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
+              <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.xs }}>Bạn cần đăng nhập</Text>
+              <Text style={{ color: colors.textSecondary }}>Đăng nhập để xem địa điểm đã lưu của bạn.</Text>
+            </View>
+          ) : savedLocationsLoading ? (
+            <View style={{ padding: spacing.lg, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={{ color: colors.textSecondary }}>Đang tải địa điểm đã lưu...</Text>
+            </View>
+          ) : savedLocationsError ? (
+            <View style={{ padding: spacing.lg, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
+              <Text style={{ color: colors.error, fontWeight: '900', marginBottom: spacing.xs }}>Không thể tải địa điểm</Text>
+              <Text style={{ color: colors.textSecondary }}>{savedLocationsError}</Text>
+            </View>
+          ) : savedLocations.length === 0 ? (
+            <View style={{ padding: spacing.lg, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
+              <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.xs }}>Chưa có địa điểm đã lưu</Text>
+              <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>
+                Sau khi chọn điểm đón hoặc điểm đến, bạn có thể lưu lại để dùng nhanh ở lần sau.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: spacing.md }}>
+              {savedLocations.map((location) => (
+                <TouchableOpacity
+                  key={location.id}
+                  activeOpacity={0.82}
+                  onPress={() => selectSavedLocation(location)}
+                  style={{
+                    flexDirection: 'row',
+                    gap: spacing.md,
+                    padding: spacing.md,
+                    borderRadius: borderRadius.lg,
+                    backgroundColor: colors.surfaceAlt,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 21,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: colors.surface,
+                    }}
+                  >
+                    {savedLocationIcon(location.type)}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontWeight: '900' }}>{location.label}</Text>
+                    <Text numberOfLines={2} style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs }}>
+                      {location.address}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </BottomSheetScrollView>
+      </BottomSheetModal>
     </Screen>
   );
 }

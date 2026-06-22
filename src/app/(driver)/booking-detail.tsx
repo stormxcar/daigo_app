@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Banknote, Car, Clock, Mail, MapPin, Navigation, Phone, Route, User, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { Badge, Button, Card } from '@/components/BaseComponents';
+import { Badge, Button } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { RealtimeTripMap } from '@/components/RealtimeTripMap';
 import { BookingTimeline } from '@/components/BookingTimeline';
@@ -25,6 +25,27 @@ import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { openExternalDirections } from '@/services/externalMapsUrlService';
 import { getCurrentLatLng } from '@/services/locationService';
 import { showError, showInfo, showSuccess, showWarning } from '@/utils/toast';
+
+function DetailSection({ children, style }: { children: React.ReactNode; style?: any }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
 
 export default function DriverBookingDetail() {
   const { colors } = useTheme();
@@ -290,7 +311,7 @@ export default function DriverBookingDetail() {
 
   return (
     <Screen scroll>
-      <Card style={{ marginBottom: spacing.lg }}>
+      <DetailSection>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.md }}>
           <View style={{ flex: 1 }}>
             <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800' }}>
@@ -317,15 +338,15 @@ export default function DriverBookingDetail() {
             </View>
           </View>
         ))}
-      </Card>
+      </DetailSection>
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <DetailSection>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Tiến trình chuyến đi</Text>
         <BookingTimeline status={booking.status} />
-      </Card>
+      </DetailSection>
 
       {hasMap && (
-        <Card style={{ marginBottom: spacing.lg }}>
+        <DetailSection>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>Bản đồ realtime</Text>
           <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
             {tripPhase === 'pickup'
@@ -362,10 +383,10 @@ export default function DriverBookingDetail() {
               )}
             </View>
           )}
-        </Card>
+        </DetailSection>
       )}
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <DetailSection>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Thông tin khách hàng</Text>
         {[
           { icon: <User size={18} color={colors.primary} />, label: booking.customerName || 'Chưa có tên' },
@@ -383,16 +404,16 @@ export default function DriverBookingDetail() {
             <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>{booking.note}</Text>
           </View>
         )}
-      </Card>
+      </DetailSection>
 
       {!!booking.cancelReason && (
-        <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}>
+        <DetailSection style={{ backgroundColor: colors.surfaceAlt }}>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>Lý do hủy chuyến</Text>
           <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>{booking.cancelReason}</Text>
-        </Card>
+        </DetailSection>
       )}
 
-      <Card style={{ marginBottom: spacing.lg }}>
+      <DetailSection>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Xe và thanh toán</Text>
         <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}>
           <Car size={22} color={colors.primary} />
@@ -426,10 +447,10 @@ export default function DriverBookingDetail() {
             size="sm"
           />
         </View>
-      </Card>
+      </DetailSection>
 
       {[BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED].includes(booking.status as any) && (
-        <Card style={{ marginBottom: spacing.lg }}>
+        <DetailSection>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
             Lý do hủy nếu không thể nhận chuyến
           </Text>
@@ -451,7 +472,7 @@ export default function DriverBookingDetail() {
               </TouchableOpacity>
             ))}
           </View>
-        </Card>
+        </DetailSection>
       )}
 
       <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg }}>
