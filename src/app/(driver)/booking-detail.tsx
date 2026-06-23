@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Banknote, Car, Clock, Mail, MapPin, Navigation, Phone, Route, User, Users } from 'lucide-react-native';
@@ -61,7 +61,7 @@ export default function DriverBookingDetail() {
   const [cancelReason, setCancelReason] = useState('');
   const watchRef = useRef<{ remove: () => void } | null>(null);
 
-  const loadBooking = async () => {
+  const loadBooking = useCallback(async () => {
     if (!id) return;
     try {
       const data = await apiClient.getBookingById(id);
@@ -74,11 +74,11 @@ export default function DriverBookingDetail() {
     } catch (error: any) {
       showError('Không thể tải chuyến đi', error.message);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     loadBooking();
-  }, [id]);
+  }, [loadBooking]);
 
   useEffect(() => {
     if (!id) return undefined;

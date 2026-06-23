@@ -1,18 +1,19 @@
 import React, { FC } from "react";
 import { View, Text, TouchableOpacity, Image, ViewStyle } from "react-native";
 import { useTheme } from "@/theme";
-import { spacing, fontSize, borderRadius, shadows } from "@/theme/tokens";
+import { spacing, borderRadius } from "@/theme/tokens";
 import { Card } from "./BaseComponents";
 import {
   Star,
   MapPin,
   Clock,
   Users,
-  DollarSign,
   Phone,
   MessageCircle,
 } from "lucide-react-native";
 import { getBookingStatusInfo } from "@/utils/helpers";
+import { PaymentStatusBadge, getPaymentMethodLabel } from "@/components/PaymentStatusBadge";
+import { BookingPaymentStatus, PaymentMethod } from "@/types";
 
 interface VehicleCardProps {
   id: string;
@@ -28,7 +29,7 @@ interface VehicleCardProps {
 }
 
 export const VehicleCard: FC<VehicleCardProps> = ({
-  id,
+  id: _id,
   name,
   licensePlate,
   color,
@@ -254,19 +255,23 @@ interface BookingCardProps {
   time: string;
   passengers: number;
   estimatedPrice: number;
+  paymentStatus?: BookingPaymentStatus;
+  paymentMethod?: PaymentMethod;
   status: string;
   onPress?: () => void;
 }
 
 export const BookingCard: FC<BookingCardProps> = ({
-  id,
+  id: _id,
   bookingCode,
   pickupLocation,
   dropoffLocation,
-  date,
+  date: _date,
   time,
   passengers,
   estimatedPrice,
+  paymentStatus,
+  paymentMethod,
   status,
   onPress,
 }) => {
@@ -297,17 +302,20 @@ export const BookingCard: FC<BookingCardProps> = ({
         <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
           {bookingCode ?? "Chuyến đi"}
         </Text>
-        <View
-          style={{
-            paddingVertical: spacing.xs,
-            paddingHorizontal: spacing.sm,
-            borderRadius: borderRadius.full,
-            backgroundColor: statusInfo.color,
-          }}
-        >
-          <Text style={{ fontSize: 11, fontWeight: "600", color: "white" }}>
-            {statusInfo.label}
-          </Text>
+        <View style={{ alignItems: "flex-end", gap: spacing.xs }}>
+          <View
+            style={{
+              paddingVertical: spacing.xs,
+              paddingHorizontal: spacing.sm,
+              borderRadius: borderRadius.full,
+              backgroundColor: statusInfo.color,
+            }}
+          >
+            <Text style={{ fontSize: 11, fontWeight: "600", color: "white" }}>
+              {statusInfo.label}
+            </Text>
+          </View>
+          <PaymentStatusBadge status={paymentStatus} />
         </View>
       </View>
 
@@ -384,6 +392,9 @@ export const BookingCard: FC<BookingCardProps> = ({
           </Text>
         </View>
       </View>
+      <Text style={{ color: colors.textTertiary, fontSize: 11, marginTop: spacing.sm, fontWeight: "700" }}>
+        Thanh toán: {getPaymentMethodLabel(paymentMethod)}
+      </Text>
     </TouchableOpacity>
   );
 };
@@ -398,7 +409,7 @@ interface NotificationCardProps {
 }
 
 export const NotificationCard: FC<NotificationCardProps> = ({
-  id,
+  id: _id,
   title,
   content,
   time,

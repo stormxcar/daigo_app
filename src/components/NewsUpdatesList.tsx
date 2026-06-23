@@ -1,14 +1,28 @@
 import React from 'react';
 import { FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import Constants from 'expo-constants';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { BlogPost } from '@/types';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Newspaper, Play } from 'lucide-react-native';
+import { buildCloudinaryVideoPosterUrl } from '@/services/videoOptimizationService';
 
 function NewsVideoPreview({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (videoPlayer) => {
+  const posterUri = buildCloudinaryVideoPosterUrl(uri, { width: 480 });
+  if (Constants.appOwnership === 'expo') {
+    return posterUri ? (
+      <Image source={{ uri: posterUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+    ) : null;
+  }
+
+  return <NativeNewsVideoPreview uri={uri} />;
+}
+
+function NativeNewsVideoPreview({ uri }: { uri: string }) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  const { VideoView, useVideoPlayer } = require('expo-video');
+  const player = useVideoPlayer(uri, (videoPlayer: any) => {
     videoPlayer.loop = true;
     videoPlayer.muted = true;
   });

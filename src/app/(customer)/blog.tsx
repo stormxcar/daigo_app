@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
 import { Heart, MessageCircle, Share2 } from "lucide-react-native";

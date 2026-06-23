@@ -1,7 +1,7 @@
 import React, { FC, ReactNode } from 'react';
-import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle, TextInput as RNTextInput, Image as RNImage, DimensionValue } from 'react-native';
+import { ActivityIndicator, View, Text, TouchableOpacity, ViewStyle, TextInput as RNTextInput, Image as RNImage, DimensionValue } from 'react-native';
 import { useTheme } from '@/theme';
-import { spacing, borderRadius, shadows, fontSize, lineHeight } from '@/theme/tokens';
+import { spacing, borderRadius, shadows, fontSize } from '@/theme/tokens';
 
 interface ButtonProps {
   label: string;

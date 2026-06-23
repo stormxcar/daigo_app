@@ -22,7 +22,7 @@ interface BlogStore {
   setError: (error: string | null) => void;
 }
 
-export const useBlogStore = create<BlogStore>((set, get) => ({
+export const useBlogStore = create<BlogStore>((set) => ({
   posts: [],
   selectedPost: null,
   comments: [],
@@ -69,7 +69,7 @@ export const useBlogStore = create<BlogStore>((set, get) => ({
 
   selectPost: (post) => set({ selectedPost: post }),
 
-  toggleLike: (postId, userId) => {
+  toggleLike: (postId, _userId) => {
     set((state) => ({
       posts: state.posts.map((p) =>
         p.id === postId

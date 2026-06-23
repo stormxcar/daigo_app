@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Linking, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { CalendarClock, Car, LocateFixed, MapPin, Phone, ShieldCheck, Star } from 'lucide-react-native';
@@ -153,14 +153,18 @@ export default function HomeScreen() {
   const [tourPromptVisible, setTourPromptVisible] = useState(false);
   const [tourVisible, setTourVisible] = useState(false);
 
-  useEffect(() => {
+  const loadHomeData = useCallback(() => {
     fetchVehicles();
     if (user?.id) {
       fetchBookings({ customerId: user.id });
     }
     apiClient.getBlogPosts(1, 6).then(setBlogPosts).catch(() => setBlogPosts([]));
     getCurrentDeviceLocation().then(setCurrentLocation).catch(() => undefined);
-  }, [user?.id]);
+  }, [fetchBookings, fetchVehicles, user?.id]);
+
+  useEffect(() => {
+    loadHomeData();
+  }, [loadHomeData]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -314,9 +318,9 @@ const activeTrip = isLoggedIn
           </View>
           {/* Daigo logo badge — right aligned */}
           <Image
-            source={{ uri: DAIGO_LOGO_URL }}
+            source={{ uri: "https://res.cloudinary.com/dzwjgfd7t/image/upload/v1782178208/booking_daigo/logo_text_no_bg-removebg-preview_dsu4n1.png" }}
             style={{
-              width: 90,
+              width: 120,
               height: 40,
               resizeMode: 'contain',
             }}

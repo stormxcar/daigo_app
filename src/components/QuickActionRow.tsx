@@ -1,8 +1,8 @@
 import React from 'react';
 import { FlatList, TouchableOpacity, Text, View } from 'react-native';
-import { Card, Button } from '@/components/BaseComponents';
+import { Card } from '@/components/BaseComponents';
 import { useTheme } from '@/theme';
-import { spacing, borderRadius, fontSize } from '@/theme/tokens';
+import { spacing, fontSize } from '@/theme/tokens';
 import { Car, CalendarClock, Star, ShieldCheck } from 'lucide-react-native';
 import { router } from 'expo-router';
 

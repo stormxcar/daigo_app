@@ -20,6 +20,7 @@ interface ChatStore {
   ) => void;
   markConversationAsRead: (conversationId: string) => void;
   setTypingUser: (userId: string | null) => void;
+  clearChatState: () => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   getConversationById: (id: string) => ChatConversation | undefined;
@@ -123,6 +124,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   setTypingUser: (userId) => set({ typingUserId: userId }),
+
+  clearChatState: () => set({
+    conversations: [],
+    selectedConversation: null,
+    isLoading: false,
+    error: null,
+    typingUserId: null,
+  }),
 
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),

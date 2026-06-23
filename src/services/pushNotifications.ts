@@ -4,6 +4,7 @@ import { apiClient } from '@/services/api';
 import { showInfo, showWarning } from '@/utils/toast';
 
 let notificationHandlerReady = false;
+let registeredPushUserId: string | null = null;
 
 async function getNotificationsModule() {
   const Notifications = await import('expo-notifications');
@@ -24,6 +25,10 @@ async function getNotificationsModule() {
 }
 
 export async function registerPushNotifications(userId: string) {
+  if (registeredPushUserId === userId) {
+    return null;
+  }
+
   if (Constants.appOwnership === 'expo') {
     return null;
   }
@@ -67,5 +72,6 @@ export async function registerPushNotifications(userId: string) {
 
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   await apiClient.upsertPushToken(userId, token, Platform.OS);
+  registeredPushUserId = userId;
   return token;
 }

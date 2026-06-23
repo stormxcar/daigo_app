@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { AuthCredentials, DriverOnboardingData, RegisterData, User } from '@/types';
 import { apiClient } from '@/services/api';
+import { useChatStore } from '@/stores/chatStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { toVietnameseAuthError } from '@/utils/authValidation';
 
 interface AuthStore {
@@ -188,6 +190,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
       await apiClient.disablePushTokens(currentUser.id).catch(() => undefined);
     }
     await apiClient.logout();
+    useChatStore.getState().clearChatState();
+    useNotificationStore.getState().clearNotifications();
     set({ user: null, token: null, isAuthenticated: false, error: null });
   },
 

@@ -1,12 +1,16 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Image, Text, View, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { useAuthStore } from '@/stores/authStore';
-import { DAIGO_LOGO_URL, APP_TAGLINE_SHORT } from '@/constants/branding';
+import React, { useEffect, useRef } from "react";
+import { Animated, Image, Text, View, StyleSheet } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import { useAuthStore } from "@/stores/authStore";
+import { DAIGO_LOGO_URL, APP_TAGLINE_SHORT } from "@/constants/branding";
 
 // Blue gradient: dark royal blue (top) → vivid blue (bottom)
-const GRADIENT_COLORS: [string, string, string] = ['#0f2d6e', '#1d4ed8', '#2563eb'];
+const GRADIENT_COLORS: [string, string, string] = [
+  "#0f2d6e",
+  "#1d4ed8",
+  "#2563eb",
+];
 
 export default function SplashScreen() {
   const { isAuthenticated, user } = useAuthStore();
@@ -52,14 +56,38 @@ export default function SplashScreen() {
     const loopDots = () => {
       if (!active) return;
       dotsAnimation = Animated.sequence([
-        Animated.spring(dotScale1, { toValue: 1, friction: 3, useNativeDriver: true }),
-        Animated.spring(dotScale2, { toValue: 1, friction: 3, useNativeDriver: true }),
-        Animated.spring(dotScale3, { toValue: 1, friction: 3, useNativeDriver: true }),
+        Animated.spring(dotScale1, {
+          toValue: 1,
+          friction: 3,
+          useNativeDriver: true,
+        }),
+        Animated.spring(dotScale2, {
+          toValue: 1,
+          friction: 3,
+          useNativeDriver: true,
+        }),
+        Animated.spring(dotScale3, {
+          toValue: 1,
+          friction: 3,
+          useNativeDriver: true,
+        }),
         Animated.delay(280),
         Animated.parallel([
-          Animated.spring(dotScale1, { toValue: 0.6, friction: 3, useNativeDriver: true }),
-          Animated.spring(dotScale2, { toValue: 0.6, friction: 3, useNativeDriver: true }),
-          Animated.spring(dotScale3, { toValue: 0.6, friction: 3, useNativeDriver: true }),
+          Animated.spring(dotScale1, {
+            toValue: 0.6,
+            friction: 3,
+            useNativeDriver: true,
+          }),
+          Animated.spring(dotScale2, {
+            toValue: 0.6,
+            friction: 3,
+            useNativeDriver: true,
+          }),
+          Animated.spring(dotScale3, {
+            toValue: 0.6,
+            friction: 3,
+            useNativeDriver: true,
+          }),
         ]),
         Animated.delay(100),
       ]);
@@ -69,9 +97,13 @@ export default function SplashScreen() {
 
     const timer = setTimeout(() => {
       if (isAuthenticated) {
-        router.replace(user?.role === 'customer' ? '/(customer)/home' : '/(driver)/dashboard');
+        router.replace(
+          user?.role === "customer"
+            ? "/(customer)/home"
+            : "/(driver)/dashboard",
+        );
       } else {
-        router.replace('/(auth)/onboarding');
+        router.replace("/(auth)/onboarding");
       }
     }, 2800);
 
@@ -82,7 +114,16 @@ export default function SplashScreen() {
       if (dotsTimer) clearTimeout(dotsTimer);
       dotsAnimation?.stop();
     };
-  }, [isAuthenticated, user?.role]);
+  }, [
+    dotScale1,
+    dotScale2,
+    dotScale3,
+    isAuthenticated,
+    logoOpacity,
+    logoScale,
+    taglineOpacity,
+    user?.role,
+  ]);
 
   return (
     <LinearGradient
@@ -104,14 +145,21 @@ export default function SplashScreen() {
           { opacity: logoOpacity, transform: [{ scale: logoScale }] },
         ]}
       >
+        <Image source={{ uri: DAIGO_LOGO_URL }} style={styles.logo} />
         <Image
-          source={{ uri: DAIGO_LOGO_URL }}
-          style={styles.logo}
+          source={{
+            uri: "https://res.cloudinary.com/dzwjgfd7t/image/upload/v1782178208/booking_daigo/logo_text_no_bg-removebg-preview_dsu4n1.png",
+          }}
+          style={{
+            width: 120,
+            height: 40,
+            resizeMode: "contain",
+          }}
         />
       </Animated.View>
 
       {/* Tagline */}
-      <Animated.View style={{ opacity: taglineOpacity, alignItems: 'center' }}>
+      <Animated.View style={{ opacity: taglineOpacity, alignItems: "center" }}>
         <Text style={styles.tagline}>{APP_TAGLINE_SHORT}</Text>
       </Animated.View>
 
@@ -131,63 +179,65 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   circleTopRight: {
-    position: 'absolute',
+    position: "absolute",
     width: 360,
     height: 360,
     borderRadius: 180,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: "rgba(255,255,255,0.06)",
     top: -100,
     right: -100,
   },
   circleBottomLeft: {
-    position: 'absolute',
+    position: "absolute",
     width: 240,
     height: 240,
     borderRadius: 120,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: "rgba(255,255,255,0.05)",
     bottom: -60,
     left: -80,
   },
   circleCenter: {
-    position: 'absolute',
+    position: "absolute",
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    top: '35%',
+    backgroundColor: "rgba(255,255,255,0.04)",
+    top: "35%",
     left: -60,
   },
   logoWrapper: {
-    alignItems: 'center',
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
     marginBottom: 36,
   },
   logo: {
     width: 230,
     height: 115,
-    resizeMode: 'contain',
+    resizeMode: "contain",
   },
   tagline: {
-    color: 'rgba(255,255,255,0.85)',
+    color: "rgba(255,255,255,0.85)",
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: "500",
     letterSpacing: 1.4,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   dotsContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 64,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.75)',
+    backgroundColor: "rgba(255,255,255,0.75)",
   },
 });

@@ -1,17 +1,20 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Text, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
-import { Image as ImageIcon, MessageCircle } from "lucide-react-native";
+import { MessageCircle, Trash2, X } from "lucide-react-native";
 import { useTheme } from "@/theme";
-import { borderRadius, fontSize, spacing } from "@/theme/tokens";
+import { spacing } from "@/theme/tokens";
 import { AuthRequired } from "@/components/AuthRequired";
 import { Button, Skeleton } from "@/components/BaseComponents";
+import { ChatConversationRow } from "@/components/ChatConversationRow";
 import { Screen } from "@/components/ScreenComponents";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
 import { useAuthStore } from "@/stores/authStore";
 import { useChatStore } from "@/stores/chatStore";
 import { apiClient } from "@/services/api";
 import { supabase } from "@/services/supabase";
+import { ChatConversation } from "@/types";
+import { showError, showSuccess } from "@/utils/toast";
 
 const CHAT_FILTERS = [
   { key: "all", label: "Tất cả" },
@@ -36,9 +39,11 @@ export default function ChatScreen() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [activeSort, setActiveSort] = useState("newest");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const channelInstanceId = useRef(Math.random().toString(36).slice(2)).current;
+  const selectionMode = selectedIds.length > 0;
 
-  const refreshConversations = async () => {
+  const refreshConversations = useCallback(async () => {
     if (!user) return;
     try {
       setRefreshing(true);
@@ -48,9 +53,9 @@ export default function ChatScreen() {
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [setConversations, setError, user]);
 
-  const initialLoad = async () => {
+  const initialLoad = useCallback(async () => {
     if (!user) return;
     try {
       setLoading(true);
@@ -60,7 +65,7 @@ export default function ChatScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setConversations, setError, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -98,7 +103,7 @@ export default function ChatScreen() {
       active = false;
       supabase.removeChannel(channel);
     };
-  }, [user?.id, channelInstanceId]);
+  }, [initialLoad, setConversations, setError, user, channelInstanceId]);
 
   const filteredConversations = useMemo(() => {
     let result = [...conversations];
@@ -130,6 +135,48 @@ export default function ChatScreen() {
 
     return result;
   }, [conversations, search, activeFilter, activeSort]);
+
+  const getConversationHideIds = (conversation: ChatConversation) => conversation.threadIds ?? [conversation.id];
+
+  const hideConversationIds = useCallback(async (ids: string[]) => {
+    if (!user) return;
+    try {
+      await apiClient.hideConversations(user.id, ids);
+      setConversations(await apiClient.getConversations(user.id));
+      setSelectedIds([]);
+      showSuccess('Đã xóa khỏi danh sách', 'Cuộc trò chuyện đã được ẩn khỏi tài khoản của bạn.');
+    } catch (error: any) {
+      showError('Không thể xóa cuộc trò chuyện', error.message);
+    }
+  }, [setConversations, user]);
+
+  const confirmDeleteConversation = (conversation: ChatConversation) => {
+    Alert.alert(
+      'Xóa cuộc trò chuyện',
+      `Bạn có chắc muốn xóa cuộc trò chuyện với ${conversation.participantName} khỏi danh sách không?`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        { text: 'Xóa', style: 'destructive', onPress: () => hideConversationIds(getConversationHideIds(conversation)) },
+      ],
+    );
+  };
+
+  const toggleSelection = (conversation: ChatConversation) => {
+    setSelectedIds((current) =>
+      current.includes(conversation.id)
+        ? current.filter((id) => id !== conversation.id)
+        : [...current, conversation.id]
+    );
+  };
+
+  const confirmDeleteSelected = () => {
+    const selectedConversations = filteredConversations.filter((conversation) => selectedIds.includes(conversation.id));
+    const ids = selectedConversations.flatMap(getConversationHideIds);
+    Alert.alert('Xóa nhiều cuộc trò chuyện', `Bạn có chắc muốn xóa ${selectedConversations.length} cuộc trò chuyện đã chọn không?`, [
+      { text: 'Hủy', style: 'cancel' },
+      { text: 'Xóa', style: 'destructive', onPress: () => hideConversationIds(ids) },
+    ]);
+  };
 
   if (!isAuthenticated) {
     return (
@@ -166,6 +213,32 @@ export default function ChatScreen() {
         />
       </View>
 
+      {selectionMode && (
+        <View
+          style={{
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.sm,
+            borderTopWidth: 1,
+            borderBottomWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.surface,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "900" }}>{selectedIds.length} cuộc trò chuyện đã chọn</Text>
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <TouchableOpacity onPress={() => setSelectedIds([])} style={{ padding: spacing.sm }}>
+              <X size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={confirmDeleteSelected} style={{ padding: spacing.sm }}>
+              <Trash2 size={20} color={colors.error} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* Skeleton loading lần đầu */}
       {loading && (
         <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
@@ -195,120 +268,25 @@ export default function ChatScreen() {
       )}
 
       {!loading && filteredConversations.slice(0, visibleCount).map((conversation) => (
-        <TouchableOpacity
+        <ChatConversationRow
           key={conversation.id}
-          activeOpacity={0.84}
-          onPress={() =>
+          conversation={conversation}
+          multipleThreadsLabel="chuyến cùng tài xế"
+          selected={selectedIds.includes(conversation.id)}
+          selectionMode={selectionMode}
+          onPress={() => {
+            if (selectionMode) {
+              toggleSelection(conversation);
+              return;
+            }
             router.push({
               pathname: "/(customer)/chat-detail" as any,
               params: { id: conversation.id },
-            })
-          }
-        >
-          <View
-            style={{
-              backgroundColor: colors.surface,
-              borderTopWidth: 1,
-              borderBottomWidth: 1,
-              borderColor: colors.border,
-              paddingHorizontal: spacing.lg,
-              paddingVertical: spacing.md,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                gap: spacing.md,
-                alignItems: "center",
-              }}
-            >
-              <View>
-                <Image
-                  source={{ uri: conversation.participantAvatar }}
-                  style={{
-                    width: 58,
-                    height: 58,
-                    borderRadius: 29,
-                    backgroundColor: colors.surfaceAlt,
-                  }}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-                  <Text
-                    style={{
-                      color: colors.text,
-                      fontSize: 16,
-                      fontWeight: "900",
-                      flex: 1,
-                    }}
-                    numberOfLines={1}
-                  >
-                    {conversation.participantName}
-                  </Text>
-                  <MessageCircle size={14} color={colors.primary} />
-                </View>
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    color: conversation.unreadCount > 0 ? colors.text : colors.textSecondary,
-                    fontSize: fontSize.sm,
-                    fontWeight: conversation.unreadCount > 0 ? "800" : "500",
-                    marginTop: spacing.xs,
-                  }}
-                >
-                  {conversation.lastMessage === "Đã gửi một ảnh" ? "Ảnh trong cuộc trò chuyện" : conversation.lastMessage}
-                </Text>
-                {conversation.lastMessage === "Đã gửi một ảnh" && (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.xs }}>
-                    <ImageIcon size={13} color={colors.primary} />
-                    <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs }}>Nhấn để xem ảnh</Text>
-                  </View>
-                )}
-                {(conversation.threadIds?.length ?? 0) > 1 && (
-                  <Text
-                    style={{
-                      color: colors.textTertiary,
-                      fontSize: fontSize.xs,
-                      marginTop: spacing.xs,
-                    }}
-                  >
-                    {conversation.threadIds?.length} chuyến cùng tài xế
-                  </Text>
-                )}
-              </View>
-              <View style={{ alignItems: "flex-end", gap: spacing.sm }}>
-                <Text
-                  style={{ color: colors.textTertiary, fontSize: fontSize.xs }}
-                >
-                  {conversation.lastMessageTime}
-                </Text>
-                {conversation.unreadCount > 0 && (
-                  <View
-                    style={{
-                      minWidth: 22,
-                      height: 22,
-                      borderRadius: borderRadius.full,
-                      backgroundColor: colors.primary,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: "white",
-                        fontSize: fontSize.xs,
-                        fontWeight: "700",
-                      }}
-                    >
-                      {conversation.unreadCount}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-        </TouchableOpacity>
+            });
+          }}
+          onLongPress={() => toggleSelection(conversation)}
+          onDelete={() => confirmDeleteConversation(conversation)}
+        />
       ))}
       {!loading && filteredConversations.length === 0 && (
         <Text

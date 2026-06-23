@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { BadgeCheck, Camera, Car, FileText, ShieldCheck, Smartphone, User } from 'lucide-react-native';
+import { BadgeCheck, Camera, Car, FileText, Smartphone, User } from 'lucide-react-native';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { AuthRequired } from '@/components/AuthRequired';
 import { OtpCodeInput } from '@/components/OtpCodeInput';

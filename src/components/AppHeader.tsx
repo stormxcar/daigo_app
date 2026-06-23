@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { useAuthStore } from '@/stores/authStore';
-import { useNotifications } from '@/hooks/useNotifications';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { DAIGO_LOGO_URL } from '@/constants/branding';
 
 interface AppHeaderProps {
@@ -31,12 +31,7 @@ export function AppHeader({
   const insets = useSafeAreaInsets();
   const pulse = useRef(new Animated.Value(1)).current;
   const shouldShowNotifications = showNotifications && isAuthenticated && !!user?.id;
-  const { unreadCount, fetchNotifications } = useNotifications(shouldShowNotifications ? user?.id : undefined);
-
-  useEffect(() => {
-    if (!shouldShowNotifications) return;
-    fetchNotifications();
-  }, [fetchNotifications, shouldShowNotifications]);
+  const unreadCount = useNotificationStore((state) => state.unreadCount);
 
   useEffect(() => {
     if (unreadCount <= 0) return;
@@ -44,7 +39,7 @@ export function AppHeader({
       Animated.spring(pulse, { toValue: 1.18, friction: 4, useNativeDriver: true }),
       Animated.spring(pulse, { toValue: 1, friction: 4, useNativeDriver: true }),
     ]).start();
-  }, [unreadCount]);
+  }, [pulse, unreadCount]);
 
   return (
     <View
@@ -101,7 +96,7 @@ export function AppHeader({
             source={{ uri: DAIGO_LOGO_URL }}
             style={{
               flex: 1,
-              height: 34,
+              height: 50,
               resizeMode: 'contain',
             }}
           />

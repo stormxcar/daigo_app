@@ -32,6 +32,7 @@ export default function CallScreen() {
   const [joined, setJoined] = useState(false);
 
   const channelName = call?.agoraChannel ?? call?.id;
+  const activeCallId = call?.id;
   const appIdFromEnv = process.env.EXPO_PUBLIC_AGORA_APP_ID;
   const uid = useMemo(() => numericUid(user?.id ?? ''), [user?.id]);
 
@@ -64,7 +65,7 @@ export default function CallScreen() {
   }, [callId]);
 
   useEffect(() => {
-    if (!call || !user || !channelName) return;
+    if (!activeCallId || !user?.id || !channelName) return;
     let mounted = true;
 
     const join = async () => {
@@ -109,7 +110,7 @@ export default function CallScreen() {
         });
       } catch (error: any) {
         showError('Không thể vào cuộc gọi', error.message);
-        await callService.updateCallStatus(call.id, 'failed').catch(() => undefined);
+        await callService.updateCallStatus(activeCallId, 'failed').catch(() => undefined);
       } finally {
         if (mounted) setJoining(false);
       }
@@ -121,7 +122,7 @@ export default function CallScreen() {
       mounted = false;
       leaveAgoraVoiceChannel();
     };
-  }, [call?.id, channelName, user?.id, uid]);
+  }, [activeCallId, appIdFromEnv, channelName, user?.id, uid]);
 
   const endCall = async () => {
     if (!call) {

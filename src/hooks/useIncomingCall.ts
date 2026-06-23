@@ -8,7 +8,7 @@ export function useIncomingCall(user: User | null) {
   useEffect(() => {
     if (!user) return undefined;
     return callService.subscribeIncomingCalls(user.id, setIncomingCall);
-  }, [user?.id]);
+  }, [user]);
 
   return {
     incomingCall,

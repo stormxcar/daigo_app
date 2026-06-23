@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
   FlatList,
-  Image,
   ImageBackground,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -16,7 +15,6 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
-import { DAIGO_LOGO_URL } from '@/constants/branding';
 
 interface OnboardingStep {
   title: string;

@@ -15,7 +15,6 @@ import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { VideoView, useVideoPlayer } from 'expo-video';
 import {
   ChevronLeft,
   ChevronRight,
@@ -33,6 +32,7 @@ import { borderRadius, fontSize, spacing, shadows } from '@/theme/tokens';
 import { showError, showInfo, showSuccess } from '@/utils/toast';
 import { VideoLoadingOverlay } from '@/components/VideoLoadingOverlay';
 import { buildCloudinaryVideoPosterUrl, buildOptimizedCloudinaryVideoUrl, shouldUseHlsVideo } from '@/services/videoOptimizationService';
+import { ZoomableImage } from '@/components/ZoomableImage';
 
 interface BlogMediaGridProps {
   urls: string[];
@@ -43,8 +43,24 @@ interface BlogMediaGridProps {
 }
 
 function FullscreenVideo({ uri }: { uri: string }) {
+  const posterUri = useMemo(() => buildCloudinaryVideoPosterUrl(uri, { width: 1080 }), [uri]);
   const sourceUri = useMemo(() => buildOptimizedCloudinaryVideoUrl(uri, { width: 1080, hls: shouldUseHlsVideo() }), [uri]);
-  const player = useVideoPlayer(sourceUri, (videoPlayer) => {
+  if (Constants.appOwnership === 'expo') {
+    return (
+      <View style={StyleSheet.absoluteFill}>
+        {!!posterUri && <Image source={{ uri: posterUri }} style={StyleSheet.absoluteFill} resizeMode="contain" />}
+        <VideoLoadingOverlay label="VIDEO" />
+      </View>
+    );
+  }
+
+  return <MountedFullscreenVideo sourceUri={sourceUri} />;
+}
+
+function MountedFullscreenVideo({ sourceUri }: { sourceUri: string }) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  const { VideoView, useVideoPlayer } = require('expo-video');
+  const player = useVideoPlayer(sourceUri, (videoPlayer: any) => {
     videoPlayer.loop = false;
     videoPlayer.muted = false;
   });
@@ -76,7 +92,7 @@ function InlineVideo({
 }) {
   const posterUri = useMemo(() => buildCloudinaryVideoPosterUrl(uri, { width: 720 }), [uri]);
 
-  if (!active && !preload) {
+  if (Constants.appOwnership === 'expo' || (!active && !preload)) {
     return (
       <TouchableOpacity activeOpacity={0.9} onPress={onOpen} style={styles.videoWrapper}>
         {!!posterUri && <Image source={{ uri: posterUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />}
@@ -107,8 +123,10 @@ function MountedInlineVideo({
   onDownload: () => void;
   onOpen: () => void;
 }) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  const { VideoView, useVideoPlayer } = require('expo-video');
   const sourceUri = useMemo(() => buildOptimizedCloudinaryVideoUrl(uri, { width: 720, hls: shouldUseHlsVideo() }), [uri]);
-  const player = useVideoPlayer(sourceUri, (videoPlayer) => {
+  const player = useVideoPlayer(sourceUri, (videoPlayer: any) => {
     videoPlayer.loop = false;
     videoPlayer.muted = true;
     videoPlayer.timeUpdateEventInterval = 0.5;
@@ -420,7 +438,7 @@ export function BlogMediaGrid({ urls, types, height = 260, active = true, preloa
                   <FullscreenVideo uri={activeMedia.url} />
                 </View>
               ) : (
-                <Image source={{ uri: activeMedia.url }} style={{ width, height: windowHeight }} resizeMode="contain" />
+                <ZoomableImage uri={activeMedia.url} style={{ width, height: windowHeight }} />
               )}
               <View style={styles.actions}>
                 <TouchableOpacity

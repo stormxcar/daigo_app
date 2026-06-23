@@ -1,20 +1,20 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import {
   Briefcase,
   Clock,
-  DollarSign,
   LayoutGrid,
   LayoutList,
   MapPin,
   MoreVertical,
   Users,
+  Wallet,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
-import { Button, Card, CardSkeleton } from '@/components/BaseComponents';
+import { Button, CardSkeleton } from '@/components/BaseComponents';
 import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { BookingCard } from '@/components/FeatureCards';
 import {
@@ -30,6 +30,7 @@ import { Booking, BookingDispatch } from '@/types';
 import { BOOKING_STATUS, TERMINAL_BOOKING_STATUSES } from '@/constants';
 import { showError, showSuccess } from '@/utils/toast';
 import { getBookingStatusInfo } from '@/utils/helpers';
+import { PaymentStatusBadge, getPaymentMethodLabel } from '@/components/PaymentStatusBadge';
 
 type LayoutMode = 'card' | 'list';
 const BOOKING_PAGE_SIZE = 12;
@@ -112,6 +113,12 @@ function BookingListRow({
             </Text>
           </View>
         </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs }}>
+          <PaymentStatusBadge status={booking.paymentStatus} />
+          <Text style={{ color: colors.textTertiary, fontSize: 10, fontWeight: '700' }}>
+            {getPaymentMethodLabel(booking.paymentMethod)}
+          </Text>
+        </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
           <MapPin size={11} color={colors.primary} />
@@ -137,7 +144,7 @@ function BookingListRow({
             <Text style={{ color: colors.textTertiary, fontSize: 10 }}>{booking.passengers}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <DollarSign size={10} color={colors.primary} />
+            
             <Text style={{ color: colors.primary, fontSize: 10, fontWeight: '700' }}>
               {booking.estimatedPrice.toLocaleString('vi-VN')}đ
             </Text>
@@ -277,15 +284,31 @@ export default function DriverBookings() {
     () => filterAndSortBookings(availableBookings, searchQuery, statusFilter, sortMode),
     [availableBookings, searchQuery, statusFilter, sortMode]
   );
-  const pendingDispatch = pendingDispatches.find((dispatch) => dispatch.id !== dismissedOfferId);
+  const pendingDispatch = useMemo(
+    () => pendingDispatches.find((dispatch) => dispatch.id !== dismissedOfferId),
+    [dismissedOfferId, pendingDispatches]
+  );
   const pendingOffer = pendingDispatch?.booking;
   const activeFilterCount = [
     searchQuery,
     statusFilter !== 'all' ? statusFilter : '',
     sortMode !== 'newest' ? sortMode : '',
   ].filter(Boolean).length;
+  const paymentSummary = useMemo(() => {
+    const driverBookings = visibleBookings.filter((booking) => booking.driverId === user?.id);
+    const cash = driverBookings.filter((booking) => booking.paymentMethod === 'cash');
+    const transfer = driverBookings.filter((booking) => booking.paymentMethod === 'bank_transfer' || booking.paymentMethod === 'vietqr');
+    const pendingReview = driverBookings.filter((booking) => ['pending', 'submitted'].includes(booking.paymentStatus ?? 'unpaid'));
+    const paid = driverBookings.filter((booking) => ['paid', 'driver_verified'].includes(booking.paymentStatus ?? 'unpaid'));
+    return {
+      cash: cash.length,
+      transfer: transfer.length,
+      pendingReview: pendingReview.length,
+      paid: paid.length,
+    };
+  }, [user?.id, visibleBookings]);
 
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async () => {
     if (!user?.id) {
       setBookings([]);
       setLoading(false);
@@ -307,9 +330,9 @@ export default function DriverBookings() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
-  const fetchPendingDispatches = async () => {
+  const fetchPendingDispatches = useCallback(async () => {
     if (!user?.id) {
       setPendingDispatches([]);
       return;
@@ -321,7 +344,7 @@ export default function DriverBookings() {
     } catch (error: any) {
       showError('Không thể tải chuyến được gửi đến bạn', error.message);
     }
-  };
+  }, [user?.id]);
 
   const loadMoreBookings = async () => {
     if (!user?.id || loading || loadingMore || !hasMore) return;
@@ -387,7 +410,7 @@ export default function DriverBookings() {
       supabase.removeChannel(dispatchChannel);
       if (dispatchChannelRef.current === dispatchChannel) dispatchChannelRef.current = null;
     };
-  }, [user?.id]);
+  }, [fetchBookings, fetchPendingDispatches, user?.id]);
 
   useEffect(() => {
     if (pendingOffer) {
@@ -395,7 +418,7 @@ export default function DriverBookings() {
     } else {
       offerSheetRef.current?.dismiss();
     }
-  }, [pendingOffer?.id]);
+  }, [pendingOffer]);
 
   useEffect(() => {
     if (!pendingDispatch) {
@@ -417,7 +440,7 @@ export default function DriverBookings() {
     updateCountdown();
     const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
-  }, [pendingDispatch?.id, pendingDispatch?.expiresAt]);
+  }, [fetchPendingDispatches, pendingDispatch]);
 
   const handleAccept = async (bookingId: string) => {
     if (!user) return;
@@ -542,6 +565,45 @@ export default function DriverBookings() {
           }}
         />
       </View>
+
+      {!loading && visibleBookings.length > 0 && (
+        <View
+          style={{
+            marginTop: spacing.sm,
+            marginBottom: spacing.sm,
+            paddingHorizontal: spacing.lg,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: colors.surface,
+              borderTopWidth: 1,
+              borderBottomWidth: 1,
+              borderColor: colors.border,
+              paddingVertical: spacing.md,
+              gap: spacing.sm,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md }}>
+              <Wallet size={18} color={colors.primary} />
+              <Text style={{ color: colors.text, fontWeight: '900' }}>Thanh toán chuyến đi</Text>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {[
+                { label: 'Tiền mặt', value: paymentSummary.cash, color: colors.success },
+                { label: 'VietQR/CK', value: paymentSummary.transfer, color: colors.primary },
+                { label: 'Chờ xác nhận', value: paymentSummary.pendingReview, color: colors.warning },
+                { label: 'Đã xác nhận', value: paymentSummary.paid, color: colors.info },
+              ].map((item) => (
+                <View key={item.label} style={{ width: '50%', paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{item.label}</Text>
+                  <Text style={{ color: item.color, fontWeight: '900', fontSize: 20, marginTop: 2 }}>{item.value}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* ── Content ── */}
       {loading ? (

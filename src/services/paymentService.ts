@@ -296,7 +296,7 @@ class PaymentService {
 
   subscribePayment(bookingId: string, onChange: (payment: Payment) => void) {
     const channel = supabase
-      .channel(`payment-${bookingId}`)
+      .channel(`payment-${bookingId}-${Date.now()}-${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'payments', filter: `booking_id=eq.${bookingId}` },

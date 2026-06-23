@@ -112,11 +112,11 @@ export default function LoginScreen() {
           alignItems: 'center',
           paddingTop: spacing.xl,
           paddingBottom: spacing.xl,
-          marginBottom: spacing.lg,
+          // marginBottom: spacing.lg,
         }}
       >
         <Image
-          source={{ uri: DAIGO_LOGO_URL }}
+          source={{ uri: "https://res.cloudinary.com/dzwjgfd7t/image/upload/v1782178208/booking_daigo/logo_text_no_bg-removebg-preview_dsu4n1.png" }}
           style={{
             width: 160,
             height: 72,
@@ -124,7 +124,7 @@ export default function LoginScreen() {
             marginBottom: spacing.md,
           }}
         />
-        <Text
+        {/* <Text
           style={{
             fontSize: fontSize.sm,
             color: colors.textSecondary,
@@ -133,7 +133,7 @@ export default function LoginScreen() {
           }}
         >
           {APP_TAGLINE}
-        </Text>
+        </Text> */}
       </View>
 
       {/* Title */}

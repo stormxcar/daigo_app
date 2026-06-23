@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -9,12 +9,15 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  FileText,
   LogOut,
   Mail,
   MapPin,
   MessageSquareText,
   Phone,
   Star,
+  Trash2,
+  UploadCloud,
   UserCircle,
   XCircle,
 } from 'lucide-react-native';
@@ -32,7 +35,7 @@ import { formatVietnamDate } from '@/utils/helpers';
 
 type RatingFilter = 'all' | '5' | '4' | '3' | '2' | '1' | 'commented';
 type RatingSort = 'newest' | 'oldest';
-type DriverProfileSectionKey = 'account' | 'info' | 'payment' | 'stats' | 'rating';
+type DriverProfileSectionKey = 'account' | 'info' | 'documents' | 'payment' | 'stats' | 'rating';
 
 function ProfileSection({
   title,
@@ -143,6 +146,9 @@ export default function DriverProfile() {
   const [bankBin, setBankBin] = useState(user?.bankBin ?? '');
   const [bankAccountNumber, setBankAccountNumber] = useState(user?.bankAccountNumber ?? '');
   const [bankAccountHolder, setBankAccountHolder] = useState(user?.bankAccountHolder ?? '');
+  const [cccdNumber, setCccdNumber] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [documentUrlsText, setDocumentUrlsText] = useState('');
   const [vehicleCount, setVehicleCount] = useState(0);
   const [bookingCount, setBookingCount] = useState(0);
   const [postCount, setPostCount] = useState(0);
@@ -156,6 +162,7 @@ export default function DriverProfile() {
   const [expandedSections, setExpandedSections] = useState<Record<DriverProfileSectionKey, boolean>>({
     account: true,
     info: true,
+    documents: true,
     payment: false,
     stats: true,
     rating: true,
@@ -177,6 +184,13 @@ export default function DriverProfile() {
       return null;
     }
   }, [bankAccountHolder, bankAccountNumber, bankBin, bankCode]);
+  const documentUrls = React.useMemo(
+    () => documentUrlsText
+      .split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean),
+    [documentUrlsText]
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -203,6 +217,9 @@ export default function DriverProfile() {
         setPostCount(posts.length);
         setDriverBookings(bookings);
         setRatings(ratings);
+        setCccdNumber(driverStatus?.cccdNumber ?? '');
+        setLicenseNumber(driverStatus?.licenseNumber ?? '');
+        setDocumentUrlsText((driverStatus?.documentUrls ?? []).join('\n'));
         const averageRating = ratings.length
           ? ratings.reduce((sum, item) => sum + item.rating, 0) / ratings.length
           : Number(driverStatus?.rating ?? 5);
@@ -216,7 +233,7 @@ export default function DriverProfile() {
         );
       })
       .catch(() => undefined);
-  }, [user?.id]);
+  }, [user]);
 
   const filteredRatings = React.useMemo(() => {
     return ratings
@@ -272,6 +289,46 @@ export default function DriverProfile() {
     }
   };
 
+  const pickDriverDocuments = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showWarning('Cần quyền truy cập ảnh', 'Vui lòng cho phép ứng dụng chọn ảnh giấy tờ.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: 8,
+      quality: 0.82,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+
+    try {
+      setSaving(true);
+      const uploadedUrls: string[] = [];
+      for (const [index, asset] of result.assets.entries()) {
+        const uploaded = await uploadMediaToCloudinary({
+          uri: asset.uri,
+          name: asset.fileName ?? `driver-document-${Date.now()}-${index}.jpg`,
+          type: asset.mimeType ?? 'image/jpeg',
+        }, 'image');
+        uploadedUrls.push(uploaded.secure_url);
+      }
+      const nextUrls = Array.from(new Set([...documentUrls, ...uploadedUrls]));
+      setDocumentUrlsText(nextUrls.join('\n'));
+      showSuccess('Đã upload giấy tờ', `${uploadedUrls.length} ảnh đã được thêm vào hồ sơ. Nhấn Lưu để cập nhật.`);
+    } catch (error: any) {
+      showError('Không thể upload giấy tờ', error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeDriverDocument = (url: string) => {
+    setDocumentUrlsText(documentUrls.filter((item) => item !== url).join('\n'));
+  };
+
   const saveProfile = async () => {
     if (!user) return;
     if (!fullName.trim()) {
@@ -291,6 +348,11 @@ export default function DriverProfile() {
         bankBin: bankBin.trim(),
         bankAccountNumber: bankAccountNumber.trim(),
         bankAccountHolder: bankAccountHolder.trim(),
+      });
+      await apiClient.updateDriverDocuments(user.id, {
+        cccdNumber: cccdNumber.trim() || undefined,
+        licenseNumber: licenseNumber.trim() || undefined,
+        documentUrls,
       });
       setUser(updated);
       setEditing(false);
@@ -465,6 +527,120 @@ export default function DriverProfile() {
               </View>
             ))}
             <Button label="Chỉnh sửa hồ sơ" onPress={() => setEditing(true)} size="sm" icon={<UserCircle size={18} color="white" />} style={{ marginTop: spacing.md }} />
+          </>
+        )}
+      </ProfileSection>
+
+      <ProfileSection
+        title="Giấy tờ tài xế"
+        subtitle={user?.kycStatus === 'approved' ? 'Hồ sơ đã được duyệt' : 'CCCD, GPLX và ảnh giấy tờ'}
+        icon={<FileText size={18} color={colors.primary} />}
+        expanded={expandedSections.documents}
+        onToggle={() => toggleSection('documents')}
+      >
+        {editing ? (
+          <>
+            <TextInput
+              label="Số CCCD"
+              value={cccdNumber}
+              onChangeText={setCccdNumber}
+              keyboardType="numeric"
+              disabled={saving}
+              placeholder="Ví dụ: 001234567890"
+              style={{ marginBottom: spacing.md }}
+            />
+            <TextInput
+              label="Số GPLX"
+              value={licenseNumber}
+              onChangeText={setLicenseNumber}
+              disabled={saving}
+              placeholder="Nhập số giấy phép lái xe"
+              style={{ marginBottom: spacing.md }}
+            />
+            <TouchableOpacity
+              onPress={pickDriverDocuments}
+              disabled={saving}
+              activeOpacity={0.84}
+              style={{
+                minHeight: 118,
+                backgroundColor: colors.surfaceAlt,
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: colors.border,
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: spacing.lg,
+                marginBottom: spacing.md,
+              }}
+            >
+              <UploadCloud size={26} color={colors.primary} />
+              <Text style={{ color: colors.text, fontWeight: '900', marginTop: spacing.sm }}>Upload ảnh giấy tờ</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, textAlign: 'center', marginTop: spacing.xs }}>
+                Có thể chọn nhiều ảnh CCCD/GPLX từ thư viện máy
+              </Text>
+            </TouchableOpacity>
+            {documentUrls.length > 0 && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
+                {documentUrls.map((url, index) => (
+                  <View key={`${url}-${index}`} style={{ width: 82, height: 82, backgroundColor: colors.surfaceAlt }}>
+                    <Image source={{ uri: url }} style={{ width: '100%', height: '100%' }} />
+                    <TouchableOpacity
+                      onPress={() => removeDriverDocument(url)}
+                      style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        backgroundColor: 'rgba(0,0,0,0.58)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Trash2 size={13} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        ) : (
+          <>
+            {[
+              { label: 'Trạng thái KYC', value: user?.kycStatus ?? 'incomplete' },
+              { label: 'Số CCCD', value: cccdNumber || 'Chưa bổ sung' },
+              { label: 'Số GPLX', value: licenseNumber || 'Chưa bổ sung' },
+              {
+                label: 'Ảnh giấy tờ',
+                value: documentUrls.length
+                  ? `${documentUrls.length} tệp đã lưu`
+                  : 'Chưa bổ sung',
+              },
+            ].map((item, index) => (
+              <View
+                key={item.label}
+                style={{
+                  paddingVertical: spacing.sm,
+                  borderBottomWidth: index === 3 ? 0 : 1,
+                  borderBottomColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginBottom: 3 }}>{item.label}</Text>
+                <Text style={{ color: colors.text, fontWeight: '800' }}>{item.value}</Text>
+              </View>
+            ))}
+            {documentUrls.length > 0 && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md }}>
+                {documentUrls.map((url, index) => (
+                  <Image
+                    key={`${url}-${index}`}
+                    source={{ uri: url }}
+                    style={{ width: 82, height: 82, backgroundColor: colors.surfaceAlt }}
+                  />
+              ))}
+              </View>
+            )}
           </>
         )}
       </ProfileSection>

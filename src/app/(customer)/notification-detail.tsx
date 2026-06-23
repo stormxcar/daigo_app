@@ -1,14 +1,32 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Bell, CalendarClock, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { Button, Card } from '@/components/BaseComponents';
+import { Button } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { Booking, NotificationItem } from '@/types';
+
+function NotificationSection({ children }: { children: React.ReactNode }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        backgroundColor: colors.surface,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: colors.border,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+      }}
+    >
+      {children}
+    </View>
+  );
+}
 
 export default function NotificationDetailScreen() {
   const { colors } = useTheme();
@@ -39,7 +57,7 @@ export default function NotificationDetailScreen() {
 
   return (
     <Screen scroll>
-      <Card style={{ marginBottom: spacing.lg }}>
+      <NotificationSection>
         <View
           style={{
             width: 54,
@@ -62,10 +80,10 @@ export default function NotificationDetailScreen() {
         <Text style={{ color: colors.textTertiary, fontSize: fontSize.sm }}>
           {new Date(notification.createdAt).toLocaleString('vi-VN')}
         </Text>
-      </Card>
+      </NotificationSection>
 
       {booking && (
-        <Card style={{ marginBottom: spacing.lg }}>
+        <NotificationSection>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
             <CalendarClock size={22} color={colors.primary} />
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>
@@ -86,10 +104,12 @@ export default function NotificationDetailScreen() {
               </Text>
             </View>
           ))}
-        </Card>
+        </NotificationSection>
       )}
 
-      <Button label="Quay lại thông báo" onPress={() => router.back()} />
+      <View style={{ padding: spacing.lg }}>
+        <Button label="Quay lại thông báo" onPress={() => router.back()} />
+      </View>
     </Screen>
   );
 }

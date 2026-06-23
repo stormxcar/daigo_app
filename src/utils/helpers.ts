@@ -89,7 +89,7 @@ export const calculateDistance = (
 export const calculateBookingPrice = (
   distance: number,
   pricePerKm: number,
-  passengerCount: number = 1,
+  _passengerCount: number = 1,
   time?: string
 ): { basePrice: number; platformFee: number; peakFee: number; totalPrice: number; peakMultiplier: number } => {
   const basePrice = Math.max(Math.round(distance * pricePerKm), PRICE_CONFIG.MINIMUM_BOOKING_PRICE);
@@ -143,7 +143,7 @@ export const getVehicleStatusInfo = (status: string): { label: string; color: st
 // Time ago format
 export const timeAgo = (date: string | Date): string => {
   const diffSeconds = Math.round((new Date(date).getTime() - Date.now()) / 1000);
-  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
     ['year', 60 * 60 * 24 * 365],
     ['month', 60 * 60 * 24 * 30],
     ['week', 60 * 60 * 24 * 7],

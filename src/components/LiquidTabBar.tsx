@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { useChatStore } from '@/stores/chatStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 
 interface LiquidTabBarProps {
   state: any;
@@ -23,6 +24,8 @@ export function LiquidTabBar({
   const chatUnreadCount = useChatStore((state) =>
     state.conversations.reduce((sum, conversation) => sum + conversation.unreadCount, 0)
   );
+  const notifications = useNotificationStore((state) => state.notifications);
+  const unreadNotifications = notifications.filter((notification) => !notification.read);
   const animations = useRef<Record<string, Animated.Value>>({}).current;
   const hiddenRoutes = [
     'notifications',
@@ -69,6 +72,26 @@ export function LiquidTabBar({
     ]).start();
   };
 
+  const getRouteBadge = (routeName: string, optionBadge: any) => {
+    if (routeName === 'chat') return chatUnreadCount > 0 ? chatUnreadCount : undefined;
+    if (routeName === 'blog') {
+      const count = unreadNotifications.filter((notification) => notification.type === 'blog_interaction' || !!notification.relatedPostId).length;
+      return count > 0 ? count : undefined;
+    }
+    if (routeName === 'booking' || routeName === 'bookings') {
+      const count = unreadNotifications.filter((notification) =>
+        !!notification.relatedBookingId ||
+        ['booking_success', 'driver_confirm', 'driver_cancel', 'trip_done', 'booking_update', 'payment_update'].includes(notification.type)
+      ).length;
+      return count > 0 ? count : undefined;
+    }
+    if (routeName === 'dashboard') {
+      const count = unreadNotifications.filter((notification) => notification.type === 'booking_update' || notification.type === 'payment_update').length;
+      return count > 0 ? count : undefined;
+    }
+    return optionBadge;
+  };
+
   return (
     <View
       style={{
@@ -99,6 +122,7 @@ export function LiquidTabBar({
           const label = options.title ?? route.name;
           const focused = state.index === index;
           const color = focused ? colors.primary : colors.textTertiary;
+          const routeBadge = getRouteBadge(route.name, options.tabBarBadge);
 
           if (!animations[route.key]) {
             animations[route.key] = new Animated.Value(0);
@@ -108,8 +132,6 @@ export function LiquidTabBar({
             inputRange: [-1, 0, 1],
             outputRange: [-5, 0, 5],
           });
-          const scale = focused ? 1.06 : 1;
-
           const onPress = () => {
             runIconAnimation(route.key);
             const event = navigation.emit({
@@ -158,7 +180,7 @@ export function LiquidTabBar({
                     focused,
                   })}
                 </Animated.View>
-                {route.name === 'chat' && chatUnreadCount > 0 && (
+                {routeBadge !== undefined && routeBadge !== null && (
                   <View
                     style={{
                       position: 'absolute',
@@ -167,34 +189,14 @@ export function LiquidTabBar({
                       minWidth: 19,
                       height: 19,
                       borderRadius: borderRadius.full,
-                      backgroundColor: colors.error,
+                      backgroundColor: route.name === 'profile' ? colors.warning : colors.error,
                       alignItems: 'center',
                       justifyContent: 'center',
                       paddingHorizontal: 5,
                     }}
                   >
                     <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>
-                      {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
-                    </Text>
-                  </View>
-                )}
-                {route.name !== 'chat' && options.tabBarBadge !== undefined && options.tabBarBadge !== null && (
-                  <View
-                    style={{
-                      position: 'absolute',
-                      top: -4,
-                      right: -4,
-                      minWidth: 19,
-                      height: 19,
-                      borderRadius: borderRadius.full,
-                      backgroundColor: colors.warning,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      paddingHorizontal: 5,
-                    }}
-                  >
-                    <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>
-                      {String(options.tabBarBadge)}
+                      {typeof routeBadge === 'number' && routeBadge > 99 ? '99+' : String(routeBadge)}
                     </Text>
                   </View>
                 )}

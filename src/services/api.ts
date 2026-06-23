@@ -1,5 +1,5 @@
 import * as WebBrowser from 'expo-web-browser';
-import { AuthCredentials, AuthResponse, BlogComment, BlogPost, Booking, BookingDispatch, ChatConversation, DriverOnboardingData, Message, NotificationItem, ProfileSettings, RatingReview, RegisterData, SavedLocation, User, Vehicle } from '@/types';
+import { AuthCredentials, AuthResponse, BlogComment, BlogPost, Booking, BookingDispatch, ChatConversation, DriverOnboardingData, DriverStatus, Message, NotificationItem, ProfileSettings, RatingReview, RegisterData, SavedLocation, User, Vehicle } from '@/types';
 import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { supabase } from './supabase';
 import { getAuthRedirectUri } from '@/utils/authRedirect';
@@ -61,6 +61,9 @@ type DriverRow = {
   current_latitude: number | null;
   current_longitude: number | null;
   updated_location_at: string | null;
+  cccd_number?: string | null;
+  license_number?: string | null;
+  document_urls?: string[] | null;
 };
 
 type ProfileSettingsRow = {
@@ -226,6 +229,20 @@ const mapProfileSettings = (row: ProfileSettingsRow): ProfileSettings => ({
   hasSeenAppTour: row.has_seen_app_tour ?? false,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+});
+
+const mapDriverStatus = (row: DriverRow): DriverStatus => ({
+  id: row.id,
+  profileId: row.profile_id,
+  isOnline: row.is_online,
+  verificationStatus: row.verification_status,
+  rating: row.rating,
+  currentLatitude: row.current_latitude ?? undefined,
+  currentLongitude: row.current_longitude ?? undefined,
+  updatedLocationAt: row.updated_location_at ?? undefined,
+  cccdNumber: row.cccd_number ?? undefined,
+  licenseNumber: row.license_number ?? undefined,
+  documentUrls: row.document_urls ?? [],
 });
 
 export const normalizeVietnamPhone = (value: string) => {
@@ -516,13 +533,12 @@ class ApiClient {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: normalizedPhone,
-    });
-    if (error) throw error;
+    throw new Error(
+      'Phone OTP chưa được cấu hình. Hãy bật EXPO_PUBLIC_PHONE_AUTH_PROVIDER=firebase cho APK/dev build, hoặc bật EXPO_PUBLIC_ENABLE_TEST_PHONE_OTP=true để test nội bộ.'
+    );
   }
 
-  async verifyPhoneOtp(phone: string, token: string, profileData?: Partial<User>): Promise<AuthResponse> {
+  async verifyPhoneOtp(phone: string, token: string, _profileData?: Partial<User>): Promise<AuthResponse> {
     const normalizedPhone = normalizeVietnamPhone(phone);
     const cleanToken = token.trim();
     if (!isValidVietnamPhone(normalizedPhone)) {
@@ -562,20 +578,9 @@ class ApiClient {
       return { token: sessionData.session.access_token, user };
     }
 
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone: normalizedPhone,
-      token: cleanToken,
-      type: 'sms',
-    });
-    if (error) throw error;
-
-    const user = await this.ensureCurrentUserProfile({
-      ...profileData,
-      phone: normalizedPhone,
-    });
-    if (!user || !data.session) throw new Error('Không tìm thấy phiên xác minh số điện thoại');
-
-    return { token: data.session.access_token, user };
+    throw new Error(
+      'Phone OTP chưa được cấu hình. Hãy dùng Firebase Phone Auth hoặc OTP test nội bộ trước khi xác minh SĐT.'
+    );
   }
 
   async startDriverOnboarding(data: DriverOnboardingData): Promise<User> {
@@ -773,17 +778,17 @@ class ApiClient {
     return this.setCached(cacheKey, (data as VehicleRow[]).map(mapVehicle));
   }
 
-  async getDriverStatus(profileId: string): Promise<DriverRow | null> {
+  async getDriverStatus(profileId: string): Promise<DriverStatus | null> {
     const { data, error } = await supabase
       .from('drivers')
       .select('*')
       .eq('profile_id', profileId)
       .maybeSingle();
     if (error) throw error;
-    return data as DriverRow | null;
+    return data ? mapDriverStatus(data as DriverRow) : null;
   }
 
-  async setDriverOnline(profileId: string, isOnline: boolean, location?: { lat: number; lng: number }): Promise<DriverRow> {
+  async setDriverOnline(profileId: string, isOnline: boolean, location?: { lat: number; lng: number }): Promise<DriverStatus> {
     const existing = await this.getDriverStatus(profileId);
     if (!existing) {
       const { data, error } = await supabase
@@ -799,10 +804,10 @@ class ApiClient {
         .select('*')
         .single();
       if (error) throw error;
-      return data as DriverRow;
+      return mapDriverStatus(data as DriverRow);
     }
 
-    if (isOnline && existing.verification_status !== 'APPROVED') {
+    if (isOnline && existing.verificationStatus !== 'APPROVED') {
       throw new Error('Bạn chưa được duyệt tài khoản tài xế.');
     }
 
@@ -810,15 +815,34 @@ class ApiClient {
       .from('drivers')
       .update({
         is_online: isOnline,
-        current_latitude: location?.lat ?? existing.current_latitude,
-        current_longitude: location?.lng ?? existing.current_longitude,
-        updated_location_at: location ? new Date().toISOString() : existing.updated_location_at,
+        current_latitude: location?.lat ?? existing.currentLatitude,
+        current_longitude: location?.lng ?? existing.currentLongitude,
+        updated_location_at: location ? new Date().toISOString() : existing.updatedLocationAt,
       })
       .eq('profile_id', profileId)
       .select('*')
       .single();
     if (error) throw error;
-    return data as DriverRow;
+    return mapDriverStatus(data as DriverRow);
+  }
+
+  async updateDriverDocuments(profileId: string, data: Pick<DriverOnboardingData, 'cccdNumber' | 'licenseNumber' | 'documentUrls'>): Promise<DriverStatus> {
+    const existing = await this.getDriverStatus(profileId);
+    const payload = {
+      profile_id: profileId,
+      cccd_number: data.cccdNumber?.trim() || null,
+      license_number: data.licenseNumber?.trim() || null,
+      document_urls: data.documentUrls ?? [],
+      verification_status: existing?.verificationStatus ?? 'PENDING',
+    };
+
+    const { data: updated, error } = await supabase
+      .from('drivers')
+      .upsert(payload, { onConflict: 'profile_id' })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return mapDriverStatus(updated as DriverRow);
   }
 
   async getVehicleById(id: string): Promise<Vehicle> {
@@ -1010,6 +1034,27 @@ class ApiClient {
       createdAt: new Date().toISOString(),
       time: 'Vừa xong',
     });
+
+    const { data: drivers } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'driver')
+      .limit(50);
+
+    await Promise.all(
+      (drivers ?? []).map((driver) =>
+        this.createNotificationSafely({
+          userId: driver.id,
+          title: 'Có yêu cầu đặt xe mới',
+          content: `${inserted.pickup_location} → ${inserted.dropoff_location}. ${inserted.passengers} khách${inserted.note ? `. Ghi chú: ${inserted.note}` : ''}`,
+          type: 'booking_update',
+          read: false,
+          relatedBookingId: inserted.id,
+          createdAt: new Date().toISOString(),
+          time: 'Vừa xong',
+        })
+      )
+    );
 
     return mapBooking(inserted);
   }
@@ -1456,7 +1501,6 @@ class ApiClient {
   }
 
   async toggleBlogLike(postId: string, userId: string): Promise<BlogPost> {
-    const postBefore = await this.getBlogPostById(postId);
     const { data: existing } = await supabase
       .from('blog_likes')
       .select('id')
@@ -1515,19 +1559,28 @@ class ApiClient {
     };
   }
 
-  async shareBlogPost(postId: string, userId: string): Promise<BlogPost> {
+  async shareBlogPost(postId: string, _userId: string): Promise<BlogPost> {
     return this.getBlogPostById(postId);
   }
 
   async getConversations(userId: string): Promise<ChatConversation[]> {
-    const { data, error } = await supabase
+    const [{ data, error }, { data: hiddenData, error: hiddenError }] = await Promise.all([
+      supabase
       .from('conversations')
       .select('*, customer:profiles!conversations_customer_id_fkey(*), driver:profiles!conversations_driver_id_fkey(*), messages(*, profiles!messages_sender_id_fkey(full_name, role), reply:messages!reply_to_message_id(text, sender_id, profiles!messages_sender_id_fkey(full_name)))')
       .or(`customer_id.eq.${userId},driver_id.eq.${userId}`)
-      .order('updated_at', { ascending: false });
+        .order('updated_at', { ascending: false }),
+      supabase
+        .from('conversation_user_hidden')
+        .select('conversation_id')
+        .eq('user_id', userId),
+    ]);
     if (error) throw error;
+    if (hiddenError) throw hiddenError;
 
-    const conversations = (data ?? []).map((row: any) => {
+    const hiddenIds = new Set((hiddenData ?? []).map((item: any) => item.conversation_id));
+
+    const conversations = (data ?? []).filter((row: any) => !hiddenIds.has(row.id)).map((row: any) => {
       const participant = row.customer_id === userId ? row.driver : row.customer;
       const messages = [...(row.messages ?? [])].sort(
         (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -1594,7 +1647,24 @@ class ApiClient {
 
     return Array.from(grouped.values())
       .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime())
-      .map(({ updatedAt, ...conversation }) => conversation);
+      .map(({ updatedAt: _updatedAt, ...conversation }) => conversation);
+  }
+
+  async hideConversations(userId: string, conversationIds: string[]): Promise<void> {
+    const uniqueIds = Array.from(new Set(conversationIds.filter(Boolean)));
+    if (uniqueIds.length === 0) return;
+
+    const { error } = await supabase
+      .from('conversation_user_hidden')
+      .upsert(
+        uniqueIds.map((conversationId) => ({
+          user_id: userId,
+          conversation_id: conversationId,
+          hidden_at: new Date().toISOString(),
+        })),
+        { onConflict: 'user_id,conversation_id' }
+      );
+    if (error) throw error;
   }
 
   async sendMessage(

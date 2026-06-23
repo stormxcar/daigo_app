@@ -95,7 +95,7 @@ export default function RegisterScreen() {
         }}
       >
         <Image
-          source={{ uri: DAIGO_LOGO_URL }}
+          source={{ uri: "https://res.cloudinary.com/dzwjgfd7t/image/upload/v1782178208/booking_daigo/logo_text_no_bg-removebg-preview_dsu4n1.png" }}
           style={{
             width: 130,
             height: 56,

@@ -29,16 +29,6 @@ interface RealtimeTripMapProps {
   onOpenExternalMap?: () => void;
 }
 
-const pointToLatLng = (point: MapPoint): LatLng => ({
-  latitude: point.latitude,
-  longitude: point.longitude,
-});
-
-const locationToLatLng = (location: DriverLocation): LatLng => ({
-  latitude: location.latitude,
-  longitude: location.longitude,
-});
-
 const toLngLat = (point: LatLng): [number, number] => [point.longitude, point.latitude];
 
 const isTerminalStatus = (status?: string) =>
@@ -128,9 +118,15 @@ export function RealtimeTripMap({
   const Layer = nativeMap?.Layer;
   const Map = nativeMap?.Map;
   const Marker = nativeMap?.Marker;
-  const pickupPoint = pointToLatLng(pickup);
-  const dropoffPoint = pointToLatLng(dropoff);
-  const driverPoint = driverLocation ? locationToLatLng(driverLocation) : null;
+  const pickupPoint = useMemo(() => ({ latitude: pickup.latitude, longitude: pickup.longitude }), [pickup.latitude, pickup.longitude]);
+  const dropoffPoint = useMemo(() => ({ latitude: dropoff.latitude, longitude: dropoff.longitude }), [dropoff.latitude, dropoff.longitude]);
+  const driverPoint = useMemo(
+    () =>
+      typeof driverLocation?.latitude === 'number' && typeof driverLocation?.longitude === 'number'
+        ? { latitude: driverLocation.latitude, longitude: driverLocation.longitude }
+        : null,
+    [driverLocation?.latitude, driverLocation?.longitude]
+  );
   const hasActiveDriverRoute = !!driverPoint && !isTerminalStatus(bookingStatus);
   const routeOrigin = hasActiveDriverRoute ? driverPoint : pickupPoint;
   const routeDestination = hasActiveDriverRoute
@@ -141,7 +137,7 @@ export function RealtimeTripMap({
   const distanceToPickup = driverPoint ? getDistanceMeters(driverPoint, pickupPoint) : null;
   const distanceToDropoff = driverPoint ? getDistanceMeters(driverPoint, dropoffPoint) : null;
 
-  const routeGeoJSON = useMemo(() => routeFeature(route), [route?.encodedPolyline]);
+  const routeGeoJSON = useMemo(() => routeFeature(route), [route]);
 
   const fitRoute = useCallback((animated = true) => {
     const fitPoints = route?.coordinates?.length
@@ -153,7 +149,7 @@ export function RealtimeTripMap({
       duration: animated ? 650 : 0,
       easing: 'ease',
     });
-  }, [route?.encodedPolyline, pickupPoint.latitude, pickupPoint.longitude, dropoffPoint.latitude, dropoffPoint.longitude, driverPoint?.latitude, driverPoint?.longitude, expanded]);
+  }, [route?.coordinates, pickupPoint, dropoffPoint, driverPoint, expanded]);
 
   const centerOnDriver = useCallback(() => {
     if (!driverPoint) {
@@ -169,7 +165,7 @@ export function RealtimeTripMap({
       duration: 650,
       easing: 'ease',
     });
-  }, [driverPoint?.latitude, driverPoint?.longitude, driverLocation?.heading]);
+  }, [driverPoint, driverLocation?.heading]);
 
   const loadRoute = useCallback(async (reason: 'initial' | 'manual' | 'deviation' | 'status' = 'initial') => {
     try {
@@ -194,16 +190,16 @@ export function RealtimeTripMap({
     } finally {
       setRouteLoading(false);
     }
-  }, [driverPoint, routeOrigin.latitude, routeOrigin.longitude, routeDestination.latitude, routeDestination.longitude]);
+  }, [driverPoint, routeOrigin, routeDestination]);
 
   useEffect(() => {
     setRoute(null);
     loadRoute('status');
-  }, [bookingStatus, routeOrigin.latitude, routeOrigin.longitude, routeDestination.latitude, routeDestination.longitude]);
+  }, [bookingStatus, loadRoute, routeOrigin, routeDestination]);
 
   useEffect(() => {
     if (route) fitRoute(false);
-  }, [route?.encodedPolyline]);
+  }, [fitRoute, route]);
 
   useEffect(() => {
     if (!driverPoint || isTerminalStatus(bookingStatus)) return;
@@ -231,7 +227,16 @@ export function RealtimeTripMap({
     if (deviation > 90 || movedSinceRoute > 350 || routeAge > 60_000) {
       loadRoute(deviation > 90 ? 'deviation' : 'initial');
     }
-  }, [driverPoint?.latitude, driverPoint?.longitude, driverLocation?.heading]);
+  }, [
+    bookingStatus,
+    distanceToPickup,
+    distanceToDropoff,
+    driverLocation?.heading,
+    driverPoint,
+    followDriver,
+    loadRoute,
+    route,
+  ]);
 
   return (
     <View style={{ borderRadius: borderRadius.lg, overflow: 'hidden', backgroundColor: colors.surfaceAlt }}>

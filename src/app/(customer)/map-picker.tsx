@@ -11,8 +11,6 @@ import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 
-type MapTarget = 'pickup' | 'dropoff';
-
 const DEFAULT_CENTER = {
   lat: 10.7769,
   lng: 106.7009,

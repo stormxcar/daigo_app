@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Image, Text, TouchableOpacity, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Camera, Car, Edit3, Plus, Trash2, X } from "lucide-react-native";
@@ -64,7 +64,7 @@ export default function DriverVehicles() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [activeSort, setActiveSort] = useState("newest");
 
-  const loadVehicles = async () => {
+  const loadVehicles = useCallback(async () => {
     if (!user) return;
     try {
       setLoading(true);
@@ -75,11 +75,11 @@ export default function DriverVehicles() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     loadVehicles();
-  }, [user?.id]);
+  }, [loadVehicles]);
 
   const filteredVehicles = useMemo(() => {
     let result = [...vehicles];
@@ -110,6 +110,20 @@ export default function DriverVehicles() {
     setForm(blankForm);
     setEditingId(null);
     setShowForm(false);
+  };
+
+  const openCreateForm = () => {
+    setForm(blankForm);
+    setEditingId(null);
+    setShowForm(true);
+  };
+
+  const toggleForm = () => {
+    if (showForm) {
+      resetForm();
+      return;
+    }
+    openCreateForm();
   };
 
   const editVehicle = (vehicle: Vehicle) => {
@@ -278,7 +292,7 @@ export default function DriverVehicles() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={() => setShowForm((value) => !value)}
+          onPress={toggleForm}
           disabled={saving}
           style={{
             width: 44,

@@ -8,7 +8,7 @@ export interface DeviceLocation {
 
 const PLUS_CODE_PATTERN = /^[23456789CFGHJMPQRVWX]{4,}\+[23456789CFGHJMPQRVWX]{2,}/i;
 
-const cleanAddressParts = (parts: Array<string | null | undefined>) =>
+const cleanAddressParts = (parts: (string | null | undefined)[]) =>
   parts
     .map((part) => part?.trim())
     .filter((part): part is string => Boolean(part))

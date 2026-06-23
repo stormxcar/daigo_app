@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -215,7 +215,25 @@ export default function BookingScreen() {
     setSearched(false);
     setSelectedVehicleId(null);
     setAppliedMapSelectionKey(selectionKey);
-  }, [routeParams.mapTarget, routeParams.mapLat, routeParams.mapLng, routeParams.mapAddress, appliedMapSelectionKey]);
+  }, [
+    appliedMapSelectionKey,
+    dateInput,
+    routeParams.dateInput,
+    routeParams.dropoffLat,
+    routeParams.dropoffLng,
+    routeParams.dropoffLocation,
+    routeParams.mapAddress,
+    routeParams.mapLat,
+    routeParams.mapLng,
+    routeParams.mapTarget,
+    routeParams.note,
+    routeParams.passengers,
+    routeParams.pickupLat,
+    routeParams.pickupLng,
+    routeParams.pickupLocation,
+    routeParams.time,
+    time,
+  ]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -263,10 +281,10 @@ export default function BookingScreen() {
     return () => clearTimeout(timer);
   }, [dropoffLocation, dropoffPoint?.label]);
 
-  const vehicleAvailability = (vehicle: Vehicle) => {
+  const vehicleAvailability = useCallback((vehicle: Vehicle) => {
     if (vehicle.status !== 'Sẵn sàng') return false;
     return !bookedVehicleIds.includes(vehicle.id);
-  };
+  }, [bookedVehicleIds]);
 
   const vehicles = useMemo(() => {
     const priceLimit = Number(maxPrice) || Infinity;
@@ -288,7 +306,7 @@ export default function BookingScreen() {
         if (sortMode === 'name_asc') return a.name.localeCompare(b.name);
         return a.pricePerKm - b.pricePerKm;
       });
-  }, [vehiclesData, passengerCount, minSeats, minPrice, maxPrice, brandFilter, statusFilter, onlyAvailable, sortMode, bookedVehicleIds]);
+  }, [vehiclesData, passengerCount, minSeats, minPrice, maxPrice, brandFilter, statusFilter, onlyAvailable, sortMode, vehicleAvailability]);
 
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
   const selectedPriceQuote = selectedVehicle

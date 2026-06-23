@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
-import { Eye, EyeOff, KeyRound, Lock, Mail } from 'lucide-react-native';
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
+import { OtpCodeInput } from '@/components/OtpCodeInput';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
@@ -195,18 +196,15 @@ export default function ForgotPasswordScreen() {
               Nếu {email} đã được đăng ký, mã OTP sẽ được gửi đến hộp thư đến hoặc thư rác.
             </Text>
           </View>
-          <TextInput
+          <OtpCodeInput
             label="Mã OTP"
-            placeholder="Nhập mã OTP"
             value={otp}
             onChangeText={(value) => {
               setOtp(value.replace(/\D/g, '').slice(0, 6));
               setLocalError('');
             }}
-            keyboardType="numeric"
             disabled={isSubmitting}
-            icon={<KeyRound size={20} color={colors.textSecondary} />}
-            style={{ marginBottom: spacing.lg }}
+            error={localError && !/^\d{6}$/.test(otp.trim()) ? localError : undefined}
           />
           <Button
             label="Xác minh OTP"

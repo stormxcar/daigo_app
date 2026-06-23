@@ -23,7 +23,7 @@ const NOTIF_SORTS = [
 export default function DriverNotifications() {
   const { colors } = useTheme();
   const { user } = useAuthStore();
-  const { notifications, fetchNotifications, markAsRead, isLoading } = useNotifications(user?.id);
+  const { notifications, fetchNotifications, markAsRead, isLoading, error } = useNotifications(user?.id);
   const [visibleCount, setVisibleCount] = useState(20);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
@@ -71,6 +71,28 @@ export default function DriverNotifications() {
         />
       </View>
 
+      {!!error && !isLoading && (
+        <View
+          style={{
+            marginHorizontal: spacing.lg,
+            marginBottom: spacing.md,
+            padding: spacing.md,
+            borderTopWidth: 1,
+            borderBottomWidth: 1,
+            borderColor: colors.error,
+            backgroundColor: colors.error + '12',
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.xs }}>
+            Không thể tải thông báo
+          </Text>
+          <Text style={{ color: colors.textSecondary, lineHeight: 20 }}>
+            {error}
+          </Text>
+          <Button label="Thử lại" onPress={fetchNotifications} variant="outline" size="sm" style={{ marginTop: spacing.sm }} />
+        </View>
+      )}
+
       {/* Loading skeletons */}
       {isLoading ? (
         <View>
@@ -99,7 +121,7 @@ export default function DriverNotifications() {
       ) : (
         /* List ngăn cách bởi border — không có card, sát 2 bên */
         <View>
-          {filteredNotifications.slice(0, visibleCount).map((notification, index) => (
+          {filteredNotifications.slice(0, visibleCount).map((notification, _index) => (
             <TouchableOpacity
               key={notification.id}
               activeOpacity={0.7}

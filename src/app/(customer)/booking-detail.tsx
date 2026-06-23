@@ -233,8 +233,10 @@ export default function BookingDetailScreen() {
     booking?.status,
     booking?.pickupLat,
     booking?.pickupLng,
+    booking,
     driverLocation?.latitude,
     driverLocation?.longitude,
+    driverLocation,
   ]);
 
   const refreshBooking = () => {
@@ -251,7 +253,7 @@ export default function BookingDetailScreen() {
       .getRatingForBooking(booking.id, user.id)
       .then(setRatingReview)
       .catch(() => undefined);
-  }, [booking?.id, booking?.status, user?.id]);
+  }, [booking, user]);
 
   const handleConfirm = async () => {
     if (loading || submitted) return;

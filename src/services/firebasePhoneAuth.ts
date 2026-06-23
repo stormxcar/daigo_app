@@ -6,7 +6,7 @@ const getNativeAuth = async () => {
   try {
     const authModule = await import('@react-native-firebase/auth');
     return authModule.default();
-  } catch (error: any) {
+  } catch (_error: any) {
     throw new Error(
       'Firebase Phone Auth cần development build/APK có native module. Expo Go không hỗ trợ xác thực SĐT bằng Firebase.'
     );
@@ -16,7 +16,19 @@ const getNativeAuth = async () => {
 export const firebasePhoneAuth = {
   async sendOtp(phoneNumber: string) {
     const auth = await getNativeAuth();
-    confirmationResult = await auth.signInWithPhoneNumber(phoneNumber);
+    try {
+      confirmationResult = await auth.signInWithPhoneNumber(phoneNumber);
+    } catch (error: any) {
+      if (__DEV__) {
+        console.warn('Firebase phone OTP send failed', {
+          code: error?.code,
+          message: error?.message,
+          nativeErrorMessage: error?.nativeErrorMessage,
+        });
+      }
+      const code = error?.code ? ` (${error.code})` : '';
+      throw new Error(`Không thể gửi OTP Firebase${code}: ${error?.message ?? 'Vui lòng kiểm tra Firebase Phone Authentication, SHA-1/SHA-256 và google-services.json.'}`);
+    }
   },
 
   async confirmOtp(code: string) {
@@ -24,7 +36,20 @@ export const firebasePhoneAuth = {
       throw new Error('Vui lòng gửi OTP trước khi xác thực.');
     }
 
-    const credential = await confirmationResult.confirm(code);
+    let credential;
+    try {
+      credential = await confirmationResult.confirm(code);
+    } catch (error: any) {
+      if (__DEV__) {
+        console.warn('Firebase phone OTP confirm failed', {
+          code: error?.code,
+          message: error?.message,
+          nativeErrorMessage: error?.nativeErrorMessage,
+        });
+      }
+      const codeLabel = error?.code ? ` (${error.code})` : '';
+      throw new Error(`OTP Firebase không hợp lệ${codeLabel}: ${error?.message ?? 'Vui lòng thử lại.'}`);
+    }
     const auth = await getNativeAuth();
     const phoneNumber = credential?.user?.phoneNumber || auth.currentUser?.phoneNumber;
     if (!phoneNumber) {

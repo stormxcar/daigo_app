@@ -88,7 +88,7 @@ export default function CustomerPaymentScreen() {
         showWarning('Mã VietQR đã hết hạn', 'Vui lòng tạo lại mã thanh toán mới nếu bạn muốn chuyển khoản.');
       })
       .catch(() => undefined);
-  }, [payment?.id, vietQrExpired]);
+  }, [payment, setPayment, vietQrExpired]);
 
   if (!isAuthenticated) {
     return <AuthRequired description="Bạn cần đăng nhập để thanh toán chuyến đi." />;

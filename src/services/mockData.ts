@@ -1,4 +1,4 @@
-import { User, Vehicle, Booking, NotificationItem, ChatConversation, BlogPost } from '@/types';
+import { Vehicle, Booking, NotificationItem, ChatConversation, BlogPost } from '@/types';
 import { EX_DRIVER } from './mockDriver';
 
 // Mock Driver

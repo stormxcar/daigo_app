@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { CheckCircle2, XCircle } from 'lucide-react-native';
@@ -39,7 +39,7 @@ export default function DriverPaymentReviewScreen() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       const nextPayment = paymentId
@@ -59,11 +59,11 @@ export default function DriverPaymentReviewScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookingId, paymentId]);
 
   useEffect(() => {
     load();
-  }, [bookingId, paymentId]);
+  }, [load]);
 
   useEffect(() => {
     if (!payment?.bookingId) return undefined;

@@ -3,6 +3,13 @@ module.exports = {
   slug: 'vf7-booking',
   version: '1.0.0',
   sdkVersion: '54.0.0',
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
+  updates: {
+    url: 'https://u.expo.dev/af736931-a2cb-443f-a684-3a0662d6e381',
+    fallbackToCacheTimeout: 0,
+  },
   orientation: 'portrait',
   jsEngine: 'hermes',
   icon: './assets/icon.png',
@@ -28,6 +35,7 @@ module.exports = {
   android: {
     permissions: ['RECORD_AUDIO'],
     googleServicesFile: './google-services.json',
+    versionCode: 1,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#1d4ed8',

@@ -28,7 +28,6 @@ interface MapPreviewProps {
 
 type SelectMode = 'pickup' | 'dropoff';
 
-const toLatLng = (point: MapPoint): LatLng => ({ latitude: point.lat, longitude: point.lng });
 const toLngLat = (point: LatLng): [number, number] => [point.longitude, point.latitude];
 
 const goongStyleUrl = () => {
@@ -116,12 +115,15 @@ export function MapPreview({
   const Layer = nativeMap?.Layer;
   const Map = nativeMap?.Map;
   const Marker = nativeMap?.Marker;
-  const pickupPoint = toLatLng(pickup);
-  const dropoffPoint = toLatLng(dropoff);
-  const routeGeoJSON = useMemo(() => routeFeature(route), [route?.encodedPolyline]);
-  const fitPoints = route?.coordinates?.length
-    ? route.coordinates
-    : [pickupPoint, dropoffPoint, ...(userLocation ? [userLocation] : [])];
+  const pickupPoint = useMemo(() => ({ latitude: pickup.lat, longitude: pickup.lng }), [pickup.lat, pickup.lng]);
+  const dropoffPoint = useMemo(() => ({ latitude: dropoff.lat, longitude: dropoff.lng }), [dropoff.lat, dropoff.lng]);
+  const routeGeoJSON = useMemo(() => routeFeature(route), [route]);
+  const fitPoints = useMemo(
+    () => (route?.coordinates?.length
+      ? route.coordinates
+      : [pickupPoint, dropoffPoint, ...(userLocation ? [userLocation] : [])]),
+    [dropoffPoint, pickupPoint, route?.coordinates, userLocation]
+  );
 
   const fitMap = useCallback((camera: any, animated = true) => {
     if (!camera || fitPoints.length < 2) return;
@@ -130,7 +132,7 @@ export function MapPreview({
       duration: animated ? 650 : 0,
       easing: 'ease',
     });
-  }, [route?.encodedPolyline, pickup.lat, pickup.lng, dropoff.lat, dropoff.lng, userLocation?.latitude, userLocation?.longitude]);
+  }, [fitPoints]);
 
   const requestLocation = async () => {
     try {
@@ -180,14 +182,14 @@ export function MapPreview({
         setRoute(null);
         setRouteError(error.message || 'Không thể tải lộ trình Goong.');
       });
-  }, [pickup.lat, pickup.lng, dropoff.lat, dropoff.lng]);
+  }, [pickupPoint, dropoffPoint]);
 
   useEffect(() => {
     if (route) {
       fitMap(compactCameraRef.current, false);
       fitMap(fullscreenCameraRef.current, false);
     }
-  }, [route?.encodedPolyline]);
+  }, [fitMap, route]);
 
   useEffect(() => {
     if (followUser) requestLocation();

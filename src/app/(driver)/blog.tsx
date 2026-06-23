@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Camera, Edit3, Heart, MessageCircle, MoreVertical, Play, Plus, Share2, Trash2, X } from 'lucide-react-native';
+import { Camera, Edit3, Heart, MessageCircle, MoreVertical, Plus, Share2, Trash2, X } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, Skeleton, TextInput } from '@/components/BaseComponents';
@@ -77,7 +77,7 @@ export default function DriverBlog() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [activeSort, setActiveSort] = useState('newest');
 
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
     if (!user) return;
     try {
       setLoading(true);
@@ -90,7 +90,7 @@ export default function DriverBlog() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   const loadMorePosts = async () => {
     if (!user || loading || loadingMore || !hasMore) return;
@@ -113,7 +113,7 @@ export default function DriverBlog() {
 
   useEffect(() => {
     loadPosts();
-  }, [user?.id]);
+  }, [loadPosts]);
 
   const filteredPosts = useMemo(() => {
     let result = [...posts];
@@ -135,7 +135,25 @@ export default function DriverBlog() {
     setMediaUrls([]);
     setMediaTypes([]);
     setEditingId(null);
+    setMenuPostId(null);
     setShowForm(false);
+  };
+
+  const openCreateForm = () => {
+    setCaption('');
+    setMediaUrls([]);
+    setMediaTypes([]);
+    setEditingId(null);
+    setMenuPostId(null);
+    setShowForm(true);
+  };
+
+  const toggleForm = () => {
+    if (showForm) {
+      resetForm();
+      return;
+    }
+    openCreateForm();
   };
 
   const pickMedia = async () => {
@@ -269,7 +287,7 @@ export default function DriverBlog() {
           <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>{posts.length} bài viết từ database</Text>
         </View>
         <TouchableOpacity
-          onPress={() => setShowForm((value) => !value)}
+          onPress={toggleForm}
           disabled={saving}
           style={{ width: 44, height: 44, borderRadius: borderRadius.full, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}
         >

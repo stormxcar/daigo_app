@@ -15,8 +15,12 @@ import {
 } from "@expo-google-fonts/inter";
 import { apiClient } from "@/services/api";
 import { supabase } from "@/services/supabase";
+import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
+import { useNotificationStore } from "@/stores/notificationStore";
 import { AppToast } from "@/components/AppToast";
+import { AppNotificationBridge } from "@/components/AppNotificationBridge";
+import { ForceUpdateGate } from "@/components/ForceUpdateGate";
 import { IncomingCallModal } from "@/components/IncomingCallModal";
 import { useIncomingCall } from "@/hooks/useIncomingCall";
 import { registerPushNotifications } from "@/services/pushNotifications";
@@ -132,6 +136,8 @@ export default function RootLayout() {
               // Cleanup all realtime subscriptions to prevent ghost channels
               cleanupBookingStatusSubscriptions();
               cleanupRealtimeDriverLocationSubscriptions();
+              useChatStore.getState().clearChatState();
+              useNotificationStore.getState().clearNotifications();
               useAuthStore.setState({ user: null, token: null, isAuthenticated: false });
             }
             return;
@@ -221,18 +227,21 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            gestureEnabled: true,
-          }}
-        >
-          <Stack.Screen name="(auth)" options={{ animation: "none" }} />
-          <Stack.Screen name="(customer)" options={{ animation: "none" }} />
-          <Stack.Screen name="(driver)" options={{ animation: "none" }} />
-          <Stack.Screen name="call" options={{ animation: "slide_from_bottom" }} />
-        </Stack>
-        <IncomingCallModal call={incomingCall} onClose={clearIncomingCall} />
+        <ForceUpdateGate>
+          <AppNotificationBridge />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              gestureEnabled: true,
+            }}
+          >
+            <Stack.Screen name="(auth)" options={{ animation: "none" }} />
+            <Stack.Screen name="(customer)" options={{ animation: "none" }} />
+            <Stack.Screen name="(driver)" options={{ animation: "none" }} />
+            <Stack.Screen name="call" options={{ animation: "slide_from_bottom" }} />
+          </Stack>
+          <IncomingCallModal call={incomingCall} onClose={clearIncomingCall} />
+        </ForceUpdateGate>
         <AppToast />
       </BottomSheetModalProvider>
     </GestureHandlerRootView>

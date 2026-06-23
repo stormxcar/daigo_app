@@ -119,12 +119,12 @@ export async function searchVietnamLocations(query: string): Promise<LocationSug
     throw new Error('Không thể tải gợi ý địa điểm');
   }
 
-  const data = (await response.json()) as Array<{
+  const data = (await response.json()) as {
     place_id: number;
     display_name: string;
     lat: string;
     lon: string;
-  }>;
+  }[];
 
   const results: LocationSuggestion[] = data.map((item) => ({
     id: String(item.place_id),

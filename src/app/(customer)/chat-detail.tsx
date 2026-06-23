@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { apiClient } from '@/services/api';
@@ -19,22 +19,22 @@ export default function ChatDetailScreen() {
   const channelInstanceId = useRef(Math.random().toString(36).slice(2)).current;
   const conversation = useMemo(() => conversations.find((item) => item.id === id), [conversations, id]);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!user) return;
     const latest = await apiClient.getConversations(user.id);
     setConversations(latest);
     setLoading(false);
-  };
+  }, [setConversations, user]);
 
   useEffect(() => {
     refresh().catch(() => setLoading(false));
-  }, [user?.id]);
+  }, [refresh]);
 
   useEffect(() => {
     if (!id || !user) return;
     markConversationAsRead(id);
     apiClient.markConversationThreadMessagesAsRead(id, user.id).then(refresh).catch(() => undefined);
-  }, [id, user?.id]);
+  }, [id, markConversationAsRead, refresh, user]);
 
   useEffect(() => {
     if (!id) return;
@@ -51,7 +51,7 @@ export default function ChatDetailScreen() {
       active = false;
       supabase.removeChannel(channel);
     };
-  }, [id, user?.id, channelInstanceId]);
+  }, [id, refresh, channelInstanceId]);
 
   if (user && !user.phoneVerified) {
     return (

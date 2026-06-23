@@ -46,7 +46,7 @@ export const useTheme = () => {
 
 // Hook to use theme with system preference detection
 export const useThemedColors = () => {
-  const systemColorScheme = useColorScheme();
+  useColorScheme();
   const { colors: themeColors, colorScheme } = useThemeStore();
 
   return {

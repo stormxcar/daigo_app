@@ -27,6 +27,20 @@ export interface User {
   updatedAt: string;
 }
 
+export interface DriverStatus {
+  id: string;
+  profileId: string;
+  isOnline: boolean;
+  verificationStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+  rating: number;
+  currentLatitude?: number;
+  currentLongitude?: number;
+  updatedLocationAt?: string;
+  cccdNumber?: string;
+  licenseNumber?: string;
+  documentUrls: string[];
+}
+
 export interface ProfileSettings {
   userId: string;
   pushEnabled: boolean;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Badge } from '@/components/BaseComponents';
-import { BookingPaymentStatus, PaymentStatus } from '@/types';
+import { BookingPaymentStatus, PaymentMethod, PaymentStatus } from '@/types';
 
 type Props = {
   status?: PaymentStatus | BookingPaymentStatus | null;
@@ -17,8 +17,18 @@ const PAYMENT_LABELS: Record<string, string> = {
   expired: 'Hết hạn',
 };
 
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: 'Tiền mặt',
+  bank_transfer: 'Chuyển khoản',
+  vietqr: 'VietQR',
+};
+
 export function getPaymentStatusLabel(status?: PaymentStatus | BookingPaymentStatus | null) {
   return PAYMENT_LABELS[status || 'unpaid'] ?? 'Chưa thanh toán';
+}
+
+export function getPaymentMethodLabel(method?: PaymentMethod | null) {
+  return method ? PAYMENT_METHOD_LABELS[method] : 'Chưa chọn';
 }
 
 export function PaymentStatusBadge({ status, size = 'sm' }: Props) {

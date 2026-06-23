@@ -1,10 +1,11 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Heart, MessageCircle, Send, Share2 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { Button, Card, CardSkeleton, TextInput } from '@/components/BaseComponents';
+import { fontSize, spacing } from '@/theme/tokens';
+import { Button, CardSkeleton, TextInput } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
@@ -15,6 +16,7 @@ import { BlogMediaGrid } from '@/components/BlogMediaGrid';
 
 export default function BlogDetailScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { user } = useAuthStore();
   const [post, setPost] = useState<BlogPost | null>(null);
@@ -24,7 +26,7 @@ export default function BlogDetailScreen() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  const loadPost = async () => {
+  const loadPost = useCallback(async () => {
     if (!id) return;
     try {
       setInitialLoading(true);
@@ -39,11 +41,11 @@ export default function BlogDetailScreen() {
     } finally {
       setInitialLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     loadPost();
-  }, [id]);
+  }, [loadPost]);
 
   const requireAuth = (action: string) => {
     if (user) return true;
@@ -119,7 +121,16 @@ export default function BlogDetailScreen() {
 
   return (
     <Screen scroll>
-      <Card style={{ marginBottom: spacing.lg }}>
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.lg,
+          paddingBottom: spacing.md,
+          backgroundColor: colors.background,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        }}
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
           <Image source={{ uri: post.driverAvatar }} style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surfaceAlt }} />
           <View>
@@ -151,16 +162,45 @@ export default function BlogDetailScreen() {
             <Text style={{ color: colors.text, marginTop: spacing.xs }}>Chia sẻ</Text>
           </TouchableOpacity>
         </View>
-      </Card>
+      </View>
 
-      <Card>
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.lg,
+          paddingBottom: Math.max(insets.bottom + spacing.xl, spacing['2xl']),
+          backgroundColor: colors.background,
+        }}
+      >
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Bình luận</Text>
+        {parentComments.length === 0 && (
+          <View
+            style={{
+              paddingVertical: spacing.xl,
+              borderTopWidth: 1,
+              borderBottomWidth: 1,
+              borderColor: colors.border,
+              marginBottom: spacing.md,
+            }}
+          >
+            <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>
+              Chưa có bình luận nào.
+            </Text>
+          </View>
+        )}
         {parentComments.map((comment) => (
-          <View key={comment.id} style={{ marginBottom: spacing.md }}>
+          <View
+            key={comment.id}
+            style={{
+              paddingVertical: spacing.md,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+            }}
+          >
             <View style={{ flexDirection: 'row', gap: spacing.md }}>
               <Image source={{ uri: comment.authorAvatar }} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surfaceAlt }} />
               <View style={{ flex: 1 }}>
-                <View style={{ padding: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt }}>
+                <View style={{ paddingVertical: spacing.xs }}>
                   <Text style={{ color: colors.text, fontWeight: '800' }}>{comment.authorName}</Text>
                   <Text style={{ color: colors.text, marginTop: spacing.xs, lineHeight: 20 }}>{comment.text}</Text>
                 </View>
@@ -175,9 +215,19 @@ export default function BlogDetailScreen() {
                 </TouchableOpacity>
 
                 {getReplies(comment.id).map((reply) => (
-                  <View key={reply.id} style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+                  <View
+                    key={reply.id}
+                    style={{
+                      flexDirection: 'row',
+                      gap: spacing.sm,
+                      marginTop: spacing.sm,
+                      paddingTop: spacing.sm,
+                      borderTopWidth: 1,
+                      borderTopColor: colors.border,
+                    }}
+                  >
                     <Image source={{ uri: reply.authorAvatar }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surfaceAlt }} />
-                    <View style={{ flex: 1, padding: spacing.sm, borderRadius: borderRadius.md, backgroundColor: colors.surface }}>
+                    <View style={{ flex: 1, paddingVertical: spacing.xs }}>
                       <Text style={{ color: colors.text, fontWeight: '800', fontSize: fontSize.sm }}>{reply.authorName}</Text>
                       <Text style={{ color: colors.text, marginTop: spacing.xs, lineHeight: 19 }}>{reply.text}</Text>
                     </View>
@@ -188,7 +238,15 @@ export default function BlogDetailScreen() {
           </View>
         ))}
         {replyTo && (
-          <View style={{ padding: spacing.sm, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt, marginBottom: spacing.sm }}>
+          <View
+            style={{
+              paddingVertical: spacing.sm,
+              borderTopWidth: 1,
+              borderBottomWidth: 1,
+              borderColor: colors.border,
+              marginBottom: spacing.sm,
+            }}
+          >
             <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
               Đang trả lời {replyTo.authorName}
             </Text>
@@ -197,7 +255,17 @@ export default function BlogDetailScreen() {
             </TouchableOpacity>
           </View>
         )}
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginTop: spacing.sm }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-end',
+            gap: spacing.sm,
+            marginTop: spacing.lg,
+            paddingTop: spacing.md,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+          }}
+        >
           <TextInput
             value={commentText}
             onChangeText={setCommentText}
@@ -214,7 +282,7 @@ export default function BlogDetailScreen() {
             style={{ minHeight: 50 }}
           />
         </View>
-      </Card>
+      </View>
     </Screen>
   );
 }

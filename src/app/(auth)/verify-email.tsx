@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { KeyRound, Mail } from 'lucide-react-native';
+import { Mail } from 'lucide-react-native';
 import { Button, TextInput } from '@/components/BaseComponents';
+import { OtpCodeInput } from '@/components/OtpCodeInput';
 import { Screen } from '@/components/ScreenComponents';
 import { useAuth } from '@/hooks/useAuth';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
@@ -110,18 +111,15 @@ export default function VerifyEmailScreen() {
         style={{ marginBottom: spacing.lg }}
       />
 
-      <TextInput
+      <OtpCodeInput
         label="Mã OTP"
-        placeholder="Nhập mã OTP"
         value={otp}
         onChangeText={(value) => {
-          setOtp(value);
+          setOtp(value.replace(/\D/g, '').slice(0, 6));
           setLocalError('');
         }}
-        keyboardType="numeric"
         disabled={isLoading}
-        icon={<KeyRound size={20} color={colors.textSecondary} />}
-        style={{ marginBottom: spacing.lg }}
+        error={localError && !/^\d{6}$/.test(otp.trim()) ? localError : undefined}
       />
 
       <Button label="Xác thực tài khoản" onPress={handleVerify} loading={isLoading} disabled={isLoading} style={{ marginBottom: spacing.md }} />

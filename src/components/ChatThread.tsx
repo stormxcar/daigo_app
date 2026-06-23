@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Linking, Modal, Platform, Text, TouchableOpacity, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
 import { router } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { Image as ImageIcon, Reply, Send, X } from 'lucide-react-native';
+import { Download, Image as ImageIcon, PhoneCall, Play, Reply, Send, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { useTheme } from '@/theme';
@@ -18,6 +20,8 @@ import { ChatConversation, Message, User } from '@/types';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 import { ChatHeader } from '@/components/ChatHeader';
 import { CallOptionsBottomSheet } from '@/components/CallOptionsBottomSheet';
+import { buildCloudinaryVideoPosterUrl, buildOptimizedCloudinaryVideoUrl, shouldUseHlsVideo } from '@/services/videoOptimizationService';
+import { ZoomableImage } from '@/components/ZoomableImage';
 
 type ChatThreadProps = {
   conversation: ChatConversation;
@@ -32,6 +36,79 @@ const MAX_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
 const formatMessageTime = (timestamp: string) =>
   new Date(timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
+function ChatVideoPreview({ uri, onPress }: { uri: string; onPress: () => void }) {
+  const posterUri = buildCloudinaryVideoPosterUrl(uri, { width: 520 });
+
+  return (
+    <TouchableOpacity activeOpacity={0.9} onPress={onPress}>
+      <View
+        style={{
+          width: 220,
+          height: 220,
+          borderRadius: borderRadius.lg,
+          overflow: 'hidden',
+          backgroundColor: '#0f172a',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {!!posterUri && <Image source={{ uri: posterUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />}
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            width: 54,
+            height: 54,
+            borderRadius: 27,
+            backgroundColor: 'rgba(0,0,0,0.55)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Play size={24} color="white" fill="white" />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function FullscreenChatVideo({ uri }: { uri: string }) {
+  const posterUri = useMemo(() => buildCloudinaryVideoPosterUrl(uri, { width: 1080 }), [uri]);
+  const sourceUri = useMemo(() => buildOptimizedCloudinaryVideoUrl(uri, { width: 1080, hls: shouldUseHlsVideo() }), [uri]);
+
+  if (Constants.appOwnership === 'expo') {
+    return (
+      <View style={{ width: '100%', height: '78%', alignItems: 'center', justifyContent: 'center' }}>
+        {!!posterUri && <Image source={{ uri: posterUri }} style={{ width: '100%', height: '100%', position: 'absolute' }} resizeMode="contain" />}
+        <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
+          <Play size={28} color="white" fill="white" />
+        </View>
+      </View>
+    );
+  }
+
+  return <MountedFullscreenChatVideo sourceUri={sourceUri} />;
+}
+
+function MountedFullscreenChatVideo({ sourceUri }: { sourceUri: string }) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  const { VideoView, useVideoPlayer } = require('expo-video');
+  const player = useVideoPlayer(sourceUri, (videoPlayer: any) => {
+    videoPlayer.loop = false;
+    videoPlayer.muted = false;
+  });
+
+  return (
+    <VideoView
+      player={player}
+      style={{ width: '100%', height: '78%' }}
+      contentFit="contain"
+      nativeControls
+      fullscreenOptions={{ enable: true, orientation: 'default' }}
+    />
+  );
+}
+
 export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMessageDeleted }: ChatThreadProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -39,7 +116,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
   const [sending, setSending] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
-  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [previewMedia, setPreviewMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const [participantTyping, setParticipantTyping] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -238,9 +315,53 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
     );
   };
 
+  const saveRemoteMedia = async (url: string, mediaType: 'image' | 'video') => {
+    try {
+      if (Constants.appOwnership === 'expo' && Platform.OS === 'android') {
+        showError(
+          'Cần development build',
+          'Expo Go trên Android không còn cấp đủ quyền lưu media. Hãy cài APK/dev build mới để kiểm tra lưu ảnh/video thật.'
+        );
+        return;
+      }
+
+      const permission = await MediaLibrary.requestPermissionsAsync();
+      if (!permission.granted) {
+        showError(
+          mediaType === 'image' ? 'Chưa có quyền lưu ảnh' : 'Chưa có quyền lưu video',
+          'Vui lòng cho phép ứng dụng truy cập thư viện media.'
+        );
+        return;
+      }
+
+      const cleanUrl = url.split('?')[0];
+      const ext = cleanUrl.split('.').pop()?.toLowerCase() || (mediaType === 'video' ? 'mp4' : 'jpg');
+      const validImageExt = ['jpg', 'jpeg', 'png', 'webp'];
+      const validVideoExt = ['mp4', 'mov', 'm4v'];
+      const safeExt =
+        mediaType === 'video'
+          ? validVideoExt.includes(ext) ? ext : 'mp4'
+          : validImageExt.includes(ext) ? ext : 'jpg';
+      const filename = `daigo-chat-${Date.now()}.${safeExt}`;
+      const downloaded = await FileSystem.downloadAsync(url, `${FileSystem.cacheDirectory}${filename}`);
+      const asset = await MediaLibrary.createAssetAsync(downloaded.uri);
+      const album = await MediaLibrary.getAlbumAsync('Daigo Booking');
+      if (album) {
+        await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+      } else {
+        await MediaLibrary.createAlbumAsync('Daigo Booking', asset, false);
+      }
+      showSuccess(mediaType === 'image' ? 'Đã lưu ảnh' : 'Đã lưu video', 'Media đã được lưu vào thiết bị.');
+    } catch (error: any) {
+      showError(mediaType === 'image' ? 'Không thể tải ảnh' : 'Không thể tải video', error.message || 'Vui lòng thử lại sau.');
+    }
+  };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const fromMe = item.sender === 'user';
     const showSeen = fromMe && item.id === lastOwnMessageId;
+    const isMissedCall = item.text?.toLowerCase().includes('cuộc gọi nhỡ');
+    const hasMedia = !!item.mediaUrl && (item.mediaType === 'image' || item.mediaType === 'video');
 
     return (
       <View style={{ alignItems: fromMe ? 'flex-end' : 'flex-start', paddingHorizontal: spacing.lg, marginBottom: spacing.md }}>
@@ -252,10 +373,10 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
             borderRadius: borderRadius.xl,
             borderTopRightRadius: fromMe ? borderRadius.sm : borderRadius.xl,
             borderTopLeftRadius: fromMe ? borderRadius.xl : borderRadius.sm,
-            padding: item.mediaUrl ? spacing.xs : spacing.md,
-            backgroundColor: fromMe ? colors.primary : colors.surface,
-            borderWidth: fromMe ? 0 : 1,
-            borderColor: colors.border,
+            padding: hasMedia ? spacing.xs : spacing.md,
+            backgroundColor: isMissedCall ? 'rgba(239,68,68,0.1)' : fromMe ? colors.primary : colors.surface,
+            borderWidth: fromMe && !isMissedCall ? 0 : 1,
+            borderColor: isMissedCall ? colors.error : colors.border,
             ...shadows.xs,
           }}
         >
@@ -279,7 +400,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
             </View>
           )}
           {item.mediaType === 'image' && item.mediaUrl && (
-            <TouchableOpacity activeOpacity={0.9} onPress={() => setPreviewImageUrl(item.mediaUrl ?? null)}>
+            <TouchableOpacity activeOpacity={0.9} onPress={() => setPreviewMedia({ url: item.mediaUrl!, type: 'image' })}>
               <Image
                 source={{ uri: item.mediaUrl }}
                 style={{
@@ -293,8 +414,13 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
               />
             </TouchableOpacity>
           )}
+          {item.mediaType === 'video' && item.mediaUrl && (
+            <ChatVideoPreview uri={item.mediaUrl} onPress={() => setPreviewMedia({ url: item.mediaUrl!, type: 'video' })} />
+          )}
           {!!item.text && item.text !== 'Đã gửi một ảnh' && (
-            <Text style={{ color: fromMe ? 'white' : colors.text, lineHeight: 21 }}>{item.text}</Text>
+            <Text style={{ color: isMissedCall ? colors.error : fromMe ? 'white' : colors.text, lineHeight: 21, fontWeight: isMissedCall ? '900' : '400' }}>
+              {item.text}
+            </Text>
           )}
           <Text
             style={{
@@ -303,10 +429,29 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
               marginTop: item.text && item.text !== 'Đã gửi một ảnh' ? spacing.xs : spacing.sm,
               textAlign: fromMe ? 'right' : 'left',
             }}
+        >
+          {formatMessageTime(item.timestamp)}
+        </Text>
+      </TouchableOpacity>
+        {isMissedCall && (
+          <TouchableOpacity
+            activeOpacity={0.82}
+            onPress={startAgoraCall}
+            style={{
+              marginTop: spacing.sm,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.xs,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+              borderRadius: borderRadius.full,
+              backgroundColor: colors.error,
+            }}
           >
-            {formatMessageTime(item.timestamp)}
-          </Text>
-        </TouchableOpacity>
+            <PhoneCall size={15} color="white" />
+            <Text style={{ color: 'white', fontWeight: '900', fontSize: fontSize.sm }}>Gọi lại</Text>
+          </TouchableOpacity>
+        )}
         {showSeen && (
           <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, marginTop: spacing.xs, marginRight: spacing.xs }}>
             {item.read ? 'Đã xem' : 'Đã gửi'}
@@ -358,7 +503,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
         style={{
           paddingHorizontal: spacing.lg,
           paddingTop: spacing.sm,
-          paddingBottom: Math.max(insets.bottom, spacing.md),
+          paddingBottom: Math.max(insets.bottom + spacing.lg, spacing.xl),
           borderTopWidth: 1,
           borderTopColor: colors.border,
           backgroundColor: colors.background,
@@ -431,10 +576,10 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
         </View>
       </View>
 
-      <Modal visible={!!previewImageUrl} transparent animationType="fade" onRequestClose={() => setPreviewImageUrl(null)}>
+      <Modal visible={!!previewMedia} transparent animationType="fade" onRequestClose={() => setPreviewMedia(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', justifyContent: 'center' }}>
           <TouchableOpacity
-            onPress={() => setPreviewImageUrl(null)}
+            onPress={() => setPreviewMedia(null)}
             style={{
               position: 'absolute',
               top: Math.max(insets.top, spacing.lg),
@@ -450,8 +595,37 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
           >
             <X size={24} color="white" />
           </TouchableOpacity>
-          {previewImageUrl && (
-            <Image source={{ uri: previewImageUrl }} style={{ width: '100%', height: '78%' }} resizeMode="contain" />
+          {previewMedia?.type === 'image' && (
+            <ZoomableImage uri={previewMedia.url} style={{ width: '100%', height: '78%' }} />
+          )}
+          {previewMedia?.type === 'video' && (
+            <FullscreenChatVideo uri={previewMedia.url} />
+          )}
+          {previewMedia && (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => saveRemoteMedia(previewMedia.url, previewMedia.type)}
+              style={{
+                position: 'absolute',
+                left: spacing.lg,
+                right: spacing.lg,
+                bottom: Math.max(insets.bottom + spacing.lg, spacing['2xl']),
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: spacing.sm,
+                paddingVertical: spacing.md,
+                borderRadius: borderRadius.full,
+                backgroundColor: 'rgba(255,255,255,0.18)',
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.24)',
+              }}
+            >
+              <Download size={20} color="white" />
+              <Text style={{ color: 'white', fontWeight: '900' }}>
+                {previewMedia.type === 'image' ? 'Tải ảnh về máy' : 'Tải video về máy'}
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
       </Modal>

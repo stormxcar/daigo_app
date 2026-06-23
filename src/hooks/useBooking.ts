@@ -5,68 +5,73 @@ import { Booking } from '@/types';
 
 export const useBooking = () => {
   const store = useBookingStore();
+  const setLoading = useBookingStore((state) => state.setLoading);
+  const setBookings = useBookingStore((state) => state.setBookings);
+  const addBooking = useBookingStore((state) => state.addBooking);
+  const updateBooking = useBookingStore((state) => state.updateBooking);
+  const setError = useBookingStore((state) => state.setError);
 
   const fetchBookings = useCallback(async (filters?: any) => {
     try {
-      store.setLoading(true);
+      setLoading(true);
       const bookings = await apiClient.getBookings(filters);
-      store.setBookings(bookings);
-      store.setLoading(false);
+      setBookings(bookings);
+      setLoading(false);
     } catch (err: any) {
-      store.setError(err.message);
-      store.setLoading(false);
+      setError(err.message);
+      setLoading(false);
     }
-  }, []);
+  }, [setBookings, setError, setLoading]);
 
   const createBooking = useCallback(async (bookingData: Partial<Booking>) => {
     try {
-      store.setLoading(true);
+      setLoading(true);
       const booking = await apiClient.createBooking(bookingData);
-      store.addBooking(booking);
-      store.setLoading(false);
+      addBooking(booking);
+      setLoading(false);
       return booking;
     } catch (err: any) {
-      store.setError(err.message);
-      store.setLoading(false);
+      setError(err.message);
+      setLoading(false);
       throw err;
     }
-  }, []);
+  }, [addBooking, setError, setLoading]);
 
   const updateBookingStatus = useCallback(
     async (bookingId: string, status: string) => {
       try {
-        store.setLoading(true);
+        setLoading(true);
         const booking = await apiClient.updateBooking(bookingId, { status: status as any });
-        store.updateBooking(bookingId, { status: status as any });
-        store.setLoading(false);
+        updateBooking(bookingId, { status: status as any });
+        setLoading(false);
         return booking;
       } catch (err: any) {
-        store.setError(err.message);
-        store.setLoading(false);
+        setError(err.message);
+        setLoading(false);
         throw err;
       }
     },
-    []
+    [setError, setLoading, updateBooking]
   );
 
   const cancelBooking = useCallback(async (bookingId: string, reason?: string) => {
     try {
-      store.setLoading(true);
+      setLoading(true);
       const booking = await apiClient.cancelBooking(bookingId, reason);
-      store.updateBooking(bookingId, {
+      updateBooking(bookingId, {
         status: booking.status,
         cancelReason: booking.cancelReason,
         cancelledAt: booking.cancelledAt,
         cancelledBy: booking.cancelledBy,
       });
-      store.setLoading(false);
+      setLoading(false);
       return booking;
     } catch (err: any) {
-      store.setError(err.message);
-      store.setLoading(false);
+      setError(err.message);
+      setLoading(false);
       throw err;
     }
-  }, []);
+  }, [setError, setLoading, updateBooking]);
 
   return {
     ...store,

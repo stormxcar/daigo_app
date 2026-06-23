@@ -5,59 +5,65 @@ import { Vehicle } from '@/types';
 
 export const useVehicles = () => {
   const store = useVehicleStore();
+  const setLoading = useVehicleStore((state) => state.setLoading);
+  const setVehicles = useVehicleStore((state) => state.setVehicles);
+  const addVehicle = useVehicleStore((state) => state.addVehicle);
+  const updateVehicleInStore = useVehicleStore((state) => state.updateVehicle);
+  const deleteVehicleFromStore = useVehicleStore((state) => state.deleteVehicle);
+  const setError = useVehicleStore((state) => state.setError);
 
   const fetchVehicles = useCallback(async () => {
     try {
-      store.setLoading(true);
+      setLoading(true);
       const vehicles = await apiClient.getVehicles();
-      store.setVehicles(vehicles);
-      store.setLoading(false);
+      setVehicles(vehicles);
+      setLoading(false);
     } catch (err: any) {
-      store.setError(err.message);
-      store.setLoading(false);
+      setError(err.message);
+      setLoading(false);
     }
-  }, []);
+  }, [setError, setLoading, setVehicles]);
 
   const createVehicle = useCallback(async (vehicleData: Partial<Vehicle>) => {
     try {
-      store.setLoading(true);
+      setLoading(true);
       const vehicle = await apiClient.createVehicle(vehicleData);
-      store.addVehicle(vehicle);
-      store.setLoading(false);
+      addVehicle(vehicle);
+      setLoading(false);
       return vehicle;
     } catch (err: any) {
-      store.setError(err.message);
-      store.setLoading(false);
+      setError(err.message);
+      setLoading(false);
       throw err;
     }
-  }, []);
+  }, [addVehicle, setError, setLoading]);
 
   const updateVehicle = useCallback(async (vehicleId: string, vehicleData: Partial<Vehicle>) => {
     try {
-      store.setLoading(true);
+      setLoading(true);
       const vehicle = await apiClient.updateVehicle(vehicleId, vehicleData);
-      store.updateVehicle(vehicleId, vehicleData);
-      store.setLoading(false);
+      updateVehicleInStore(vehicleId, vehicleData);
+      setLoading(false);
       return vehicle;
     } catch (err: any) {
-      store.setError(err.message);
-      store.setLoading(false);
+      setError(err.message);
+      setLoading(false);
       throw err;
     }
-  }, []);
+  }, [setError, setLoading, updateVehicleInStore]);
 
   const deleteVehicle = useCallback(async (vehicleId: string) => {
     try {
-      store.setLoading(true);
+      setLoading(true);
       await apiClient.deleteVehicle(vehicleId);
-      store.deleteVehicle(vehicleId);
-      store.setLoading(false);
+      deleteVehicleFromStore(vehicleId);
+      setLoading(false);
     } catch (err: any) {
-      store.setError(err.message);
-      store.setLoading(false);
+      setError(err.message);
+      setLoading(false);
       throw err;
     }
-  }, []);
+  }, [deleteVehicleFromStore, setError, setLoading]);
 
   return {
     ...store,

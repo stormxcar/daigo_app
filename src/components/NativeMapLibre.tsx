@@ -17,7 +17,7 @@ export function getNativeMapLibre(): MapLibreModule | null {
 
   try {
     // Keep this dynamic. Static imports crash Expo Go / old APKs before routes can export.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
     const maplibre = require('@maplibre/maplibre-react-native');
     moduleCache = {
       Camera: maplibre.Camera,

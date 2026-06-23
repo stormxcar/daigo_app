@@ -21,7 +21,7 @@ export function OtpCodeInput({
   error,
 }: OtpCodeInputProps) {
   const { colors } = useTheme();
-  const inputs = useRef<Array<TextInput | null>>([]);
+  const inputs = useRef<(TextInput | null)[]>([]);
   const digits = useMemo(() => value.replace(/\D/g, '').slice(0, length).split(''), [length, value]);
 
   const updateDigit = (text: string, index: number) => {

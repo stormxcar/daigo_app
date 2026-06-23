@@ -20,7 +20,6 @@ import {
   ChevronUp,
   Clock,
   DollarSign,
-  Info,
   LayoutGrid,
   LayoutList,
   LogOut,
@@ -51,7 +50,7 @@ import { useBooking } from '@/hooks/useBooking';
 import { apiClient } from '@/services/api';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
 import { DAIGO_LOGO_URL, APP_NAME, APP_TAGLINE } from '@/constants/branding';
-import { showError, showInfo, showSuccess, showWarning } from '@/utils/toast';
+import { showError, showSuccess, showWarning } from '@/utils/toast';
 import { Booking } from '@/types';
 import { formatCurrency, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { registerPushNotifications } from '@/services/pushNotifications';
@@ -471,7 +470,7 @@ export default function ProfileScreen() {
     setEmail(user?.email ?? '');
     setPhone(user?.phone ?? '');
     setAddress(user?.address ?? '');
-  }, [user?.id]);
+  }, [user?.address, user?.email, user?.fullName, user?.id, user?.phone]);
 
   const handleLogout = () => {
     logout();

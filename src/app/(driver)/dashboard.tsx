@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
-import { BarChart3, Briefcase, Car, LocateFixed, Newspaper, Percent, Route, Star, TrendingUp, Wallet } from 'lucide-react-native';
+import { BarChart3, Briefcase, LocateFixed, Newspaper, Percent, Route, Star, TrendingUp, Wallet } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, CardSkeleton } from '@/components/BaseComponents';
@@ -14,6 +14,7 @@ import { DeviceLocation, getCurrentDeviceLocation } from '@/services/deviceLocat
 import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { showError, showSuccess } from '@/utils/toast';
 import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
+import { getPaymentMethodLabel, PaymentStatusBadge } from '@/components/PaymentStatusBadge';
 
 type RangeMode = 'day' | 'month' | 'year';
 
@@ -37,6 +38,92 @@ function buildBuckets(mode: RangeMode) {
   });
 }
 
+function DriverAvailabilityToggle({
+  enabled,
+  loading,
+  onPress,
+}: {
+  enabled: boolean;
+  loading: boolean;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const progress = useRef(new Animated.Value(enabled ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.spring(progress, {
+      toValue: enabled ? 1 : 0,
+      useNativeDriver: false,
+      friction: 8,
+      tension: 90,
+    }).start();
+  }, [enabled, progress]);
+
+  const trackColor = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.surfaceAlt, colors.success],
+  });
+  const thumbTranslate = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [3, 43],
+  });
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.84}
+      onPress={onPress}
+      disabled={loading}
+      style={{
+        marginTop: spacing.md,
+        paddingVertical: spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: spacing.md,
+      }}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: colors.text, fontWeight: '900' }}>
+          {enabled ? 'Đang nhận chuyến' : 'Tạm dừng nhận chuyến'}
+        </Text>
+        <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, fontSize: fontSize.sm }}>
+          {enabled ? 'Khách hàng có thể gửi booking mới cho bạn.' : 'Bật lại khi bạn sẵn sàng chạy xe.'}
+        </Text>
+      </View>
+
+      <Animated.View
+        style={{
+          width: 82,
+          height: 42,
+          borderRadius: 21,
+          padding: 3,
+          backgroundColor: trackColor,
+          borderWidth: 1,
+          borderColor: enabled ? colors.success : colors.border,
+          opacity: loading ? 0.72 : 1,
+          justifyContent: 'center',
+        }}
+      >
+        <Animated.View
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            backgroundColor: '#ffffff',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transform: [{ translateX: thumbTranslate }],
+          }}
+        >
+          {loading && <ActivityIndicator size="small" color={enabled ? colors.success : colors.primary} />}
+        </Animated.View>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
 export default function DriverDashboard() {
   const { colors } = useTheme();
   const { user } = useAuthStore();
@@ -52,7 +139,7 @@ export default function DriverDashboard() {
   const [verificationStatus, setVerificationStatus] = useState<string>('PENDING');
   const [onlineLoading, setOnlineLoading] = useState(false);
 
-  const loadData = async (manualRefresh = false) => {
+  const loadData = useCallback(async (manualRefresh = false) => {
     if (!user) return;
     try {
       if (manualRefresh) {
@@ -71,8 +158,8 @@ export default function DriverDashboard() {
       setVehicles(driverVehicles);
       setPosts(driverPosts);
       setRatings(driverRatings);
-      setIsOnline(!!driverStatus?.is_online);
-      setVerificationStatus(driverStatus?.verification_status ?? 'PENDING');
+      setIsOnline(!!driverStatus?.isOnline);
+      setVerificationStatus(driverStatus?.verificationStatus ?? 'PENDING');
       getCurrentDeviceLocation().then(setDriverLocation).catch(() => undefined);
     } catch (error: any) {
       showError('Không thể tải thống kê', error.message);
@@ -80,11 +167,11 @@ export default function DriverDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     loadData();
-  }, [user?.id]);
+  }, [loadData]);
 
   const toggleOnline = async () => {
     if (!user) return;
@@ -92,10 +179,10 @@ export default function DriverDashboard() {
       setOnlineLoading(true);
       const location = await getCurrentDeviceLocation().catch(() => driverLocation);
       const updated = await apiClient.setDriverOnline(user.id, !isOnline, location ?? undefined);
-      setIsOnline(updated.is_online);
-      setVerificationStatus(updated.verification_status);
+      setIsOnline(updated.isOnline);
+      setVerificationStatus(updated.verificationStatus);
       if (location) setDriverLocation(location);
-      showSuccess(updated.is_online ? 'Đã bật nhận chuyến' : 'Đã tắt nhận chuyến', 'Trạng thái tài xế đã được cập nhật.');
+      showSuccess(updated.isOnline ? 'Đã bật nhận chuyến' : 'Đã tắt nhận chuyến', 'Trạng thái tài xế đã được cập nhật.');
     } catch (error: any) {
       showError('Không thể cập nhật trạng thái tài xế', error.message);
     } finally {
@@ -162,6 +249,18 @@ export default function DriverDashboard() {
     return buckets.map((bucket) => ({ ...bucket, height: Math.max(8, Math.round((bucket.revenue / maxValue) * 132)) }));
   }, [bookings, mode]);
   const recentBookings = useMemo(() => bookings.slice(0, 5), [bookings]);
+  const paymentSummary = useMemo(() => {
+    const cash = bookings.filter((booking) => booking.paymentMethod === 'cash');
+    const transfer = bookings.filter((booking) => booking.paymentMethod === 'bank_transfer' || booking.paymentMethod === 'vietqr');
+    const pendingReview = bookings.filter((booking) => ['pending', 'submitted'].includes(booking.paymentStatus ?? 'unpaid'));
+    const paid = bookings.filter((booking) => ['paid', 'driver_verified'].includes(booking.paymentStatus ?? 'unpaid'));
+    return {
+      cash: cash.length,
+      transfer: transfer.length,
+      pendingReview: pendingReview.length,
+      paid: paid.length,
+    };
+  }, [bookings]);
 
   const summaryCards = [
     { label: 'Doanh thu', value: money(stats.revenue), icon: <Wallet size={20} color={colors.primary} /> },
@@ -198,16 +297,14 @@ export default function DriverDashboard() {
               {driverLocation?.label ?? 'Cho phép GPS để chỉ đường đến điểm đón chính xác hơn.'}
             </Text>
             <Text style={{ color: isOnline ? colors.success : colors.textTertiary, fontWeight: '800', marginTop: spacing.xs }}>
-              {isOnline ? 'Đang online nhận chuyến' : 'Đang offline'} - {verificationStatus}
+              {isOnline ? 'Đang online nhận chuyến' : 'Đang offline'}
             </Text>
           </View>
         </View>
-        <Button
-          label={isOnline ? 'Tắt nhận chuyến' : 'Bật online'}
-          onPress={toggleOnline}
+        <DriverAvailabilityToggle
+          enabled={isOnline}
           loading={onlineLoading}
-          variant={isOnline ? 'outline' : 'primary'}
-          style={{ marginTop: spacing.md }}
+          onPress={toggleOnline}
         />
       </Card>
 
@@ -283,11 +380,47 @@ export default function DriverDashboard() {
                         {statusInfo.label}
                       </Text>
                     </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm }}>
+                      <PaymentStatusBadge status={booking.paymentStatus} />
+                      <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, fontWeight: '700' }}>
+                        {getPaymentMethodLabel(booking.paymentMethod)}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 );
               })}
             </View>
           )}
+        </Card>
+      )}
+
+      {!loading && (
+        <Card style={{ marginBottom: spacing.lg }}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
+            Thống kê thanh toán
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {[
+              { label: 'Tiền mặt', value: paymentSummary.cash, color: colors.success },
+              { label: 'VietQR/CK', value: paymentSummary.transfer, color: colors.primary },
+              { label: 'Chờ xác nhận', value: paymentSummary.pendingReview, color: colors.warning },
+              { label: 'Đã xác nhận', value: paymentSummary.paid, color: colors.info },
+            ].map((item, index) => (
+              <View
+                key={item.label}
+                style={{
+                  width: '50%',
+                  paddingVertical: spacing.md,
+                  paddingHorizontal: spacing.sm,
+                  borderBottomWidth: index < 2 ? 1 : 0,
+                  borderBottomColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{item.label}</Text>
+                <Text style={{ color: item.color, fontWeight: '900', fontSize: 22, marginTop: spacing.xs }}>{item.value}</Text>
+              </View>
+            ))}
+          </View>
         </Card>
       )}
 

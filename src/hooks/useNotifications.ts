@@ -15,6 +15,7 @@ export const useNotifications = (userId?: string) => {
   const setError = useNotificationStore((state) => state.setError);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const instanceIdRef = useRef(Math.random().toString(36).slice(2));
+  const debugNotifications = process.env.EXPO_PUBLIC_ENV !== 'production';
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) {
@@ -25,13 +26,27 @@ export const useNotifications = (userId?: string) => {
     try {
       setLoading(true);
       const notifications = await apiClient.getNotifications(userId);
+      if (debugNotifications) {
+        console.warn('[DAIGO_NOTIFICATIONS_FETCH]', {
+          userId,
+          count: notifications.length,
+        });
+      }
       setNotifications(notifications);
       setLoading(false);
     } catch (err: any) {
+      if (debugNotifications) {
+        console.warn('[DAIGO_NOTIFICATIONS_ERROR]', {
+          userId,
+          message: err?.message,
+          code: err?.code,
+          details: err?.details,
+        });
+      }
       setError(err.message);
       setLoading(false);
     }
-  }, [clearNotifications, setError, setLoading, setNotifications, userId]);
+  }, [clearNotifications, debugNotifications, setError, setLoading, setNotifications, userId]);
 
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
@@ -64,7 +79,15 @@ export const useNotifications = (userId?: string) => {
           if (active) fetchNotifications();
         }
       )
-      .subscribe();
+      .subscribe((status, error) => {
+        if (debugNotifications) {
+          console.warn('[DAIGO_NOTIFICATIONS_SUBSCRIPTION]', {
+            userId,
+            status,
+            error: error?.message,
+          });
+        }
+      });
     channelRef.current = channel;
 
     return () => {
@@ -72,7 +95,7 @@ export const useNotifications = (userId?: string) => {
       supabase.removeChannel(channel);
       if (channelRef.current === channel) channelRef.current = null;
     };
-  }, [clearNotifications, fetchNotifications, setLoading, userId]);
+  }, [clearNotifications, debugNotifications, fetchNotifications, setLoading, userId]);
 
   return {
     notifications,
