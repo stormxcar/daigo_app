@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Image, Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
+import { Href, router } from 'expo-router';
 import { Bell, ChevronLeft, Moon, Sun } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
@@ -14,7 +14,7 @@ interface AppHeaderProps {
   showBack?: boolean;
   showNotifications?: boolean;
   notificationsHref?: string;
-  backHref?: string;
+  backHref?: Href;
   showLogo?: boolean;
 }
 
@@ -67,7 +67,7 @@ export function AppHeader({
             <TouchableOpacity
               onPress={() => {
                 if (backHref) {
-                  router.replace(backHref as any);
+                  router.replace(backHref);
                   return;
                 }
                 if (router.canGoBack()) {

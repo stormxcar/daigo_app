@@ -1410,6 +1410,17 @@ class ApiClient {
     };
   }
 
+  async markNotificationsAsRead(ids: string[]): Promise<void> {
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+    if (uniqueIds.length === 0) return;
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .in('id', uniqueIds);
+    if (error) throw error;
+  }
+
   async getBlogPosts(page = 1, pageSize = 10, filters?: { driverId?: string }): Promise<BlogPost[]> {
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id ?? 'anonymous';

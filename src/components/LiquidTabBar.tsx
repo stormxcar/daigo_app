@@ -5,6 +5,8 @@ import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { useChatStore } from '@/stores/chatStore';
 import { useNotificationStore } from '@/stores/notificationStore';
+import { apiClient } from '@/services/api';
+import { NotificationItem } from '@/types';
 
 interface LiquidTabBarProps {
   state: any;
@@ -25,6 +27,7 @@ export function LiquidTabBar({
     state.conversations.reduce((sum, conversation) => sum + conversation.unreadCount, 0)
   );
   const notifications = useNotificationStore((state) => state.notifications);
+  const markManyAsRead = useNotificationStore((state) => state.markManyAsRead);
   const unreadNotifications = notifications.filter((notification) => !notification.read);
   const animations = useRef<Record<string, Animated.Value>>({}).current;
   const hiddenRoutes = [
@@ -72,23 +75,33 @@ export function LiquidTabBar({
     ]).start();
   };
 
-  const getRouteBadge = (routeName: string, optionBadge: any) => {
-    if (routeName === 'chat') return chatUnreadCount > 0 ? chatUnreadCount : undefined;
+  const getRouteNotifications = (routeName: string, items: NotificationItem[]) => {
     if (routeName === 'blog') {
-      const count = unreadNotifications.filter((notification) => notification.type === 'blog_interaction' || !!notification.relatedPostId).length;
-      return count > 0 ? count : undefined;
+      return items.filter((notification) => notification.type === 'blog_interaction' || !!notification.relatedPostId);
     }
     if (routeName === 'booking' || routeName === 'bookings') {
-      const count = unreadNotifications.filter((notification) =>
+      return items.filter((notification) =>
         !!notification.relatedBookingId ||
         ['booking_success', 'driver_confirm', 'driver_cancel', 'trip_done', 'booking_update', 'payment_update'].includes(notification.type)
-      ).length;
-      return count > 0 ? count : undefined;
+      );
     }
     if (routeName === 'dashboard') {
-      const count = unreadNotifications.filter((notification) => notification.type === 'booking_update' || notification.type === 'payment_update').length;
-      return count > 0 ? count : undefined;
+      return items.filter((notification) => notification.type === 'booking_update' || notification.type === 'payment_update');
     }
+    return [];
+  };
+
+  const markRouteNotificationsAsRead = (routeName: string) => {
+    const ids = getRouteNotifications(routeName, unreadNotifications).map((notification) => notification.id);
+    if (ids.length === 0) return;
+    markManyAsRead(ids);
+    apiClient.markNotificationsAsRead(ids).catch(() => undefined);
+  };
+
+  const getRouteBadge = (routeName: string, optionBadge: any) => {
+    if (routeName === 'chat') return chatUnreadCount > 0 ? chatUnreadCount : undefined;
+    const routeNotificationCount = getRouteNotifications(routeName, unreadNotifications).length;
+    if (routeNotificationCount > 0) return routeNotificationCount;
     return optionBadge;
   };
 
@@ -134,6 +147,7 @@ export function LiquidTabBar({
           });
           const onPress = () => {
             runIconAnimation(route.key);
+            markRouteNotificationsAsRead(route.name);
             const event = navigation.emit({
               type: 'tabPress',
               target: route.key,

@@ -29,6 +29,11 @@ const ETA_ACTIVE_STATUSES = [
   BOOKING_STATUS.DRIVER_ARRIVING,
   BOOKING_STATUS.DRIVER_ARRIVED,
 ] as const;
+const NON_PAYABLE_BOOKING_STATUSES = [
+  BOOKING_STATUS.CUSTOMER_CANCELLED,
+  BOOKING_STATUS.DRIVER_CANCELLED,
+  BOOKING_STATUS.EXPIRED,
+] as const;
 
 function DetailSection({
   children,
@@ -111,6 +116,7 @@ export default function BookingDetailScreen() {
   const existingBookingHasMap =
     booking &&
     [booking.pickupLat, booking.pickupLng, booking.dropoffLat, booking.dropoffLng].every((value) => typeof value === 'number');
+  const isNonPayableBooking = !!booking && NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any);
 
   useEffect(() => {
     if (params.id) return;
@@ -560,16 +566,20 @@ export default function BookingDetailScreen() {
             <PaymentStatusBadge status={booking.paymentStatus} />
           </View>
           <Text style={{ color: colors.textSecondary, lineHeight: 21, marginBottom: spacing.md }}>
-            {booking.driverId
+            {isNonPayableBooking
+              ? 'Chuyến đi đã hủy hoặc hết hạn nên không phát sinh thanh toán.'
+              : booking.driverId
               ? `Trạng thái hiện tại: ${getPaymentStatusLabel(booking.paymentStatus)}. Bạn có thể chọn tiền mặt hoặc VietQR/chuyển khoản.`
               : 'Chuyến đi chưa có tài xế nhận nên chưa thể chọn thanh toán.'}
           </Text>
-          <Button
-            label={booking.paymentStatus === 'paid' ? 'Xem thanh toán' : 'Thanh toán'}
-            onPress={() => router.push({ pathname: '/(customer)/payment' as any, params: { bookingId: booking.id } })}
-            disabled={!booking.driverId}
-            variant={booking.paymentStatus === 'paid' ? 'outline' : 'primary'}
-          />
+          {!isNonPayableBooking && (
+            <Button
+              label={booking.paymentStatus === 'paid' ? 'Xem thanh toán' : 'Thanh toán'}
+              onPress={() => router.push({ pathname: '/(customer)/payment' as any, params: { bookingId: booking.id } })}
+              disabled={!booking.driverId}
+              variant={booking.paymentStatus === 'paid' ? 'outline' : 'primary'}
+            />
+          )}
         </DetailSection>
 
         {!!booking.cancelReason && (

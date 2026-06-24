@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
+import { Href, Tabs } from 'expo-router';
 import {
   Home,
   CalendarCheck,
@@ -28,27 +28,34 @@ export default function CustomerLayout() {
     'chat-detail',
     'notification-detail',
   ];
-  const backHrefByRoute: Record<string, string> = {
+  const backHrefByRoute: Partial<Record<string, Href>> = {
     notifications: '/(customer)/home',
     'booking-detail': '/(customer)/booking',
     'map-picker': '/(customer)/booking',
-    payment: '/(customer)/booking-detail',
-    receipt: '/(customer)/booking-detail',
     'blog-detail': '/(customer)/blog',
     'chat-detail': '/(customer)/chat',
     'notification-detail': '/(customer)/notifications',
+  };
+  const getBackHref = (route: { name: string; params?: Record<string, any> }): Href | undefined => {
+    if ((route.name === 'payment' || route.name === 'receipt') && route.params?.bookingId) {
+      return {
+        pathname: '/(customer)/booking-detail' as any,
+        params: { id: String(route.params.bookingId) },
+      };
+    }
+    return backHrefByRoute[route.name];
   };
 
   return (
     <Tabs
       screenOptions={{
         headerShown: true,
-        header: ({ options, route }: { options: { title?: string }; route: { name: string } }) => (
+        header: ({ options, route }: { options: { title?: string }; route: { name: string; params?: Record<string, any> } }) => (
           <AppHeader
             title={options.title}
             showBack={detailRoutes.includes(route.name)}
             showNotifications={!detailRoutes.includes(route.name)}
-            backHref={backHrefByRoute[route.name]}
+            backHref={getBackHref(route)}
             showLogo={route.name === 'home'}
           />
         ),

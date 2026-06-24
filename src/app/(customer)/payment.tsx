@@ -15,6 +15,7 @@ import { useTheme } from '@/theme';
 import { borderRadius, spacing } from '@/theme/tokens';
 import { Booking, PaymentMethod } from '@/types';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
+import { BOOKING_STATUS } from '@/constants';
 
 const formatRemainingTime = (milliseconds: number) => {
   const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
@@ -22,6 +23,11 @@ const formatRemainingTime = (milliseconds: number) => {
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
+const NON_PAYABLE_BOOKING_STATUSES = [
+  BOOKING_STATUS.CUSTOMER_CANCELLED,
+  BOOKING_STATUS.DRIVER_CANCELLED,
+  BOOKING_STATUS.EXPIRED,
+] as const;
 
 function PaymentSection({ children, style }: { children: React.ReactNode; style?: any }) {
   const { colors } = useTheme();
@@ -112,6 +118,10 @@ export default function CustomerPaymentScreen() {
 
   const ensurePayment = async (method: PaymentMethod) => {
     if (!booking || !user) return;
+    if (NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any)) {
+      showWarning('Không cần thanh toán', 'Chuyến đi đã hủy hoặc hết hạn nên không phát sinh thanh toán.');
+      return;
+    }
     try {
       await createOrGetPayment(booking, user, method);
       showSuccess('Đã chọn phương thức thanh toán', method === 'cash' ? 'Bạn sẽ thanh toán tiền mặt cho tài xế.' : 'Mã VietQR đã sẵn sàng.');
@@ -153,6 +163,20 @@ export default function CustomerPaymentScreen() {
           <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.sm }}>Không tìm thấy chuyến đi</Text>
           <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>{error || 'Vui lòng quay lại và thử lại.'}</Text>
           <Button label="Quay lại" onPress={() => router.back()} variant="outline" />
+        </Card>
+      </Screen>
+    );
+  }
+
+  if (NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any)) {
+    return (
+      <Screen padding>
+        <Card>
+          <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.sm }}>Không cần thanh toán</Text>
+          <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.md }}>
+            Chuyến đi này đã hủy hoặc hết hạn nên không phát sinh thanh toán. Bạn có thể quay lại chi tiết chuyến để xem lý do hủy.
+          </Text>
+          <Button label="Quay lại chi tiết chuyến" onPress={() => router.back()} variant="outline" />
         </Card>
       </Screen>
     );

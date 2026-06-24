@@ -9,6 +9,7 @@ import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { Booking, NotificationItem } from '@/types';
+import { useNotificationStore } from '@/stores/notificationStore';
 
 function NotificationSection({ children }: { children: React.ReactNode }) {
   const { colors } = useTheme();
@@ -32,6 +33,7 @@ export default function NotificationDetailScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { user } = useAuthStore();
+  const markAsRead = useNotificationStore((state) => state.markAsRead);
   const [notification, setNotification] = useState<NotificationItem | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
 
@@ -40,12 +42,16 @@ export default function NotificationDetailScreen() {
     apiClient.getNotifications(user.id).then(async (items) => {
       const found = items.find((item) => item.id === id) ?? null;
       setNotification(found);
+      if (found && !found.read) {
+        markAsRead(found.id);
+        apiClient.markNotificationAsRead(found.id).catch(() => undefined);
+      }
       if (found?.relatedBookingId) {
         const related = await apiClient.getBookingById(found.relatedBookingId);
         setBooking(related);
       }
     }).catch(() => setNotification(null));
-  }, [id, user?.id]);
+  }, [id, markAsRead, user?.id]);
 
   if (!notification) {
     return (

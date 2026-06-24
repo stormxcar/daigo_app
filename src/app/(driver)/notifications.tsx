@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
 import { Bell, CheckCircle2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { fontSize, spacing } from '@/theme/tokens';
@@ -8,6 +9,7 @@ import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { SearchFilterBar } from '@/components/SearchFilterBar';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotifications } from '@/hooks/useNotifications';
+import { NotificationItem } from '@/types';
 
 const NOTIF_FILTERS = [
   { key: 'all', label: 'Tất cả' },
@@ -51,6 +53,21 @@ export default function DriverNotifications() {
 
     return result;
   }, [notifications, search, activeFilter, activeSort]);
+
+  const openNotification = (notification: NotificationItem) => {
+    if (!notification.read) markAsRead(notification.id);
+    if (notification.type === 'payment_update' && notification.relatedBookingId) {
+      router.push({ pathname: '/(driver)/payment-review' as any, params: { bookingId: notification.relatedBookingId } });
+      return;
+    }
+    if (notification.relatedBookingId) {
+      router.push({ pathname: '/(driver)/booking-detail' as any, params: { id: notification.relatedBookingId } });
+      return;
+    }
+    if (notification.relatedPostId) {
+      router.push({ pathname: '/(driver)/blog-detail' as any, params: { id: notification.relatedPostId } });
+    }
+  };
 
   return (
     <Screen scroll refreshing={isLoading} onRefresh={fetchNotifications}>
@@ -125,7 +142,7 @@ export default function DriverNotifications() {
             <TouchableOpacity
               key={notification.id}
               activeOpacity={0.7}
-              onPress={() => markAsRead(notification.id)}
+              onPress={() => openNotification(notification)}
               style={{
                 flexDirection: 'row',
                 alignItems: 'flex-start',

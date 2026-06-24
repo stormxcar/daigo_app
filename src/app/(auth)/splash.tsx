@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useAuthStore } from "@/stores/authStore";
 import { DAIGO_LOGO_URL, APP_TAGLINE_SHORT } from "@/constants/branding";
+import { spacing } from "@/theme/tokens";
 
 // Blue gradient: dark royal blue (top) → vivid blue (bottom)
 const GRADIENT_COLORS: [string, string, string] = [
@@ -154,6 +155,7 @@ export default function SplashScreen() {
             width: 120,
             height: 40,
             resizeMode: "contain",
+            marginTop: spacing.md,
           }}
         />
       </Animated.View>

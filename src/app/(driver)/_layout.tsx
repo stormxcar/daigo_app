@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { Tabs, router } from 'expo-router';
+import { Href, Tabs, router } from 'expo-router';
 import {
   BarChart3,
   Car,
@@ -22,12 +22,20 @@ export default function DriverLayout() {
     ? [!user.emailVerified, !user.phoneVerified].filter(Boolean).length
     : 0;
   const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'payment-review', 'blog-detail'];
-  const backHrefByRoute: Record<string, string> = {
+  const backHrefByRoute: Partial<Record<string, Href>> = {
     notifications: '/(driver)/dashboard',
     'chat-detail': '/(driver)/chat',
     'booking-detail': '/(driver)/bookings',
-    'payment-review': '/(driver)/booking-detail',
     'blog-detail': '/(driver)/blog',
+  };
+  const getBackHref = (route: { name: string; params?: Record<string, any> }): Href | undefined => {
+    if (route.name === 'payment-review' && route.params?.bookingId) {
+      return {
+        pathname: '/(driver)/booking-detail' as any,
+        params: { id: String(route.params.bookingId) },
+      };
+    }
+    return backHrefByRoute[route.name];
   };
 
   useEffect(() => {
@@ -68,13 +76,13 @@ export default function DriverLayout() {
     <Tabs
       screenOptions={{
         headerShown: true,
-        header: ({ options, route }: { options: { title?: string }; route: { name: string } }) => (
+        header: ({ options, route }: { options: { title?: string }; route: { name: string; params?: Record<string, any> } }) => (
           <AppHeader
             title={options.title}
             showBack={detailRoutes.includes(route.name)}
             showNotifications={!detailRoutes.includes(route.name)}
             notificationsHref="/(driver)/notifications"
-            backHref={backHrefByRoute[route.name]}
+            backHref={getBackHref(route)}
           />
         ),
         tabBarActiveTintColor: colors.primary,

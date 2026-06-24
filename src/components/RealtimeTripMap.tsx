@@ -357,14 +357,16 @@ export function RealtimeTripMap({
 
         {showControls && (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm }}>
-            <Button
-              label={expanded ? 'Thu gọn' : 'Mở rộng'}
-              onPress={onExpand ?? (() => undefined)}
-              size="sm"
-              variant="outline"
-              icon={<Expand size={16} color={colors.primary} />}
-              style={{ flexGrow: 1 }}
-            />
+            {!!onExpand && (
+              <Button
+                label={expanded ? 'Thu gọn' : 'Mở rộng'}
+                onPress={onExpand}
+                size="sm"
+                variant="outline"
+                icon={<Expand size={16} color={colors.primary} />}
+                style={{ flexGrow: 1 }}
+              />
+            )}
             <Button
               label={routeLoading ? 'Đang tải...' : 'Tải lộ trình Goong'}
               onPress={() => loadRoute('manual')}
@@ -373,14 +375,16 @@ export function RealtimeTripMap({
               icon={<Route size={16} color="white" />}
               style={{ flexGrow: 1 }}
             />
-            <Button
-              label="Mở app bản đồ"
-              onPress={onOpenExternalMap ?? (() => undefined)}
-              size="sm"
-              variant="secondary"
-              icon={<Car size={16} color={colors.text} />}
-              style={{ flexGrow: 1 }}
-            />
+            {!!onOpenExternalMap && (
+              <Button
+                label="Mở app bản đồ"
+                onPress={onOpenExternalMap}
+                size="sm"
+                variant="secondary"
+                icon={<Car size={16} color={colors.text} />}
+                style={{ flexGrow: 1 }}
+              />
+            )}
           </View>
         )}
       </View>
