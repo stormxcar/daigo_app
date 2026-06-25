@@ -10,6 +10,7 @@ import { SearchFilterBar } from '@/components/SearchFilterBar';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotifications } from '@/hooks/useNotifications';
 import { NotificationItem } from '@/types';
+import { showInfo } from '@/utils/toast';
 
 const NOTIF_FILTERS = [
   { key: 'all', label: 'Tất cả' },
@@ -22,11 +23,14 @@ const NOTIF_SORTS = [
   { key: 'oldest', label: 'Cũ nhất' },
 ];
 
+const isCallNotification = (notification: NotificationItem) =>
+  notification.title?.toLowerCase().includes('cuộc gọi') ||
+  notification.content?.toLowerCase().includes('đang gọi cho bạn');
+
 export default function DriverNotifications() {
   const { colors } = useTheme();
   const { user } = useAuthStore();
-  const { notifications, fetchNotifications, markAsRead, isLoading, error } = useNotifications(user?.id);
-  const [visibleCount, setVisibleCount] = useState(20);
+  const { notifications, fetchNotifications, loadMoreNotifications, markAsRead, isLoading, isLoadingMore, hasMore, error } = useNotifications(user?.id);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [activeSort, setActiveSort] = useState('newest');
@@ -56,6 +60,10 @@ export default function DriverNotifications() {
 
   const openNotification = (notification: NotificationItem) => {
     if (!notification.read) markAsRead(notification.id);
+    if (isCallNotification(notification)) {
+      showInfo('Cuộc gọi đến', 'Nếu cuộc gọi vẫn đang chờ, app sẽ hiện popup nhận cuộc gọi. Thông báo này chỉ là lịch sử cuộc gọi.');
+      return;
+    }
     if (notification.type === 'payment_update' && notification.relatedBookingId) {
       router.push({ pathname: '/(driver)/payment-review' as any, params: { bookingId: notification.relatedBookingId } });
       return;
@@ -138,7 +146,7 @@ export default function DriverNotifications() {
       ) : (
         /* List ngăn cách bởi border — không có card, sát 2 bên */
         <View>
-          {filteredNotifications.slice(0, visibleCount).map((notification, _index) => (
+          {filteredNotifications.map((notification) => (
             <TouchableOpacity
               key={notification.id}
               activeOpacity={0.7}
@@ -249,12 +257,14 @@ export default function DriverNotifications() {
       )}
 
       {/* Load more */}
-      {!isLoading && filteredNotifications.length > visibleCount && (
+      {!isLoading && !search.trim() && activeFilter === 'all' && hasMore && (
         <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
           <Button
-            label="Tải thêm thông báo"
-            onPress={() => setVisibleCount((current) => current + 20)}
+            label={isLoadingMore ? 'Đang tải thêm...' : 'Tải thêm thông báo'}
+            onPress={loadMoreNotifications}
             variant="outline"
+            loading={isLoadingMore}
+            disabled={isLoadingMore}
           />
         </View>
       )}

@@ -9,6 +9,8 @@ interface NotificationStore {
 
   // Actions
   setNotifications: (notifications: NotificationItem[]) => void;
+  appendNotifications: (notifications: NotificationItem[]) => void;
+  setUnreadCount: (count: number) => void;
   addNotification: (notification: NotificationItem) => void;
   markAsRead: (id: string) => void;
   markManyAsRead: (ids: string[]) => void;
@@ -30,6 +32,19 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
     const unreadCount = notifications.filter((n) => !n.read).length;
     set({ notifications, unreadCount });
   },
+
+  appendNotifications: (notifications) => {
+    set((state) => {
+      const existingIds = new Set(state.notifications.map((n) => n.id));
+      const merged = [
+        ...state.notifications,
+        ...notifications.filter((notification) => !existingIds.has(notification.id)),
+      ];
+      return { notifications: merged };
+    });
+  },
+
+  setUnreadCount: (unreadCount) => set({ unreadCount: Math.max(0, unreadCount) }),
 
   addNotification: (notification) => {
     set((state) => ({

@@ -1,9 +1,7 @@
 import React from 'react';
-import { FlatList, Image, Text, View, TouchableOpacity } from 'react-native';
-import Constants from 'expo-constants';
+import { FlatList, Image, ImageBackground, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/theme';
-import { spacing, borderRadius, fontSize } from '@/theme/tokens';
-import { Card } from '@/components/BaseComponents';
+import { spacing, fontSize, borderRadius } from '@/theme/tokens';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Play, Sparkles } from 'lucide-react-native';
 import { buildCloudinaryVideoPosterUrl } from '@/services/videoOptimizationService';
@@ -15,41 +13,15 @@ interface Promotion {
   mediaType?: 'image' | 'video';
   title: string;
   description: string;
-  cta: string;
+  cta?: string;
   onPress?: () => void;
 }
 
-function PromoVideoPreview({ uri }: { uri: string }) {
+function PromoVideoBackground({ uri }: { uri: string }) {
   const posterUri = buildCloudinaryVideoPosterUrl(uri, { width: 640 });
-  if (Constants.appOwnership === 'expo') {
-    return (
-      <View style={{ width: '100%', height: 120, borderRadius: borderRadius.md, marginBottom: spacing.sm, overflow: 'hidden', backgroundColor: '#0f172a' }}>
-        {!!posterUri && <Image source={{ uri: posterUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />}
-        <VideoPlayOverlay />
-      </View>
-    );
-  }
-
-  return <NativePromoVideoPreview uri={uri} />;
-}
-
-function NativePromoVideoPreview({ uri }: { uri: string }) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-  const { VideoView, useVideoPlayer } = require('expo-video');
-  const player = useVideoPlayer(uri, (videoPlayer: any) => {
-    videoPlayer.loop = true;
-    videoPlayer.muted = true;
-  });
-
   return (
-    <View style={{ width: '100%', height: 120, borderRadius: borderRadius.md, marginBottom: spacing.sm, overflow: 'hidden' }}>
-      <VideoView
-        player={player}
-        style={{ width: '100%', height: '100%' }}
-        contentFit="cover"
-        nativeControls={false}
-        fullscreenOptions={{ enable: false }}
-      />
+    <View style={StyleSheet.absoluteFill}>
+      {!!posterUri && <Image source={{ uri: posterUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />}
       <VideoPlayOverlay />
     </View>
   );
@@ -67,7 +39,7 @@ function VideoPlayOverlay() {
         bottom: 0,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(15,23,42,0.2)',
+        backgroundColor: 'rgba(15,23,42,0.12)',
       }}
     >
       <View
@@ -100,22 +72,50 @@ export const PromoBanner: React.FC<{ promotions: Promotion[] }> = ({ promotions 
       keyExtractor={(item) => item.id}
       contentContainerStyle={{ gap: spacing.md }}
       renderItem={({ item }) => (
-        <Card style={{ width: 278, padding: spacing.lg, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.primaryLight }}>
+        <TouchableOpacity
+          activeOpacity={0.86}
+          onPress={item.onPress}
+          style={{
+            width: 278,
+            height: 222,
+            overflow: 'hidden',
+            borderTopWidth: 1,
+            borderBottomWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.surfaceAlt,
+            borderRadius: borderRadius['xl']
+          }}
+        >
           {item.mediaType === 'video' && item.mediaUrl ? (
-            <PromoVideoPreview uri={item.mediaUrl} />
+            <PromoVideoBackground uri={item.mediaUrl} />
           ) : item.image ? (
-            <Image source={item.image} style={{ width: '100%', height: 120, borderRadius: borderRadius.md, marginBottom: spacing.sm }} />
+            <ImageBackground source={item.image} resizeMode="cover" style={StyleSheet.absoluteFill} />
           ) : (
-            <View style={{ marginBottom: spacing.sm }}>
+            <View style={StyleSheet.absoluteFill}>
               <IllustrationBlock height={120} tone="primary" icon={<Sparkles size={24} color="white" />} />
             </View>
           )}
-          <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: colors.text }}>{item.title}</Text>
-          <Text style={{ fontSize: fontSize.sm, color: colors.textSecondary, marginVertical: spacing.xs }}>{item.description}</Text>
-          <TouchableOpacity onPress={item.onPress} style={{ marginTop: spacing.sm }}>
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>{item.cta}</Text>
-          </TouchableOpacity>
-        </Card>
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.22)' }]} />
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              padding: spacing.lg,
+              paddingTop: spacing['2xl'],
+              backgroundColor: 'rgba(0,0,0,0.5)',
+            }}
+          >
+            <Text numberOfLines={2} style={{ fontSize: fontSize.base, fontWeight: '900', color: 'white', lineHeight: 22 }}>
+              {item.title}
+            </Text>
+            <Text numberOfLines={2} style={{ fontSize: fontSize.sm, color: 'rgba(255,255,255,0.86)', marginTop: spacing.xs, lineHeight: 19 }}>
+              {item.description}
+            </Text>
+          </View>
+        </TouchableOpacity>
       )}
       />
     </View>

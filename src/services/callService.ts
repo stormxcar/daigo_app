@@ -48,10 +48,26 @@ async function createCallNotification(data: {
       content: `${data.callerName} đang gọi cho bạn trong ứng dụng.`,
       type: 'system',
       read: false,
-      related_booking_id: data.bookingId,
     });
   } catch {
     // Realtime call still works even if auxiliary notification insert is denied.
+  }
+
+  try {
+    await supabase.functions.invoke('send-push-notification', {
+      body: {
+        userId: data.userId,
+        title: 'Cuộc gọi đến',
+        body: `${data.callerName} đang gọi cho bạn trong ứng dụng.`,
+        data: {
+          type: 'incoming_call',
+          callSessionId: data.callSessionId,
+          bookingId: data.bookingId,
+        },
+      },
+    });
+  } catch {
+    // Push is best-effort; in-app realtime remains the primary signaling path.
   }
 }
 
@@ -139,6 +155,20 @@ class CallService {
     return mapCallSession(data as CallSessionRow);
   }
 
+  async getActiveIncomingCall(userId: string): Promise<CallSession | null> {
+    const { data, error } = await supabase
+      .from('call_sessions')
+      .select('*')
+      .eq('receiver_id', userId)
+      .eq('call_type', 'agora')
+      .eq('status', 'ringing')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? mapCallSession(data as CallSessionRow) : null;
+  }
+
   async updateCallStatus(id: string, status: CallStatus, startedAt?: string): Promise<CallSession> {
     const endedAt = ['ended', 'rejected', 'missed', 'failed'].includes(status) ? new Date().toISOString() : undefined;
     const acceptedAt = status === 'accepted' ? new Date().toISOString() : undefined;
@@ -173,9 +203,11 @@ class CallService {
       .channel(`incoming-calls-${userId}-${instanceId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: `receiver_id=eq.${userId}` },
+        { event: '*', schema: 'public', table: 'call_sessions', filter: `receiver_id=eq.${userId}` },
         (payload) => {
-          const call = mapCallSession(payload.new as CallSessionRow);
+          const next = payload.new as CallSessionRow | undefined;
+          if (!next) return;
+          const call = mapCallSession(next);
           if (call.callType === 'agora' && call.status === 'ringing') onIncoming(call);
         }
       )

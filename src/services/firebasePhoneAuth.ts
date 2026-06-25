@@ -1,6 +1,7 @@
 import { supabase } from '@/services/supabase';
 
 let confirmationResult: any = null;
+const shouldLogPhoneAuth = () => process.env.EXPO_PUBLIC_ENV !== 'production' || __DEV__;
 
 const getNativeAuth = async () => {
   try {
@@ -19,7 +20,7 @@ export const firebasePhoneAuth = {
     try {
       confirmationResult = await auth.signInWithPhoneNumber(phoneNumber);
     } catch (error: any) {
-      if (__DEV__) {
+      if (shouldLogPhoneAuth()) {
         console.warn('Firebase phone OTP send failed', {
           code: error?.code,
           message: error?.message,
@@ -27,7 +28,23 @@ export const firebasePhoneAuth = {
         });
       }
       const code = error?.code ? ` (${error.code})` : '';
-      throw new Error(`Không thể gửi OTP Firebase${code}: ${error?.message ?? 'Vui lòng kiểm tra Firebase Phone Authentication, SHA-1/SHA-256 và google-services.json.'}`);
+      const message = String(error?.message ?? '');
+      if (error?.code === 'auth/operation-not-allowed' && message.toLowerCase().includes('region enabled')) {
+        throw new Error(
+          `Không thể gửi OTP Firebase${code}: Firebase chưa bật vùng gửi SMS cho số điện thoại này. Hãy bật Phone provider và SMS region Việt Nam trong Firebase Console.`
+        );
+      }
+      if (error?.code === 'auth/operation-not-allowed') {
+        throw new Error(
+          `Không thể gửi OTP Firebase${code}: Firebase Phone Authentication chưa được bật cho project này. Hãy bật Phone trong Authentication > Sign-in method.`
+        );
+      }
+      if (error?.code === 'auth/billing-not' || message.includes('BILLING_NOT_ENABLED')) {
+        throw new Error(
+          `Không thể gửi OTP Firebase${code}: Firebase yêu cầu bật billing/Blaze để gửi SMS thật. Hãy dùng số điện thoại test trong Firebase Console hoặc bật OTP test nội bộ của app.`
+        );
+      }
+      throw new Error(`Không thể gửi OTP Firebase${code}: ${message || 'Vui lòng kiểm tra Firebase Phone Authentication, SHA-1/SHA-256 và google-services.json.'}`);
     }
   },
 
@@ -40,7 +57,7 @@ export const firebasePhoneAuth = {
     try {
       credential = await confirmationResult.confirm(code);
     } catch (error: any) {
-      if (__DEV__) {
+      if (shouldLogPhoneAuth()) {
         console.warn('Firebase phone OTP confirm failed', {
           code: error?.code,
           message: error?.message,

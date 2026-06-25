@@ -788,6 +788,19 @@ class ApiClient {
     return data ? mapDriverStatus(data as DriverRow) : null;
   }
 
+  async getOnlineDriverStatuses(): Promise<DriverStatus[]> {
+    const { data, error } = await supabase
+      .from('drivers')
+      .select('*')
+      .eq('is_online', true)
+      .eq('verification_status', 'APPROVED')
+      .not('current_latitude', 'is', null)
+      .not('current_longitude', 'is', null)
+      .order('updated_location_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map((row) => mapDriverStatus(row as DriverRow));
+  }
+
   async setDriverOnline(profileId: string, isOnline: boolean, location?: { lat: number; lng: number }): Promise<DriverStatus> {
     const existing = await this.getDriverStatus(profileId);
     if (!existing) {
@@ -913,6 +926,8 @@ class ApiClient {
     driverId?: string;
     customerId?: string;
     driverVisibleTo?: string;
+    date?: string;
+    time?: string;
     page?: number;
     pageSize?: number;
   }): Promise<Booking[]> {
@@ -924,6 +939,8 @@ class ApiClient {
     if (filters?.status) query = query.eq('status', filters.status);
     if (filters?.driverId) query = query.eq('driver_id', filters.driverId);
     if (filters?.customerId) query = query.eq('customer_id', filters.customerId);
+    if (filters?.date) query = query.eq('date', filters.date);
+    if (filters?.time) query = query.eq('time', filters.time);
     if (filters?.driverVisibleTo) {
       query = query.or(
         `driver_id.eq.${filters.driverVisibleTo},and(driver_id.is.null,status.eq.${BOOKING_STATUS.SEARCHING_DRIVER})`
@@ -1325,15 +1342,8 @@ class ApiClient {
     return mapSavedLocation(inserted);
   }
 
-  async getNotifications(userId: string): Promise<NotificationItem[]> {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-
-    return (data ?? []).map((row: any) => ({
+  private mapNotification(row: any): NotificationItem {
+    return {
       id: row.id,
       userId: row.user_id,
       title: row.title,
@@ -1344,7 +1354,51 @@ class ApiClient {
       relatedBookingId: row.related_booking_id ?? undefined,
       relatedPostId: row.related_post_id ?? undefined,
       createdAt: row.created_at,
-    }));
+    };
+  }
+
+  async getNotifications(userId: string): Promise<NotificationItem[]> {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    return (data ?? []).map((row: any) => this.mapNotification(row));
+  }
+
+  async getNotificationsPage(
+    userId: string,
+    page = 1,
+    pageSize = 20
+  ): Promise<{ items: NotificationItem[]; total: number; hasMore: boolean }> {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error, count } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact' })
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .range(from, to);
+    if (error) throw error;
+
+    const total = count ?? 0;
+    return {
+      items: (data ?? []).map((row: any) => this.mapNotification(row)),
+      total,
+      hasMore: to + 1 < total,
+    };
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('read', false);
+    if (error) throw error;
+    return count ?? 0;
   }
 
   async createNotification(data: Omit<NotificationItem, 'id'> & { id?: string }): Promise<NotificationItem> {
@@ -1397,16 +1451,7 @@ class ApiClient {
     const { data, error } = await supabase.from('notifications').update({ read: true }).eq('id', id).select('*').single();
     if (error) throw error;
     return {
-      id: data.id,
-      userId: data.user_id,
-      title: data.title,
-      content: data.content,
-      time: new Date(data.created_at).toLocaleString('vi-VN'),
-      type: data.type,
-      read: data.read,
-      relatedBookingId: data.related_booking_id ?? undefined,
-      relatedPostId: data.related_post_id ?? undefined,
-      createdAt: data.created_at,
+      ...this.mapNotification(data),
     };
   }
 
@@ -1623,6 +1668,7 @@ class ApiClient {
         lastMessageTime: lastMessage?.timestamp ? new Date(lastMessage.timestamp).toLocaleString('vi-VN') : '',
         unreadCount: messages.filter((message: any) => !message.read && message.sender_id !== userId).length,
         messages: mappedMessages,
+        isSummary: false,
         updatedAt: row.updated_at,
       };
     });
@@ -1659,6 +1705,33 @@ class ApiClient {
     return Array.from(grouped.values())
       .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime())
       .map(({ updatedAt: _updatedAt, ...conversation }) => conversation);
+  }
+
+  async getConversationSummaries(userId: string): Promise<ChatConversation[]> {
+    const { data, error } = await supabase.rpc('get_conversation_summaries', {
+      p_user_id: userId,
+    });
+    if (error) throw error;
+
+    return (data ?? []).map((row: any) => {
+      const lastMessageTime = row.last_message_time
+        ? new Date(row.last_message_time).toLocaleString('vi-VN')
+        : '';
+      return {
+        id: row.id,
+        bookingId: row.booking_id ?? undefined,
+        threadIds: row.thread_ids ?? [row.id],
+        participantId: row.participant_id ?? '',
+        participantName: row.participant_name ?? 'Tài xế sẽ xác nhận',
+        participantPhone: row.participant_phone ?? undefined,
+        participantAvatar: row.participant_avatar ?? undefined,
+        lastMessage: row.last_message ?? 'Chưa có tin nhắn',
+        lastMessageTime,
+        unreadCount: Number(row.unread_count ?? 0),
+        messages: [],
+        isSummary: true,
+      };
+    });
   }
 
   async hideConversations(userId: string, conversationIds: string[]): Promise<void> {

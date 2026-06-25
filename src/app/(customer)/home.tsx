@@ -1,9 +1,11 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Image,
+  ImageBackground,
   Linking,
   Modal,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -12,7 +14,6 @@ import { router } from "expo-router";
 import {
   CalendarClock,
   Car,
-  Clock,
   FileText,
   LocateFixed,
   Map,
@@ -31,7 +32,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBooking } from "@/hooks/useBooking";
 import { PromoBanner } from "@/components/PromoBanner";
 import { QuickActionRow } from "@/components/QuickActionRow";
-import { NearbyMapCard } from "@/components/NearbyMapCard";
+import { NearbyDriverMapCard } from "@/components/NearbyMapCard";
 import { RecommendedVehicleCarousel } from "@/components/RecommendedVehicleCarousel";
 import { RecentTripsCarousel } from "@/components/RecentTripsCarousel";
 import { NewsUpdatesList } from "@/components/NewsUpdatesList";
@@ -59,36 +60,39 @@ const BOOKING_SERVICES: Array<{
   label: string;
   description: string;
   icon: typeof Car;
+  imageUrl: string;
 }> = [
   {
     key: "airport",
     label: "SÂN BAY",
     description: "Đón tiễn đúng giờ",
     icon: Plane,
+    imageUrl:
+      "https://res.cloudinary.com/dzwjgfd7t/image/upload/q_auto,w_520,h_410,c_fill/v1782272561/booking_daigo/be1335b295fd6d50ef4c9b8a2b10a28d_gwkwhf.jpg",
   },
   {
     key: "intercity",
     label: "LIÊN TỈNH",
     description: "Đi xa an toàn",
     icon: Route,
+    imageUrl:
+      "https://res.cloudinary.com/dzwjgfd7t/image/upload/q_auto,w_520,h_410,c_fill/v1782272712/booking_daigo/774aa2e1e05ebfcd8c1b17c9dd3db99e_y9bcf9.jpg",
   },
   {
     key: "contract",
     label: "HỢP ĐỒNG",
     description: "Cưới hỏi, sự kiện",
     icon: FileText,
+    imageUrl:
+      "https://res.cloudinary.com/dzwjgfd7t/image/upload/q_auto,w_520,h_410,c_fill/v1782272802/booking_daigo/51491fc49a0ab53da6382355064f1bad_yyk1ch.jpg",
   },
   {
     key: "travel",
     label: "DU LỊCH",
     description: "Tour, nghỉ dưỡng",
     icon: Map,
-  },
-  {
-    key: "hourly",
-    label: "THEO GIỜ",
-    description: "Lịch trình linh hoạt",
-    icon: Clock,
+    imageUrl:
+      "https://res.cloudinary.com/dzwjgfd7t/image/upload/q_auto,w_520,h_410,c_fill/v1782272931/booking_daigo/58b3a0d6dbe2d167969c00c56831c62a_oousho.jpg",
   },
 ];
 
@@ -308,52 +312,80 @@ function BookingServicesRail() {
               accessibilityLabel={`Đặt xe dịch vụ ${service.label}`}
               onPress={() => openServiceBooking(service)}
               style={{
-                width: 136,
-                minHeight: 112,
-                padding: spacing.md,
-                backgroundColor: colors.surface,
+                width: 208,
+                height: 262,
+                overflow: "hidden",
                 borderTopWidth: 1,
                 borderBottomWidth: 1,
                 borderColor: colors.border,
-                justifyContent: "space-between",
-                alignItems: "center",
-                
+                borderRadius : borderRadius["xl"]
               }}
             >
-              <View
+              <ImageBackground
+                source={{ uri: service.imageUrl }}
+                resizeMode="cover"
                 style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: borderRadius.full,
-                  backgroundColor: colors.surfaceAlt,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: spacing.sm,
+                  flex: 1,
+                  justifyContent: "flex-end",
                 }}
               >
-                <Icon size={22} color={colors.primary} />
-              </View>
-              <Text
-                numberOfLines={1}
-                style={{
-                  color: colors.text,
-                  fontWeight: "900",
-                  fontSize: fontSize.sm,
-                }}
-              >
-                {service.label}
-              </Text>
-              <Text
-                numberOfLines={2}
-                style={{
-                  color: colors.textSecondary,
-                  fontSize: fontSize.xs,
-                  lineHeight: 17,
-                  marginTop: spacing.xs,
-                }}
-              >
-                {service.description}
-              </Text>
+                <View
+                  style={{
+                    ...StyleSheet.absoluteFillObject,
+                    backgroundColor: "rgba(0,0,0,0.24)",
+                  }}
+                />
+                <View
+                  style={{
+                    ...StyleSheet.absoluteFillObject,
+                    backgroundColor: "rgba(0,0,0,0.18)",
+                  }}
+                />
+                <View
+                  style={{
+                    padding: spacing.md,
+                    paddingTop: spacing.lg,
+                    // backgroundColor: "rgba(0,0,0,0.42)",
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: borderRadius.full,
+                      backgroundColor: "rgba(255,255,255,0.2)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginBottom: spacing.sm,
+                      borderWidth: 1,
+                      borderColor: "rgba(255,255,255,0.26)",
+                    }}
+                  >
+                    <Icon size={20} color="white" />
+                  </View>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: "white",
+                      fontWeight: "900",
+                      fontSize: fontSize.sm,
+                    }}
+                  >
+                    {service.label}
+                  </Text>
+                  <Text
+                    numberOfLines={2}
+                    style={{
+                      color: "rgba(255,255,255,0.86)",
+                      fontSize: fontSize.xs,
+                      lineHeight: 17,
+                      marginTop: spacing.xs,
+                    }}
+                  >
+                    {service.description}
+                  </Text>
+                </View>
+              </ImageBackground>
             </TouchableOpacity>
           );
         })}
@@ -803,7 +835,7 @@ export default function HomeScreen() {
         </Card>
       )}
 
-      <View style={{ marginBottom: spacing.xl }}>
+      <View style={{ marginBottom: spacing.xl, marginTop: spacing.xl }}>
         <Text
           style={{
             fontSize: 18,
@@ -895,10 +927,15 @@ export default function HomeScreen() {
       {/* New premium sections */}
       {promotions.length > 0 && <PromoBanner promotions={promotions} />}
 
-      <NearbyMapCard
+      <NearbyDriverMapCard
         vehicles={recommendedVehicles}
         currentLocation={currentLocation}
-        onPress={() => router.push("/(customer)/booking")}
+        onPress={(vehicle) =>
+          router.push({
+            pathname: "/(customer)/booking" as any,
+            params: vehicle?.id ? { suggestedVehicleId: vehicle.id } : undefined,
+          })
+        }
       />
       <RecommendedVehicleCarousel
         vehicles={recommendedVehicles}

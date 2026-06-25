@@ -25,8 +25,7 @@ const NOTIF_SORTS = [
 export default function NotificationsScreen() {
   const { colors } = useTheme();
   const { isAuthenticated, user } = useAuthStore();
-  const { notifications, fetchNotifications, markAsRead, isLoading } = useNotifications(user?.id);
-  const [visibleCount, setVisibleCount] = useState(20);
+  const { notifications, fetchNotifications, loadMoreNotifications, markAsRead, isLoading, isLoadingMore, hasMore } = useNotifications(user?.id);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [activeSort, setActiveSort] = useState('newest');
@@ -102,7 +101,7 @@ export default function NotificationsScreen() {
       ) : (
         /* Flat list — sát 2 bên, ngăn cách bằng border */
         <View>
-          {filteredNotifications.slice(0, visibleCount).map((notification) => (
+          {filteredNotifications.map((notification) => (
             <TouchableOpacity
               key={notification.id}
               activeOpacity={0.7}
@@ -218,12 +217,14 @@ export default function NotificationsScreen() {
       )}
 
       {/* Load more */}
-      {!isLoading && filteredNotifications.length > visibleCount && (
+      {!isLoading && !search.trim() && activeFilter === 'all' && hasMore && (
         <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
           <Button
-            label="Tải thêm thông báo"
-            onPress={() => setVisibleCount((current) => current + 20)}
+            label={isLoadingMore ? 'Đang tải thêm...' : 'Tải thêm thông báo'}
+            onPress={loadMoreNotifications}
             variant="outline"
+            loading={isLoadingMore}
+            disabled={isLoadingMore}
           />
         </View>
       )}

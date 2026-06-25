@@ -29,6 +29,10 @@ function NotificationSection({ children }: { children: React.ReactNode }) {
   );
 }
 
+const isCallNotification = (notification: NotificationItem) =>
+  notification.title?.toLowerCase().includes('cuộc gọi') ||
+  notification.content?.toLowerCase().includes('đang gọi cho bạn');
+
 export default function NotificationDetailScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -46,7 +50,7 @@ export default function NotificationDetailScreen() {
         markAsRead(found.id);
         apiClient.markNotificationAsRead(found.id).catch(() => undefined);
       }
-      if (found?.relatedBookingId) {
+      if (found?.relatedBookingId && !isCallNotification(found)) {
         const related = await apiClient.getBookingById(found.relatedBookingId);
         setBooking(related);
       }

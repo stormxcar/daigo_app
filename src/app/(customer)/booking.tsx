@@ -562,7 +562,10 @@ export default function BookingScreen() {
         { latitude: dropoffPoint.lat, longitude: dropoffPoint.lng },
       );
       setRoute(goongRoute);
-      const bookings = await apiClient.getBookings();
+      const bookings = await apiClient.getBookings({
+        date: bookingDate,
+        time,
+      });
       setBookedVehicleIds(
         bookings
           .filter(
@@ -586,7 +589,11 @@ export default function BookingScreen() {
     }
 
     setSearched(true);
-    setSelectedVehicleId(vehicles[0]?.id ?? null);
+    const suggestedVehicleId = stringParam(routeParams.suggestedVehicleId);
+    const suggestedVehicle = suggestedVehicleId
+      ? vehicles.find((vehicle) => vehicle.id === suggestedVehicleId)
+      : null;
+    setSelectedVehicleId(suggestedVehicle?.id ?? vehicles[0]?.id ?? null);
     showSuccess(
       "Đã tìm xe phù hợp",
       `${vehicles.length} xe khớp với thông tin chuyến đi.`,

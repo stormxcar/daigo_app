@@ -245,6 +245,7 @@ export interface Message {
 
 export interface ChatConversation {
   id: string;
+  isSummary?: boolean;
   threadIds?: string[];
   bookingId?: string;
   participantId: string;

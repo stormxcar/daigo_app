@@ -17,7 +17,10 @@ export default function ChatDetailScreen() {
   const { conversations, setConversations, addMessage, removeMessage, markConversationAsRead } = useChatStore();
   const [loading, setLoading] = useState(true);
   const channelInstanceId = useRef(Math.random().toString(36).slice(2)).current;
-  const conversation = useMemo(() => conversations.find((item) => item.id === id), [conversations, id]);
+  const conversation = useMemo(
+    () => conversations.find((item) => item.id === id && !item.isSummary),
+    [conversations, id],
+  );
 
   const refresh = useCallback(async () => {
     if (!user) return;

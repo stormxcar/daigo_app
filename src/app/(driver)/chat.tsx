@@ -45,7 +45,7 @@ export default function DriverChat() {
     if (!user) return;
     try {
       setRefreshing(true);
-      setConversations(await apiClient.getConversations(user.id));
+      setConversations(await apiClient.getConversationSummaries(user.id));
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -62,7 +62,7 @@ export default function DriverChat() {
     const refreshFromRealtime = () => {
       if (!active) return;
       apiClient
-        .getConversations(user.id)
+        .getConversationSummaries(user.id)
         .then((items) => {
           if (active) setConversations(items);
         })
@@ -125,7 +125,7 @@ export default function DriverChat() {
     if (!user) return;
     try {
       await apiClient.hideConversations(user.id, ids);
-      setConversations(await apiClient.getConversations(user.id));
+      setConversations(await apiClient.getConversationSummaries(user.id));
       setSelectedIds([]);
       showSuccess('Đã xóa khỏi danh sách', 'Cuộc trò chuyện đã được ẩn khỏi tài khoản của bạn.');
     } catch (error: any) {

@@ -8,6 +8,7 @@ export function AppNotificationBridge() {
   const userId = useAuthStore((state) => state.user?.id);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const setNotifications = useNotificationStore((state) => state.setNotifications);
+  const setUnreadCount = useNotificationStore((state) => state.setUnreadCount);
   const clearNotifications = useNotificationStore((state) => state.clearNotifications);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const fetchingRef = useRef(false);
@@ -28,8 +29,14 @@ export function AppNotificationBridge() {
       if (fetchingRef.current) return;
       fetchingRef.current = true;
       try {
-        const notifications = await apiClient.getNotifications(userId);
-        if (active) setNotifications(notifications);
+        const [pageData, unreadTotal] = await Promise.all([
+          apiClient.getNotificationsPage(userId, 1, 20),
+          apiClient.getUnreadNotificationCount(userId),
+        ]);
+        if (active) {
+          setNotifications(pageData.items);
+          setUnreadCount(unreadTotal);
+        }
       } catch (error) {
         if (__DEV__) console.warn('[DAIGO_NOTIFICATION_BRIDGE_ERROR]', error);
       } finally {
@@ -54,7 +61,7 @@ export function AppNotificationBridge() {
       supabase.removeChannel(channel);
       if (channelRef.current === channel) channelRef.current = null;
     };
-  }, [clearNotifications, isAuthenticated, setNotifications, userId]);
+  }, [clearNotifications, isAuthenticated, setNotifications, setUnreadCount, userId]);
 
   return null;
 }

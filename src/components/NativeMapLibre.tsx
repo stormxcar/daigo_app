@@ -1,5 +1,6 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { NativeModules, Text, View } from 'react-native';
+import Constants from 'expo-constants';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 
 type MapLibreModule = {
@@ -16,6 +17,18 @@ export function getNativeMapLibre(): MapLibreModule | null {
   if (moduleCache !== undefined) return moduleCache;
 
   try {
+    if (Constants.appOwnership === 'expo') {
+      moduleCache = null;
+      return moduleCache;
+    }
+
+    const hasCameraModule = Boolean(NativeModules.MLRNCameraModule);
+    const hasMapModule = Boolean(NativeModules.MLRNMapViewModule);
+    if (!hasCameraModule || !hasMapModule) {
+      moduleCache = null;
+      return moduleCache;
+    }
+
     // Keep this dynamic. Static imports crash Expo Go / old APKs before routes can export.
     // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
     const maplibre = require('@maplibre/maplibre-react-native');

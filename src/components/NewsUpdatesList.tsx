@@ -1,6 +1,5 @@
 import React from 'react';
 import { FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
-import Constants from 'expo-constants';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { BlogPost } from '@/types';
@@ -10,32 +9,9 @@ import { buildCloudinaryVideoPosterUrl } from '@/services/videoOptimizationServi
 
 function NewsVideoPreview({ uri }: { uri: string }) {
   const posterUri = buildCloudinaryVideoPosterUrl(uri, { width: 480 });
-  if (Constants.appOwnership === 'expo') {
-    return posterUri ? (
-      <Image source={{ uri: posterUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-    ) : null;
-  }
-
-  return <NativeNewsVideoPreview uri={uri} />;
-}
-
-function NativeNewsVideoPreview({ uri }: { uri: string }) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-  const { VideoView, useVideoPlayer } = require('expo-video');
-  const player = useVideoPlayer(uri, (videoPlayer: any) => {
-    videoPlayer.loop = true;
-    videoPlayer.muted = true;
-  });
-
-  return (
-    <VideoView
-      player={player}
-      style={{ width: '100%', height: '100%' }}
-      contentFit="cover"
-      nativeControls={false}
-      fullscreenOptions={{ enable: false }}
-    />
-  );
+  return posterUri ? (
+    <Image source={{ uri: posterUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+  ) : null;
 }
 
 export const NewsUpdatesList: React.FC<{
