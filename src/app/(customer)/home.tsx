@@ -42,6 +42,7 @@ import {
   DestinationSearchInput,
 } from "@/components/DestinationSearchInput";
 import { AppTourGuide } from "@/components/AppTourGuide";
+import { LocationAccessFallback } from "@/components/LocationAccessFallback";
 
 import { HelpSupportRow } from "@/components/HelpSupportRow";
 import { useVehicles } from "@/hooks/useVehicles";
@@ -451,6 +452,7 @@ export default function HomeScreen() {
   const [currentLocation, setCurrentLocation] = useState<DeviceLocation | null>(
     null,
   );
+  const [locationAccessBlocked, setLocationAccessBlocked] = useState(false);
   const [destinationQuery, setDestinationQuery] = useState("");
   const [tourPromptVisible, setTourPromptVisible] = useState(false);
   const [tourVisible, setTourVisible] = useState(false);
@@ -465,8 +467,11 @@ export default function HomeScreen() {
       .then(setBlogPosts)
       .catch(() => setBlogPosts([]));
     getCurrentDeviceLocation()
-      .then(setCurrentLocation)
-      .catch(() => undefined);
+      .then((location) => {
+        setCurrentLocation(location);
+        setLocationAccessBlocked(false);
+      })
+      .catch(() => setLocationAccessBlocked(true));
   }, [fetchBookings, fetchVehicles, user?.id]);
 
   useEffect(() => {
@@ -495,7 +500,12 @@ export default function HomeScreen() {
       const posts = await apiClient.getBlogPosts(1, 6);
       setBlogPosts(posts);
       const location = await getCurrentDeviceLocation().catch(() => null);
-      if (location) setCurrentLocation(location);
+      if (location) {
+        setCurrentLocation(location);
+        setLocationAccessBlocked(false);
+      } else {
+        setLocationAccessBlocked(true);
+      }
     } finally {
       setRefreshing(false);
     }
@@ -529,6 +539,28 @@ export default function HomeScreen() {
         destinationText: text.trim(),
       },
     });
+  };
+
+  const useManualLocation = (place: DestinationPlace) => {
+    if (typeof place.latitude !== "number" || typeof place.longitude !== "number") {
+      return;
+    }
+    setCurrentLocation({
+      label: place.address || place.name,
+      lat: place.latitude,
+      lng: place.longitude,
+    });
+    setLocationAccessBlocked(false);
+  };
+
+  const retryGpsLocation = async () => {
+    const location = await getCurrentDeviceLocation().catch(() => null);
+    if (location) {
+      setCurrentLocation(location);
+      setLocationAccessBlocked(false);
+    } else {
+      setLocationAccessBlocked(true);
+    }
   };
 
   const markTourSeen = async () => {
@@ -613,6 +645,15 @@ export default function HomeScreen() {
         ACTIVE_BOOKING_STATUSES.includes(booking.status as any),
       )
     : null;
+
+  if (locationAccessBlocked && !currentLocation) {
+    return (
+      <LocationAccessFallback
+        onSelectLocation={useManualLocation}
+        onRetryGps={retryGpsLocation}
+      />
+    );
+  }
 
   return (
     <Screen scroll refreshing={refreshing || isLoading} onRefresh={refreshHome}>

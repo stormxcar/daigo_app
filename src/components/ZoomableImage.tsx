@@ -30,6 +30,9 @@ export function ZoomableImage({ uri, style }: ZoomableImageProps) {
   const savedTranslateY = useSharedValue(0);
   const containerWidth = useSharedValue(0);
   const containerHeight = useSharedValue(0);
+  const pinchStartScale = useSharedValue(1);
+  const pinchStartTranslateX = useSharedValue(0);
+  const pinchStartTranslateY = useSharedValue(0);
 
   useEffect(() => {
     scale.value = 1;
@@ -38,7 +41,10 @@ export function ZoomableImage({ uri, style }: ZoomableImageProps) {
     translateY.value = 0;
     savedTranslateX.value = 0;
     savedTranslateY.value = 0;
-  }, [savedScale, savedTranslateX, savedTranslateY, scale, translateX, translateY, uri]);
+    pinchStartScale.value = 1;
+    pinchStartTranslateX.value = 0;
+    pinchStartTranslateY.value = 0;
+  }, [pinchStartScale, pinchStartTranslateX, pinchStartTranslateY, savedScale, savedTranslateX, savedTranslateY, scale, translateX, translateY, uri]);
 
   const reset = () => {
     'worklet';
@@ -61,8 +67,20 @@ export function ZoomableImage({ uri, style }: ZoomableImageProps) {
   };
 
   const pinchGesture = Gesture.Pinch()
+    .onStart(() => {
+      pinchStartScale.value = scale.value;
+      pinchStartTranslateX.value = translateX.value;
+      pinchStartTranslateY.value = translateY.value;
+    })
     .onUpdate((event) => {
-      scale.value = clamp(savedScale.value * event.scale, MIN_SCALE, MAX_SCALE);
+      const nextScale = clamp(pinchStartScale.value * event.scale, MIN_SCALE, MAX_SCALE);
+      const scaleRatio = nextScale / pinchStartScale.value;
+      const focalX = event.focalX - containerWidth.value / 2;
+      const focalY = event.focalY - containerHeight.value / 2;
+
+      translateX.value = pinchStartTranslateX.value * scaleRatio + focalX * (1 - scaleRatio);
+      translateY.value = pinchStartTranslateY.value * scaleRatio + focalY * (1 - scaleRatio);
+      scale.value = nextScale;
       clampTranslate();
     })
     .onEnd(() => {

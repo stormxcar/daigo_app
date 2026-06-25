@@ -38,6 +38,7 @@ export const Screen: FC<ScreenProps> = ({
 }) => {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomOverlayPadding = 120 + insets.bottom;
 
   const containerStyle = {
     flex: 1,
@@ -54,7 +55,7 @@ export const Screen: FC<ScreenProps> = ({
     <ScrollView
       style={containerStyle}
       contentContainerStyle={[
-        { flexGrow: 1, paddingBottom: spacing.sm },
+        { flexGrow: 1, paddingBottom: bottomOverlayPadding },
         style,
       ]}
       scrollEnabled={true}

@@ -19,6 +19,8 @@ type Props = {
   onSelectPlace: (place: DestinationPlace) => void;
   onSubmitText?: (text: string) => void;
   placeholder?: string;
+  title?: string;
+  helperText?: string;
   currentLocation?: { lat: number; lng: number } | null;
   autoFocus?: boolean;
   containerStyle?: ViewStyle;
@@ -49,6 +51,8 @@ export function DestinationSearchInput({
   onSelectPlace,
   onSubmitText,
   placeholder = 'Bạn muốn đi đâu ?',
+  title = 'Bạn muốn đi đâu?',
+  helperText: helperTextOverride,
   currentLocation,
   autoFocus = false,
   containerStyle,
@@ -85,9 +89,10 @@ export function DestinationSearchInput({
   }, [trimmedValue]);
 
   const helperText = useMemo(() => {
+    if (helperTextOverride) return helperTextOverride;
     if (currentLocation) return 'Gợi ý điểm đến tại Việt Nam';
     return 'Nhập điểm đến để bắt đầu chuyến đi';
-  }, [currentLocation]);
+  }, [currentLocation, helperTextOverride]);
 
   const handleSelect = (suggestion: LocationSuggestion) => {
     setFocused(false);
@@ -118,7 +123,7 @@ export function DestinationSearchInput({
         }}
       >
         <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: '900', marginBottom: spacing.xs }}>
-          Bạn muốn đi đâu?
+          {title}
         </Text>
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: spacing.md }}>
           {helperText}

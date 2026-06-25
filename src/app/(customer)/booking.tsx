@@ -37,6 +37,7 @@ import { borderRadius, fontSize, spacing } from "@/theme/tokens";
 import { Button, Card, TextInput } from "@/components/BaseComponents";
 import { AuthRequired } from "@/components/AuthRequired";
 import { Screen } from "@/components/ScreenComponents";
+import { LocationAccessFallback } from "@/components/LocationAccessFallback";
 import { useAuthStore } from "@/stores/authStore";
 import { SavedLocation, Vehicle } from "@/types";
 import { apiClient } from "@/services/api";
@@ -143,6 +144,7 @@ export default function BookingScreen() {
     "pickup" | "dropoff" | null
   >(null);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [locationAccessBlocked, setLocationAccessBlocked] = useState(false);
   const [savedLocations, setSavedLocations] = useState<SavedLocation[]>([]);
   const [savedLocationsLoading, setSavedLocationsLoading] = useState(false);
   const [savedLocationsError, setSavedLocationsError] = useState<string | null>(
@@ -613,11 +615,31 @@ export default function BookingScreen() {
       setPickupPoint(point);
       setPickupLocation(point.label);
       setPickupSuggestions([]);
+      setLocationAccessBlocked(false);
     } catch (error: any) {
+      setLocationAccessBlocked(true);
       showError("Không thể lấy vị trí", error.message);
     } finally {
       setGpsLoading(false);
     }
+  };
+
+  const applyManualPickupLocation = (place: { name: string; address: string; placeId: string; latitude?: number; longitude?: number }) => {
+    if (typeof place.latitude !== "number" || typeof place.longitude !== "number") {
+      showError("Địa điểm thiếu tọa độ", "Vui lòng chọn một gợi ý hợp lệ từ danh sách.");
+      return;
+    }
+    const point = {
+      id: place.placeId,
+      label: place.address || place.name,
+      lat: place.latitude,
+      lng: place.longitude,
+      provider: "goong" as const,
+    };
+    setPickupPoint(point);
+    setPickupLocation(point.label);
+    setPickupSuggestions([]);
+    setLocationAccessBlocked(false);
   };
 
   const applySavedLocation = (
@@ -780,6 +802,16 @@ export default function BookingScreen() {
             params: { redirectTo: "/(customer)/booking" },
           })
         }
+      />
+    );
+  }
+
+  if (locationAccessBlocked && !pickupPoint) {
+    return (
+      <LocationAccessFallback
+        description="Daigo cần vị trí để lấy điểm đón chính xác và tính lộ trình đặt xe. Nếu bạn chưa muốn bật GPS, hãy nhập vị trí hiện tại để tiếp tục đặt xe."
+        onSelectLocation={applyManualPickupLocation}
+        onRetryGps={handleUseCurrentLocation}
       />
     );
   }

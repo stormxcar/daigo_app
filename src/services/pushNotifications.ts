@@ -48,6 +48,14 @@ export async function registerPushNotifications(userId: string) {
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#1d4ed8',
     });
+    await Notifications.setNotificationChannelAsync('calls', {
+      name: 'Cuộc gọi Daigo',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 700, 350, 700, 350, 700],
+      lightColor: '#16a34a',
+      sound: 'default',
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    });
   }
 
   const current = await Notifications.getPermissionsAsync();

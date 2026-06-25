@@ -7,6 +7,7 @@ import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, CardSkeleton } from '@/components/BaseComponents';
 import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { ActiveTripSheet } from '@/components/ActiveTripSheet';
+import { LocationAccessFallback } from '@/components/LocationAccessFallback';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { BlogPost, Booking, RatingReview, Vehicle } from '@/types';
@@ -135,6 +136,7 @@ export default function DriverDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [driverLocation, setDriverLocation] = useState<DeviceLocation | null>(null);
+  const [locationAccessBlocked, setLocationAccessBlocked] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<string>('PENDING');
   const [onlineLoading, setOnlineLoading] = useState(false);
@@ -160,7 +162,12 @@ export default function DriverDashboard() {
       setRatings(driverRatings);
       setIsOnline(!!driverStatus?.isOnline);
       setVerificationStatus(driverStatus?.verificationStatus ?? 'PENDING');
-      getCurrentDeviceLocation().then(setDriverLocation).catch(() => undefined);
+      getCurrentDeviceLocation()
+        .then((location) => {
+          setDriverLocation(location);
+          setLocationAccessBlocked(false);
+        })
+        .catch(() => undefined);
     } catch (error: any) {
       showError('Không thể tải thống kê', error.message);
     } finally {
@@ -177,17 +184,41 @@ export default function DriverDashboard() {
     if (!user) return;
     try {
       setOnlineLoading(true);
-      const location = await getCurrentDeviceLocation().catch(() => driverLocation);
+      const location = await getCurrentDeviceLocation().catch(() => {
+        setLocationAccessBlocked(true);
+        return driverLocation;
+      });
+      if (!location && !isOnline) {
+        showError('Không thể lấy vị trí', 'Vui lòng bật GPS hoặc nhập vị trí hiện tại để nhận chuyến.');
+        return;
+      }
       const updated = await apiClient.setDriverOnline(user.id, !isOnline, location ?? undefined);
       setIsOnline(updated.isOnline);
       setVerificationStatus(updated.verificationStatus);
-      if (location) setDriverLocation(location);
+      if (location) {
+        setDriverLocation(location);
+        setLocationAccessBlocked(false);
+      }
       showSuccess(updated.isOnline ? 'Đã bật nhận chuyến' : 'Đã tắt nhận chuyến', 'Trạng thái tài xế đã được cập nhật.');
     } catch (error: any) {
       showError('Không thể cập nhật trạng thái tài xế', error.message);
     } finally {
       setOnlineLoading(false);
     }
+  };
+
+  const applyManualDriverLocation = (place: { name: string; address: string; placeId: string; latitude?: number; longitude?: number }) => {
+    if (typeof place.latitude !== 'number' || typeof place.longitude !== 'number') {
+      showError('Địa điểm thiếu tọa độ', 'Vui lòng chọn một gợi ý hợp lệ từ danh sách.');
+      return;
+    }
+    setDriverLocation({
+      label: place.address || place.name,
+      lat: place.latitude,
+      lng: place.longitude,
+    });
+    setLocationAccessBlocked(false);
+    showSuccess('Đã dùng vị trí thủ công', 'Bạn có thể bật nhận chuyến bằng vị trí này.');
   };
 
   const stats = useMemo(() => {
@@ -268,6 +299,22 @@ export default function DriverDashboard() {
     { label: 'Đang xử lý', value: String(stats.active), icon: <BarChart3 size={20} color={colors.info} /> },
     { label: 'Rating', value: stats.ratingCount ? stats.averageRating.toFixed(1) : '--', icon: <Star size={20} color={colors.warning} /> },
   ];
+
+  if (locationAccessBlocked && !driverLocation) {
+    return (
+      <LocationAccessFallback
+        description="Tài xế cần vị trí để hệ thống chỉ đường đến điểm đón và gợi ý chuyến gần bạn. Nếu GPS chưa bật, hãy nhập vị trí hiện tại để tiếp tục nhận chuyến."
+        onSelectLocation={applyManualDriverLocation}
+        onRetryGps={async () => {
+          const location = await getCurrentDeviceLocation().catch(() => null);
+          if (location) {
+            setDriverLocation(location);
+            setLocationAccessBlocked(false);
+          }
+        }}
+      />
+    );
+  }
 
   return (
     <Screen scroll refreshing={refreshing || loading} onRefresh={() => loadData(true)}>

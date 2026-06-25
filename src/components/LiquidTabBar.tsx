@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { Animated, Text, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
@@ -108,12 +109,36 @@ export function LiquidTabBar({
   return (
     <View
       style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 50,
+        elevation: 50,
         paddingHorizontal: spacing.lg,
         paddingBottom: Math.max(insets.bottom, spacing.md),
-        paddingTop: spacing.sm,
+        paddingTop: spacing.lg,
         backgroundColor: 'transparent',
       }}
     >
+      <LinearGradient
+        pointerEvents="none"
+        colors={
+          isDark
+            ? ['rgba(15,23,42,0.70)', 'rgba(15,23,42,0.32)', 'rgba(15,23,42,0)']
+            : ['rgba(255,255,255,0.82)', 'rgba(255,255,255,0.36)', 'rgba(255,255,255,0)']
+        }
+        locations={[0, 0.56, 1]}
+        start={{ x: 0, y: 1 }}
+        end={{ x: 0, y: 0 }}
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: Math.max(insets.bottom, spacing.md) + 70,
+        }}
+      />
       <View
         style={{
           minHeight: 74,
@@ -123,9 +148,9 @@ export function LiquidTabBar({
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          backgroundColor: isDark ? 'rgba(30, 41, 59, 0.94)' : 'rgba(255, 255, 255, 0.96)',
+          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.96)',
           borderWidth: 1,
-          borderColor: colors.border,
+          borderColor: isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(226, 232, 240, 0.88)',
           ...shadows.xl,
         }}
       >

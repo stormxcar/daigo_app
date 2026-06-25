@@ -92,6 +92,12 @@ export default function DriverLayout() {
           fontWeight: '500',
           marginTop: 4,
         },
+        tabBarStyle: {
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
+        },
       }}
       tabBar={(props: any) => <LiquidTabBar {...props} maxTabs={6} />}
     >

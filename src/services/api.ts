@@ -1422,19 +1422,6 @@ class ApiClient {
       createdAt: inserted.created_at,
       time: new Date(inserted.created_at).toLocaleString('vi-VN'),
     };
-    this.sendPushNotification({
-      userId: data.userId,
-      title: data.title,
-      body: data.content,
-      payload: {
-        notificationId: inserted.id,
-        type: data.type,
-        relatedBookingId: data.relatedBookingId,
-        relatedPostId: data.relatedPostId,
-      },
-    }).catch((error) => {
-      if (__DEV__) console.warn('Không thể gửi push notification', error);
-    });
     return notification;
   }
 
@@ -1570,6 +1557,23 @@ class ApiClient {
     } else {
       const { error } = await supabase.from('blog_likes').insert({ post_id: postId, user_id: userId });
       if (error) throw error;
+
+      const [{ data: post }, { data: actor }] = await Promise.all([
+        supabase.from('blog_posts').select('driver_id, caption').eq('id', postId).maybeSingle(),
+        supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle(),
+      ]);
+      if (post?.driver_id && post.driver_id !== userId) {
+        await this.createNotificationSafely({
+          userId: post.driver_id,
+          title: 'Bài viết có lượt thích mới',
+          content: `${actor?.full_name ?? 'Một người dùng'} đã thích bài viết của bạn.`,
+          type: 'blog_interaction',
+          read: false,
+          relatedPostId: postId,
+          createdAt: new Date().toISOString(),
+          time: 'Vừa xong',
+        });
+      }
     }
 
     this.invalidateCache('blog:');
@@ -1603,6 +1607,36 @@ class ApiClient {
       .single();
     if (error) throw error;
     this.invalidateCache('blog:');
+
+    const [{ data: post }, { data: parentComment }] = await Promise.all([
+      supabase.from('blog_posts').select('driver_id').eq('id', postId).maybeSingle(),
+      parentCommentId
+        ? supabase.from('blog_comments').select('author_id').eq('id', parentCommentId).maybeSingle()
+        : Promise.resolve({ data: null } as { data: null }),
+    ]);
+    const authorName = data.profiles?.full_name ?? 'Một người dùng';
+    const receiverIds = Array.from(
+      new Set(
+        [post?.driver_id, parentComment?.author_id]
+          .filter((id): id is string => Boolean(id))
+          .filter((id) => id !== authorId)
+      )
+    );
+    await Promise.all(
+      receiverIds.map((receiverId) =>
+        this.createNotificationSafely({
+          userId: receiverId,
+          title: parentCommentId ? 'Có phản hồi bình luận mới' : 'Bài viết có bình luận mới',
+          content: `${authorName}: ${text.trim()}`,
+          type: 'blog_interaction',
+          read: false,
+          relatedPostId: postId,
+          createdAt: new Date().toISOString(),
+          time: 'Vừa xong',
+        })
+      )
+    );
+
     return {
       id: data.id,
       postId: data.post_id,
@@ -1771,6 +1805,31 @@ class ApiClient {
       .select('*, profiles!messages_sender_id_fkey(full_name, role), reply:messages!reply_to_message_id(text, sender_id, profiles!messages_sender_id_fkey(full_name))')
       .single();
     if (error) throw error;
+
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('booking_id, customer_id, driver_id')
+      .eq('id', conversationId)
+      .maybeSingle();
+    const receiverId =
+      conversation?.customer_id === senderId ? conversation?.driver_id : conversation?.customer_id;
+    if (receiverId && receiverId !== senderId) {
+      const senderName = data.profiles?.full_name ?? 'Daigo';
+      const messagePreview =
+        message.trim() ||
+        (media?.type === 'video' ? 'Đã gửi một video' : media?.type === 'image' ? 'Đã gửi một ảnh' : 'Bạn có tin nhắn mới');
+      await this.createNotificationSafely({
+        userId: receiverId,
+        title: `Tin nhắn mới từ ${senderName}`,
+        content: messagePreview,
+        type: 'system',
+        read: false,
+        relatedBookingId: conversation?.booking_id ?? undefined,
+        createdAt: new Date().toISOString(),
+        time: 'Vừa xong',
+      });
+    }
+
     return {
       id: data.id,
       sender: 'user',

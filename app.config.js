@@ -80,6 +80,7 @@ module.exports = {
     ],
     'expo-screen-orientation',
     'expo-font',
+    'expo-audio',
     'expo-video',
     '@react-native-community/datetimepicker',
     [

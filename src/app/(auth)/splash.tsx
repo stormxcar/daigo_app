@@ -161,7 +161,7 @@ export default function SplashScreen() {
       </Animated.View>
 
       {/* Tagline */}
-      <Animated.View style={{ opacity: taglineOpacity, alignItems: "center" }}>
+      <Animated.View style={{ opacity: taglineOpacity, alignItems: "center", marginBottom: spacing.xl }}>
         <Text style={styles.tagline}>{APP_TAGLINE_SHORT}</Text>
       </Animated.View>
 

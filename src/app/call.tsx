@@ -130,8 +130,9 @@ export default function CallScreen() {
       return;
     }
     leaveAgoraVoiceChannel();
+    const hasConnected = joined || call.status === 'accepted' || !!call.acceptedAt;
     await callService
-      .updateCallStatus(call.id, call.acceptedAt ? 'ended' : 'missed', call.acceptedAt ?? call.startedAt)
+      .updateCallStatus(call.id, hasConnected ? 'ended' : 'missed', call.acceptedAt ?? call.startedAt)
       .catch(() => undefined);
     router.back();
   };

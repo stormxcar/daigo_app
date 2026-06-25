@@ -27,6 +27,7 @@ import {
   X,
   Maximize2,
 } from 'lucide-react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing, shadows } from '@/theme/tokens';
 import { showError, showInfo, showSuccess } from '@/utils/toast';
@@ -426,6 +427,7 @@ export function BlogMediaGrid({ urls, types, height = 260, active = true, preloa
 
       {/* Fullscreen media modal */}
       <Modal visible={activeIndex !== null} animationType="fade" transparent statusBarTranslucent onRequestClose={() => setActiveIndex(null)}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={styles.modal}>
           <TouchableOpacity style={[styles.closeBtn, { top: 42 }]} onPress={() => setActiveIndex(null)}>
             <X size={24} color="white" />
@@ -471,6 +473,7 @@ export function BlogMediaGrid({ urls, types, height = 260, active = true, preloa
             </TouchableOpacity>
           )}
         </View>
+        </GestureHandlerRootView>
       </Modal>
     </>
   );

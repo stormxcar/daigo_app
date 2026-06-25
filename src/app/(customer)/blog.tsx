@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Heart, MessageCircle, Share2 } from "lucide-react-native";
 import { useTheme } from "@/theme";
 import { fontSize, spacing } from "@/theme/tokens";
@@ -55,6 +56,7 @@ function BlogPostSkeleton() {
 
 export default function BlogScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -366,7 +368,7 @@ export default function BlogScreen() {
             </Text>
           ) : null
         }
-        contentContainerStyle={{ paddingBottom: spacing.lg }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 96 }}
       />
     </Screen>
   );

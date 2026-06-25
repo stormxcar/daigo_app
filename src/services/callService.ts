@@ -18,6 +18,15 @@ type CallSessionRow = {
   updated_at: string;
 };
 
+const INCOMING_CALL_RING_TIMEOUT_MS = 45_000;
+
+const isFreshRingingCall = (call: Pick<CallSession, 'createdAt' | 'status'>) => {
+  if (call.status !== 'ringing') return false;
+  const createdAt = new Date(call.createdAt).getTime();
+  if (!Number.isFinite(createdAt)) return false;
+  return Date.now() - createdAt <= INCOMING_CALL_RING_TIMEOUT_MS;
+};
+
 const mapCallSession = (row: CallSessionRow): CallSession => ({
   id: row.id,
   bookingId: row.booking_id ?? undefined,
@@ -53,22 +62,7 @@ async function createCallNotification(data: {
     // Realtime call still works even if auxiliary notification insert is denied.
   }
 
-  try {
-    await supabase.functions.invoke('send-push-notification', {
-      body: {
-        userId: data.userId,
-        title: 'Cuộc gọi đến',
-        body: `${data.callerName} đang gọi cho bạn trong ứng dụng.`,
-        data: {
-          type: 'incoming_call',
-          callSessionId: data.callSessionId,
-          bookingId: data.bookingId,
-        },
-      },
-    });
-  } catch {
-    // Push is best-effort; in-app realtime remains the primary signaling path.
-  }
+  // Push is sent by the notifications INSERT trigger. In-app realtime remains the primary signaling path.
 }
 
 async function createCallChatMessage(call: CallSessionRow, status: CallStatus) {
@@ -156,24 +150,56 @@ class CallService {
   }
 
   async getActiveIncomingCall(userId: string): Promise<CallSession | null> {
+    const staleBefore = new Date(Date.now() - INCOMING_CALL_RING_TIMEOUT_MS).toISOString();
+    const { data: staleCalls } = await supabase
+      .from('call_sessions')
+      .select('*')
+      .eq('receiver_id', userId)
+      .eq('call_type', 'agora')
+      .eq('status', 'ringing')
+      .lt('created_at', staleBefore)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (staleCalls?.length) {
+      await Promise.all(
+        (staleCalls as CallSessionRow[]).map((call) =>
+          this.updateCallStatus(call.id, 'missed', call.started_at ?? call.created_at).catch(() => undefined)
+        )
+      );
+    }
+
     const { data, error } = await supabase
       .from('call_sessions')
       .select('*')
       .eq('receiver_id', userId)
       .eq('call_type', 'agora')
       .eq('status', 'ringing')
+      .gte('created_at', staleBefore)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    return data ? mapCallSession(data as CallSessionRow) : null;
+    const call = data ? mapCallSession(data as CallSessionRow) : null;
+    return call && isFreshRingingCall(call) ? call : null;
   }
 
   async updateCallStatus(id: string, status: CallStatus, startedAt?: string): Promise<CallSession> {
+    const { data: existing } = await supabase
+      .from('call_sessions')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    const existingRow = existing as CallSessionRow | null;
+    const shouldEndAsCompleted =
+      status === 'ended' &&
+      (existingRow?.status === 'accepted' || !!existingRow?.accepted_at);
     const endedAt = ['ended', 'rejected', 'missed', 'failed'].includes(status) ? new Date().toISOString() : undefined;
-    const acceptedAt = status === 'accepted' ? new Date().toISOString() : undefined;
+    const acceptedAt = status === 'accepted' ? new Date().toISOString() : existingRow?.accepted_at ?? undefined;
     const durationSeconds =
-      status === 'ended' && startedAt ? Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 1000)) : undefined;
+      status === 'ended' && (startedAt || existingRow?.started_at || existingRow?.accepted_at)
+        ? Math.max(0, Math.round((Date.now() - new Date(startedAt ?? existingRow?.accepted_at ?? existingRow!.started_at!).getTime()) / 1000))
+        : undefined;
 
     const { data, error } = await supabase
       .from('call_sessions')
@@ -189,7 +215,7 @@ class CallService {
     if (error) throw error;
 
     const row = data as CallSessionRow;
-    const isUnansweredEnd = status === 'ended' && !row.accepted_at;
+    const isUnansweredEnd = status === 'ended' && !shouldEndAsCompleted && !row.accepted_at;
     if (['rejected', 'missed', 'failed'].includes(status) || isUnansweredEnd) {
       await createCallChatMessage(row, isUnansweredEnd ? 'missed' : status);
     }
@@ -208,7 +234,9 @@ class CallService {
           const next = payload.new as CallSessionRow | undefined;
           if (!next) return;
           const call = mapCallSession(next);
-          if (call.callType === 'agora' && call.status === 'ringing') onIncoming(call);
+          if (call.callType === 'agora' && isFreshRingingCall(call)) {
+            onIncoming(call);
+          }
         }
       )
       .subscribe();
