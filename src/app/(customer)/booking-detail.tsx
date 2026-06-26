@@ -84,6 +84,13 @@ export default function BookingDetailScreen() {
     distance?: string;
     estimatedPrice?: string;
     routeDuration?: string;
+    bookingMode?: 'instant' | 'scheduled';
+    scheduledStartAt?: string;
+    scheduledEndAt?: string;
+    scheduledResponseDeadlineAt?: string;
+    estimatedDurationMinutes?: string;
+    bufferBeforeMinutes?: string;
+    bufferAfterMinutes?: string;
     note?: string;
   }>();
 
@@ -282,6 +289,13 @@ export default function BookingDetailScreen() {
         dropoffLng,
         date: params.date || '',
         time: params.time || '',
+        bookingMode: params.bookingMode === 'scheduled' ? 'scheduled' : 'instant',
+        scheduledStartAt: params.scheduledStartAt || undefined,
+        scheduledEndAt: params.scheduledEndAt || undefined,
+        scheduledResponseDeadlineAt: params.scheduledResponseDeadlineAt || undefined,
+        estimatedDurationMinutes: Number(params.estimatedDurationMinutes) || undefined,
+        bufferBeforeMinutes: Number(params.bufferBeforeMinutes) || undefined,
+        bufferAfterMinutes: Number(params.bufferAfterMinutes) || undefined,
         passengers,
         note: params.note,
         estimatedPrice,
@@ -593,7 +607,15 @@ export default function BookingDetailScreen() {
           </DetailSection>
         )}
 
-        {[BOOKING_STATUS.SEARCHING_DRIVER, BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED].includes(booking.status as any) && (
+        {[
+          BOOKING_STATUS.SEARCHING_DRIVER,
+          BOOKING_STATUS.SCHEDULED_PENDING_DRIVER,
+          BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED,
+          BOOKING_STATUS.SCHEDULED_UPCOMING,
+          BOOKING_STATUS.DRIVER_ACCEPTED,
+          BOOKING_STATUS.DRIVER_ARRIVING,
+          BOOKING_STATUS.DRIVER_ARRIVED,
+        ].includes(booking.status as any) && (
           <DetailSection>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
               Hủy chuyến

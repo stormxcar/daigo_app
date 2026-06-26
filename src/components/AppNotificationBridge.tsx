@@ -3,6 +3,7 @@ import { apiClient } from '@/services/api';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
+import { setAppIconBadgeCount } from '@/services/pushNotifications';
 
 export function AppNotificationBridge() {
   const userId = useAuthStore((state) => state.user?.id);
@@ -21,6 +22,7 @@ export function AppNotificationBridge() {
 
     if (!isAuthenticated || !userId) {
       clearNotifications();
+      setAppIconBadgeCount(0).catch(() => undefined);
       return;
     }
 
@@ -36,6 +38,7 @@ export function AppNotificationBridge() {
         if (active) {
           setNotifications(pageData.items);
           setUnreadCount(unreadTotal);
+          setAppIconBadgeCount(unreadTotal).catch(() => undefined);
         }
       } catch (error) {
         if (__DEV__) console.warn('[DAIGO_NOTIFICATION_BRIDGE_ERROR]', error);

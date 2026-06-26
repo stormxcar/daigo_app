@@ -91,6 +91,7 @@ export default function CustomerMapPickerScreen() {
     ? 'Chạm vào bản đồ để đặt vị trí tài xế đến đón.'
     : 'Chạm vào bản đồ để đặt vị trí trả khách.';
   const center = useMemo<[number, number]>(() => [point.lng, point.lat], [point.lat, point.lng]);
+  const liquidTabClearance = Math.max(insets.bottom, spacing.md) + 92;
 
   const updatePoint = async (lat: number, lng: number, fallbackLabel = 'Vị trí đã chọn') => {
     try {
@@ -138,6 +139,7 @@ export default function CustomerMapPickerScreen() {
       dropoffLocation: stringParam(params.dropoffLocation) ?? '',
       dateInput: stringParam(params.dateInput) ?? '',
       time: stringParam(params.time) ?? '',
+      bookingMode: stringParam(params.bookingMode) ?? '',
       passengers: stringParam(params.passengers) ?? '',
       note: stringParam(params.note) ?? '',
       pickupLat: stringParam(params.pickupLat) ?? '',
@@ -207,7 +209,7 @@ export default function CustomerMapPickerScreen() {
         activeOpacity={0.9}
         onPress={handleUseCurrentLocation}
         disabled={locating}
-        style={[styles.locateButton, { right: spacing.lg, bottom: insets.bottom + 172, backgroundColor: colors.surface }]}
+        style={[styles.locateButton, { right: spacing.lg, bottom: liquidTabClearance + 172, backgroundColor: colors.surface }]}
       >
         {locating ? <ActivityIndicator color={colors.primary} /> : <LocateFixed size={22} color={colors.primary} />}
       </TouchableOpacity>
@@ -216,7 +218,8 @@ export default function CustomerMapPickerScreen() {
         style={[
           styles.confirmPanel,
           {
-            paddingBottom: insets.bottom + spacing.md,
+            bottom: liquidTabClearance,
+            paddingBottom: spacing.md,
             backgroundColor: colors.surface,
             borderColor: colors.border,
           },
@@ -273,7 +276,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
     borderTopWidth: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,

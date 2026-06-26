@@ -21,12 +21,13 @@ export default function DriverLayout() {
   const missingVerificationCount = user
     ? [!user.emailVerified, !user.phoneVerified].filter(Boolean).length
     : 0;
-  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'payment-review', 'blog-detail'];
+  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'payment-review', 'blog-detail', 'revenue'];
   const backHrefByRoute: Partial<Record<string, Href>> = {
     notifications: '/(driver)/dashboard',
     'chat-detail': '/(driver)/chat',
     'booking-detail': '/(driver)/bookings',
     'blog-detail': '/(driver)/blog',
+    revenue: '/(driver)/profile',
   };
   const getBackHref = (route: { name: string; params?: Record<string, any> }): Href | undefined => {
     if (route.name === 'payment-review' && route.params?.bookingId) {
@@ -154,6 +155,13 @@ export default function DriverLayout() {
           tabBarIcon: ({ color, size }) => (
             <UserCircle color={color} size={size} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="revenue"
+        options={{
+          href: null,
+          title: 'Doanh thu',
         }}
       />
       <Tabs.Screen

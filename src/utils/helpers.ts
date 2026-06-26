@@ -118,6 +118,11 @@ export const getBookingStatusInfo = (status: string): { label: string; color: st
     'Đã hủy': { label: 'Đã hủy', color: '#ef4444' }, // error
     CREATED: { label: 'Đã tạo chuyến', color: '#64748b' },
     SEARCHING_DRIVER: { label: 'Đang tìm tài xế', color: '#f59e0b' },
+    SCHEDULED_PENDING_DRIVER: { label: 'Đặt trước - chờ tài xế', color: '#f59e0b' },
+    SCHEDULED_DRIVER_ACCEPTED: { label: 'Đặt trước - đã nhận', color: '#3b82f6' },
+    SCHEDULED_DRIVER_REJECTED: { label: 'Đặt trước - bị từ chối', color: '#ef4444' },
+    SCHEDULED_CANCELLED: { label: 'Đặt trước - đã hủy', color: '#ef4444' },
+    SCHEDULED_UPCOMING: { label: 'Sắp đến giờ đón', color: '#8b5cf6' },
     DRIVER_ACCEPTED: { label: 'Tài xế đã nhận', color: '#3b82f6' },
     DRIVER_ARRIVING: { label: 'Tài xế đang tới', color: '#2563eb' },
     DRIVER_ARRIVED: { label: 'Tài xế đã đến', color: '#8b5cf6' },

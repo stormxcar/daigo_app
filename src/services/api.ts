@@ -144,6 +144,15 @@ const mapBooking = (row: any): Booking => {
     dropoffLng: row.dropoff_lng ?? undefined,
     date: row.booking_date,
     time: String(row.booking_time).slice(0, 5),
+    bookingMode: row.booking_mode ?? 'instant',
+    scheduledStartAt: row.scheduled_start_at ?? undefined,
+    scheduledEndAt: row.scheduled_end_at ?? undefined,
+    scheduledStatus: row.scheduled_status ?? undefined,
+    estimatedDurationMinutes: row.estimated_duration_minutes ?? undefined,
+    bufferBeforeMinutes: row.buffer_before_minutes ?? undefined,
+    bufferAfterMinutes: row.buffer_after_minutes ?? undefined,
+    scheduledResponseDeadlineAt: row.scheduled_response_deadline_at ?? undefined,
+    reminderSentAt: row.reminder_sent_at ?? undefined,
     passengers: row.passengers,
     note: row.note ?? undefined,
     vehicleId: row.vehicle_id,
@@ -939,11 +948,11 @@ class ApiClient {
     if (filters?.status) query = query.eq('status', filters.status);
     if (filters?.driverId) query = query.eq('driver_id', filters.driverId);
     if (filters?.customerId) query = query.eq('customer_id', filters.customerId);
-    if (filters?.date) query = query.eq('date', filters.date);
-    if (filters?.time) query = query.eq('time', filters.time);
+    if (filters?.date) query = query.eq('booking_date', filters.date);
+    if (filters?.time) query = query.eq('booking_time', filters.time);
     if (filters?.driverVisibleTo) {
       query = query.or(
-        `driver_id.eq.${filters.driverVisibleTo},and(driver_id.is.null,status.eq.${BOOKING_STATUS.SEARCHING_DRIVER})`
+        `driver_id.eq.${filters.driverVisibleTo},and(driver_id.is.null,status.in.(${BOOKING_STATUS.SEARCHING_DRIVER},${BOOKING_STATUS.SCHEDULED_PENDING_DRIVER}))`
       );
     }
     if (filters?.page && filters?.pageSize) {
@@ -952,6 +961,25 @@ class ApiClient {
     }
 
     const data = await this.runQuery<any[]>(() => query, { retries: 1 });
+    return (data ?? []).map(mapBooking);
+  }
+
+  async getDriverScheduledBookingsByMonth(driverId: string, monthDate: Date): Promise<Booking[]> {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const fromDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const toDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
+
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
+      .eq('booking_mode', 'scheduled')
+      .gte('booking_date', fromDate)
+      .lte('booking_date', toDate)
+      .or(`driver_id.eq.${driverId},and(driver_id.is.null,status.eq.${BOOKING_STATUS.SCHEDULED_PENDING_DRIVER})`)
+      .order('booking_date', { ascending: true })
+      .order('booking_time', { ascending: true });
+    if (error) throw error;
     return (data ?? []).map(mapBooking);
   }
 
@@ -1011,7 +1039,15 @@ class ApiClient {
         customer_id: data.customerId,
         vehicle_id: data.vehicleId,
         driver_id: null,
-        status: BOOKING_STATUS.SEARCHING_DRIVER,
+        status: data.bookingMode === 'scheduled' ? BOOKING_STATUS.SCHEDULED_PENDING_DRIVER : BOOKING_STATUS.SEARCHING_DRIVER,
+        booking_mode: data.bookingMode ?? 'instant',
+        scheduled_start_at: data.scheduledStartAt,
+        scheduled_end_at: data.scheduledEndAt,
+        scheduled_status: data.bookingMode === 'scheduled' ? 'pending_driver' : null,
+        estimated_duration_minutes: data.estimatedDurationMinutes ?? 90,
+        buffer_before_minutes: data.bufferBeforeMinutes ?? 15,
+        buffer_after_minutes: data.bufferAfterMinutes ?? 15,
+        scheduled_response_deadline_at: data.scheduledResponseDeadlineAt,
         vehicle_type: data.vehicle?.name,
         pickup_location: data.pickupLocation,
         pickup_lat: data.pickupLat,
@@ -1043,8 +1079,10 @@ class ApiClient {
 
     await this.createNotificationSafely({
       userId: data.customerId ?? '',
-      title: 'Đã tạo chuyến, đang tìm tài xế',
-      content: 'Đã tạo chuyến. Hệ thống đang tìm tài xế phù hợp.',
+      title: data.bookingMode === 'scheduled' ? 'Đã tạo chuyến đặt trước' : 'Đã tạo chuyến, đang tìm tài xế',
+      content: data.bookingMode === 'scheduled'
+        ? 'Đã tạo chuyến đặt trước. Tài xế phù hợp sẽ phản hồi lịch của bạn.'
+        : 'Đã tạo chuyến. Hệ thống đang tìm tài xế phù hợp.',
       type: 'booking_success',
       read: false,
       relatedBookingId: inserted.id,
@@ -1052,28 +1090,18 @@ class ApiClient {
       time: 'Vừa xong',
     });
 
-    const { data: drivers } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('role', 'driver')
-      .limit(50);
-
-    await Promise.all(
-      (drivers ?? []).map((driver) =>
-        this.createNotificationSafely({
-          userId: driver.id,
-          title: 'Có yêu cầu đặt xe mới',
-          content: `${inserted.pickup_location} → ${inserted.dropoff_location}. ${inserted.passengers} khách${inserted.note ? `. Ghi chú: ${inserted.note}` : ''}`,
-          type: 'booking_update',
-          read: false,
-          relatedBookingId: inserted.id,
-          createdAt: new Date().toISOString(),
-          time: 'Vừa xong',
-        })
-      )
-    );
+    await this.notifyAvailableDriversForBooking(inserted.id);
 
     return mapBooking(inserted);
+  }
+
+  async notifyAvailableDriversForBooking(bookingId: string): Promise<number> {
+    const { data, error } = await supabase.rpc('notify_available_drivers_for_booking', { p_booking_id: bookingId });
+    if (error) {
+      if (__DEV__) console.warn('Không thể gửi thông báo booking tới tài xế', error);
+      return 0;
+    }
+    return Number(data ?? 0);
   }
 
   async updateBooking(id: string, data: Partial<Booking>): Promise<Booking> {
@@ -1112,12 +1140,12 @@ class ApiClient {
       cancelReason: reason,
       cancelledAt: new Date().toISOString(),
     });
-    const receiverId = booking.customerId;
+    const receiverId = booking.driverId;
     if (receiverId) {
       await this.createNotificationSafely({
         userId: receiverId,
-        title: 'Chuyến đi đã bị hủy',
-        content: `Chuyến đi từ ${booking.pickupLocation} đến ${booking.dropoffLocation} đã bị hủy.${reason ? ` Lý do: ${reason}` : ''}`,
+        title: 'Khách hàng đã hủy chuyến',
+        content: `Chuyến đi từ ${booking.pickupLocation} đến ${booking.dropoffLocation} đã bị khách hàng hủy.${reason ? ` Lý do: ${reason}` : ''}`,
         type: 'driver_cancel',
         read: false,
         relatedBookingId: booking.id,
@@ -1240,6 +1268,37 @@ class ApiClient {
     const booking = await this.getBookingById(data.id);
     await supabase.from('conversations').update({ driver_id: driverId }).eq('booking_id', id);
     return booking;
+  }
+
+  async acceptScheduledBooking(id: string): Promise<Booking> {
+    const { data, error } = await supabase.rpc('accept_scheduled_booking', { p_booking_id: id });
+    if (error) throw error;
+    return mapBooking(data);
+  }
+
+  async rejectScheduledBooking(id: string): Promise<Booking> {
+    const { data, error } = await supabase.rpc('reject_scheduled_booking', { p_booking_id: id });
+    if (error) throw error;
+    return mapBooking(data);
+  }
+
+  async findAvailableScheduledDrivers(input: {
+    startAt: string;
+    endAt: string;
+    pickupLat?: number;
+    pickupLng?: number;
+  }): Promise<Array<{ driverId: string; vehicleId: string }>> {
+    const { data, error } = await supabase.rpc('find_available_drivers', {
+      p_start_at: input.startAt,
+      p_end_at: input.endAt,
+      p_pickup_lat: input.pickupLat ?? null,
+      p_pickup_lng: input.pickupLng ?? null,
+    });
+    if (error) throw error;
+    return (data ?? []).map((row: any) => ({
+      driverId: row.driver_id,
+      vehicleId: row.vehicle_id,
+    }));
   }
 
   async acceptBookingDispatch(dispatch: BookingDispatch): Promise<Booking> {

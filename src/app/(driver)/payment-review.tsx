@@ -48,6 +48,9 @@ export default function DriverPaymentReviewScreen() {
           ? await paymentService.getPaymentByBooking(bookingId)
           : null;
       setPayment(nextPayment);
+      if (!bookingId && nextPayment?.bookingId) {
+        router.setParams({ bookingId: nextPayment.bookingId });
+      }
       if (nextPayment?.driverNote) setDriverNote(nextPayment.driverNote);
       if (bookingId) {
         setBooking(await apiClient.getBookingById(bookingId));
@@ -114,7 +117,17 @@ export default function DriverPaymentReviewScreen() {
           <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
             Khách hàng chưa chọn phương thức thanh toán cho chuyến này.
           </Text>
-          <Button label="Quay lại" onPress={() => router.back()} variant="outline" />
+          <Button
+            label="Quay lại"
+            onPress={() => {
+              if (bookingId) {
+                router.replace({ pathname: '/(driver)/booking-detail' as any, params: { id: bookingId } });
+                return;
+              }
+              router.back();
+            }}
+            variant="outline"
+          />
         </Card>
       </Screen>
     );

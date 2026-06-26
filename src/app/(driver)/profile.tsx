@@ -8,6 +8,7 @@ import {
   Camera,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   FileText,
   LogOut,
@@ -19,6 +20,7 @@ import {
   Trash2,
   UploadCloud,
   UserCircle,
+  Wallet,
   XCircle,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
@@ -206,7 +208,7 @@ export default function DriverProfile() {
 
     Promise.all([
       apiClient.getDriverVehicles(user.id),
-      apiClient.getBookings({ driverId: user.id }),
+      apiClient.getBookings({ driverId: user.id, page: 1, pageSize: 500 }),
       apiClient.getBlogPosts(1, 50, { driverId: user.id }),
       apiClient.getDriverStatus(user.id),
       apiClient.getRatingsForUser(user.id),
@@ -659,6 +661,43 @@ export default function DriverProfile() {
           </Text>
         </ProfileSection>
       )}
+
+      <TouchableOpacity
+        activeOpacity={0.84}
+        onPress={() => router.push('/(driver)/revenue' as any)}
+        style={{
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          minHeight: 64,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.md,
+        }}
+      >
+        <View
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: borderRadius.full,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.surfaceAlt,
+          }}
+        >
+          <Wallet size={18} color={colors.success} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>Doanh thu</Text>
+          <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 3 }}>
+            Biểu đồ, thống kê, thanh toán và chi tiết chuyến
+          </Text>
+        </View>
+        <ChevronRight size={20} color={colors.textSecondary} />
+      </TouchableOpacity>
 
       <ProfileSection
         title="Tổng quan hoạt động"

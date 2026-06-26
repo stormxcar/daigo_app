@@ -24,6 +24,7 @@ const NOTIF_SORTS = [
 ];
 
 const isCallNotification = (notification: NotificationItem) =>
+  notification.type === 'incoming_call' ||
   notification.title?.toLowerCase().includes('cuộc gọi') ||
   notification.content?.toLowerCase().includes('đang gọi cho bạn');
 

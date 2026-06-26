@@ -4,6 +4,11 @@ import { router } from 'expo-router';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import {
   Briefcase,
+  CalendarDays,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
   Clock,
   LayoutGrid,
   LayoutList,
@@ -29,11 +34,38 @@ import { supabase } from '@/services/supabase';
 import { Booking, BookingDispatch } from '@/types';
 import { BOOKING_STATUS, TERMINAL_BOOKING_STATUSES } from '@/constants';
 import { showError, showSuccess } from '@/utils/toast';
-import { getBookingStatusInfo } from '@/utils/helpers';
+import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { PaymentStatusBadge, getPaymentMethodLabel } from '@/components/PaymentStatusBadge';
 
 type LayoutMode = 'card' | 'list';
 const BOOKING_PAGE_SIZE = 12;
+const WEEKDAY_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+
+const toLocalIsoDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getMonthLabel = (date: Date) => `Tháng ${date.getMonth() + 1}/${date.getFullYear()}`;
+
+const buildMonthGrid = (monthDate: Date) => {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+  const leadingEmpty = (firstDay + 6) % 7;
+  const cells: Array<{ date: string; day: number; inMonth: boolean } | null> = [];
+
+  for (let index = 0; index < leadingEmpty; index += 1) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const date = new Date(year, month, day);
+    cells.push({ date: toLocalIsoDate(date), day, inMonth: true });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+};
 
 // ─── Compact List Row ─────────────────────────────────────────────────────────
 function BookingListRow({
@@ -41,12 +73,14 @@ function BookingListRow({
   onPress,
   onAccept,
   onCancel,
+  canCancel,
   loadingId,
 }: {
   booking: Booking;
   onPress: () => void;
   onAccept: (id: string) => void;
   onCancel: (id: string) => void;
+  canCancel: boolean;
   loadingId: string | null;
 }) {
   const { colors } = useTheme();
@@ -154,7 +188,7 @@ function BookingListRow({
 
       {/* Action buttons */}
       <View style={{ gap: spacing.xs, flexShrink: 0 }}>
-        {booking.status === BOOKING_STATUS.SEARCHING_DRIVER && (
+        {(booking.status === BOOKING_STATUS.SEARCHING_DRIVER || booking.status === BOOKING_STATUS.SCHEDULED_PENDING_DRIVER) && (
           <TouchableOpacity
             onPress={() => onAccept(booking.id)}
             disabled={isLoading}
@@ -169,7 +203,7 @@ function BookingListRow({
             <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>Nhận</Text>
           </TouchableOpacity>
         )}
-        {!TERMINAL_BOOKING_STATUSES.includes(booking.status as any) && (
+        {canCancel && (
           <TouchableOpacity
             onPress={() => onCancel(booking.id)}
             disabled={isLoading}
@@ -254,6 +288,7 @@ export default function DriverBookings() {
   const { colors } = useTheme();
   const { user } = useAuthStore();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [scheduledCalendarBookings, setScheduledCalendarBookings] = useState<Booking[]>([]);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -265,6 +300,9 @@ export default function DriverBookings() {
   const [sortMode, setSortMode] = useState<BookingSortMode>('newest');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('card');
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [scheduleMonth, setScheduleMonth] = useState(() => new Date());
+  const [scheduleCalendarExpanded, setScheduleCalendarExpanded] = useState(false);
   const offerSheetRef = useRef<BottomSheetModal>(null);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const dispatchChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -276,6 +314,7 @@ export default function DriverBookings() {
       bookings.filter(
         (booking) =>
           booking.status === BOOKING_STATUS.SEARCHING_DRIVER ||
+          booking.status === BOOKING_STATUS.SCHEDULED_PENDING_DRIVER ||
           booking.driverId === user?.id
       ),
     [bookings, user?.id]
@@ -283,6 +322,37 @@ export default function DriverBookings() {
   const visibleBookings = useMemo(
     () => filterAndSortBookings(availableBookings, searchQuery, statusFilter, sortMode),
     [availableBookings, searchQuery, statusFilter, sortMode]
+  );
+  const canDriverCancelBooking = useCallback(
+    (booking: Booking) =>
+      booking.driverId === user?.id &&
+      [
+        BOOKING_STATUS.DRIVER_ACCEPTED,
+        BOOKING_STATUS.DRIVER_ARRIVING,
+        BOOKING_STATUS.DRIVER_ARRIVED,
+        BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED,
+        BOOKING_STATUS.SCHEDULED_UPCOMING,
+      ].includes(booking.status as any),
+    [user?.id]
+  );
+  const scheduledBookings = useMemo(
+    () =>
+      scheduledCalendarBookings
+        .filter((booking) => booking.bookingMode === 'scheduled')
+        .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`)),
+    [scheduledCalendarBookings]
+  );
+  const scheduleDayCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    scheduledBookings.forEach((booking) => {
+      counts.set(booking.date, (counts.get(booking.date) ?? 0) + 1);
+    });
+    return counts;
+  }, [scheduledBookings]);
+  const monthCells = useMemo(() => buildMonthGrid(scheduleMonth), [scheduleMonth]);
+  const selectedScheduledBookings = useMemo(
+    () => scheduledBookings.filter((booking) => booking.date === selectedScheduleDate),
+    [scheduledBookings, selectedScheduleDate]
   );
   const pendingDispatch = useMemo(
     () => pendingDispatches.find((dispatch) => dispatch.id !== dismissedOfferId),
@@ -331,6 +401,20 @@ export default function DriverBookings() {
       setLoading(false);
     }
   }, [user?.id]);
+
+  const fetchScheduledCalendar = useCallback(async () => {
+    if (!user?.id) {
+      setScheduledCalendarBookings([]);
+      return;
+    }
+
+    try {
+      const data = await apiClient.getDriverScheduledBookingsByMonth(user.id, scheduleMonth);
+      setScheduledCalendarBookings(data);
+    } catch (error: any) {
+      showError('Không thể tải lịch đặt trước', error.message);
+    }
+  }, [scheduleMonth, user?.id]);
 
   const fetchPendingDispatches = useCallback(async () => {
     if (!user?.id) {
@@ -383,11 +467,15 @@ export default function DriverBookings() {
     }
 
     fetchBookings();
+    fetchScheduledCalendar();
     fetchPendingDispatches();
 
     const channel = supabase
       .channel(`driver-bookings-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, fetchBookings)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        fetchBookings();
+        fetchScheduledCalendar();
+      })
       .subscribe();
     realtimeChannelRef.current = channel;
 
@@ -399,6 +487,7 @@ export default function DriverBookings() {
         () => {
           fetchPendingDispatches();
           fetchBookings();
+          fetchScheduledCalendar();
         }
       )
       .subscribe();
@@ -410,7 +499,7 @@ export default function DriverBookings() {
       supabase.removeChannel(dispatchChannel);
       if (dispatchChannelRef.current === dispatchChannel) dispatchChannelRef.current = null;
     };
-  }, [fetchBookings, fetchPendingDispatches, user?.id]);
+  }, [fetchBookings, fetchPendingDispatches, fetchScheduledCalendar, user?.id]);
 
   useEffect(() => {
     if (pendingOffer) {
@@ -446,7 +535,12 @@ export default function DriverBookings() {
     if (!user) return;
     try {
       setLoadingId(bookingId);
-      await apiClient.acceptBooking(bookingId, user.id);
+      const targetBooking = bookings.find((booking) => booking.id === bookingId);
+      if (targetBooking?.bookingMode === 'scheduled' || targetBooking?.status === BOOKING_STATUS.SCHEDULED_PENDING_DRIVER) {
+        await apiClient.acceptScheduledBooking(bookingId);
+      } else {
+        await apiClient.acceptBooking(bookingId, user.id);
+      }
       offerSheetRef.current?.dismiss();
       await fetchBookings();
       showSuccess('Đã nhận chuyến', 'Booking đã được cập nhật cho tài xế.');
@@ -495,11 +589,11 @@ export default function DriverBookings() {
       { text: 'Xem chi tiết', onPress: () => goToDetail(booking.id) },
     ];
 
-    if (booking.status === BOOKING_STATUS.SEARCHING_DRIVER) {
+    if (booking.status === BOOKING_STATUS.SEARCHING_DRIVER || booking.status === BOOKING_STATUS.SCHEDULED_PENDING_DRIVER) {
       actions.push({ text: 'Xác nhận chuyến', onPress: () => handleAccept(booking.id) });
     }
 
-    if (!TERMINAL_BOOKING_STATUSES.includes(booking.status as any)) {
+    if (canDriverCancelBooking(booking)) {
       actions.push({ text: 'Hủy chuyến', style: 'destructive', onPress: () => handleCancel(booking.id) });
     }
 
@@ -544,6 +638,219 @@ export default function DriverBookings() {
           </Text>
         </View>
         <LayoutToggle mode={layoutMode} onChange={setLayoutMode} />
+      </View>
+
+      {/* ── Scheduled calendar ── */}
+      <View style={{ marginBottom: spacing.md }}>
+        <View
+          style={{
+            backgroundColor: colors.surface,
+            borderTopWidth: 1,
+            borderBottomWidth: 1,
+            borderColor: colors.border,
+            paddingVertical: spacing.md,
+          }}
+        >
+          <TouchableOpacity
+            activeOpacity={0.86}
+            onPress={() => setScheduleCalendarExpanded((value) => !value)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: spacing.lg,
+              marginBottom: scheduleCalendarExpanded ? spacing.md : 0,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <CalendarDays size={20} color={colors.primary} />
+              <View>
+                <Text style={{ color: colors.text, fontWeight: '900' }}>Lịch đặt trước</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
+                  {scheduledBookings.length} chuyến đặt trước
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Text style={{ color: colors.primary, fontWeight: '900', fontSize: fontSize.sm }}>
+                {scheduleCalendarExpanded ? getMonthLabel(scheduleMonth) : formatVietnamDate(selectedScheduleDate)}
+              </Text>
+              {scheduleCalendarExpanded ? (
+                <ChevronUp size={18} color={colors.textSecondary} />
+              ) : (
+                <ChevronDown size={18} color={colors.textSecondary} />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {scheduleCalendarExpanded ? (
+            <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm }}>
+                <TouchableOpacity
+                  activeOpacity={0.84}
+                  onPress={() => {
+                    setScheduleMonth((current) => {
+                      const next = new Date(current.getFullYear(), current.getMonth() - 1, 1);
+                      setSelectedScheduleDate(toLocalIsoDate(next));
+                      return next;
+                    });
+                  }}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.surfaceAlt,
+                  }}
+                >
+                  <ChevronLeft size={18} color={colors.text} />
+                </TouchableOpacity>
+                <Text style={{ color: colors.text, fontWeight: '900' }}>{getMonthLabel(scheduleMonth)}</Text>
+                <TouchableOpacity
+                  activeOpacity={0.84}
+                  onPress={() => {
+                    setScheduleMonth((current) => {
+                      const next = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+                      setSelectedScheduleDate(toLocalIsoDate(next));
+                      return next;
+                    });
+                  }}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.surfaceAlt,
+                  }}
+                >
+                  <ChevronRight size={18} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ flexDirection: 'row' }}>
+                {WEEKDAY_LABELS.map((label) => (
+                  <Text
+                    key={label}
+                    style={{
+                      flex: 1,
+                      textAlign: 'center',
+                      color: colors.textSecondary,
+                      fontSize: fontSize.xs,
+                      fontWeight: '900',
+                      paddingBottom: spacing.xs,
+                    }}
+                  >
+                    {label}
+                  </Text>
+                ))}
+              </View>
+
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {monthCells.map((cell, index) => {
+                  if (!cell) {
+                    return <View key={`empty-${index}`} style={{ width: `${100 / 7}%`, aspectRatio: 1 }} />;
+                  }
+
+                  const selected = cell.date === selectedScheduleDate;
+                  const today = cell.date === toLocalIsoDate(new Date());
+                  const count = scheduleDayCounts.get(cell.date) ?? 0;
+                  return (
+                    <TouchableOpacity
+                      key={cell.date}
+                      activeOpacity={0.84}
+                      onPress={() => setSelectedScheduleDate(cell.date)}
+                      style={{
+                        width: `${100 / 7}%`,
+                        aspectRatio: 1,
+                        padding: 3,
+                      }}
+                    >
+                      <View
+                        style={{
+                          flex: 1,
+                          borderRadius: borderRadius.md,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: selected ? colors.primary : count > 0 ? colors.primary + '14' : colors.surfaceAlt,
+                          borderWidth: today || count > 0 ? 1 : 0,
+                          borderColor: selected ? colors.primary : today ? colors.primary : colors.border,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: selected ? 'white' : colors.text,
+                            fontWeight: today || count > 0 ? '900' : '700',
+                          }}
+                        >
+                          {cell.day}
+                        </Text>
+                        {count > 0 && (
+                          <View
+                            style={{
+                              marginTop: 2,
+                              minWidth: 18,
+                              height: 18,
+                              borderRadius: 9,
+                              paddingHorizontal: 5,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: selected ? 'rgba(255,255,255,0.24)' : colors.primary,
+                            }}
+                          >
+                            <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>{count}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {selectedScheduledBookings.length > 0 ? (
+                <View style={{ marginTop: spacing.sm }}>
+                  {selectedScheduledBookings.map((booking) => {
+                    const statusInfo = getBookingStatusInfo(booking.status);
+                    return (
+                      <TouchableOpacity
+                        key={`scheduled-${booking.id}`}
+                        activeOpacity={0.84}
+                        onPress={() => goToDetail(booking.id)}
+                        style={{
+                          paddingVertical: spacing.md,
+                          borderTopWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md }}>
+                          <Text style={{ color: colors.text, fontWeight: '900' }}>{booking.time}</Text>
+                          <Text style={{ color: statusInfo.color, fontWeight: '900', fontSize: fontSize.xs }}>
+                            {statusInfo.label}
+                          </Text>
+                        </View>
+                        <Text numberOfLines={1} style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
+                          {booking.pickupLocation} → {booking.dropoffLocation}
+                        </Text>
+                        <Text style={{ color: colors.primary, fontWeight: '900', marginTop: spacing.xs }}>
+                          {booking.estimatedPrice.toLocaleString('vi-VN')}đ
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={{ color: colors.textSecondary, paddingTop: spacing.sm }}>
+                  Ngày này chưa có chuyến đặt trước.
+                </Text>
+              )}
+            </View>
+          ) : (
+            <Text style={{ color: colors.textSecondary, paddingHorizontal: spacing.lg, marginTop: spacing.sm }}>
+              Bấm vào để mở lịch tháng và xem ngày có chuyến đặt trước.
+            </Text>
+          )}
+        </View>
       </View>
 
       {/* ── Filters ── */}
@@ -679,6 +986,7 @@ export default function DriverBookings() {
               onPress={() => goToDetail(booking.id)}
               onAccept={handleAccept}
               onCancel={handleCancel}
+              canCancel={canDriverCancelBooking(booking)}
               loadingId={loadingId}
             />
           ))}

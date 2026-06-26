@@ -55,8 +55,9 @@ async function createCallNotification(data: {
       user_id: data.userId,
       title: 'Cuộc gọi đến',
       content: `${data.callerName} đang gọi cho bạn trong ứng dụng.`,
-      type: 'system',
+      type: 'incoming_call',
       read: false,
+      related_booking_id: data.bookingId ?? null,
     });
   } catch {
     // Realtime call still works even if auxiliary notification insert is denied.

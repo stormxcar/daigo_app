@@ -61,6 +61,26 @@ export default function DriverBookingDetail() {
   const [cancelReason, setCancelReason] = useState('');
   const watchRef = useRef<{ remove: () => void } | null>(null);
 
+  const getScheduledActionGate = (targetBooking: Booking) => {
+    if (targetBooking.bookingMode !== 'scheduled') return { allowed: true, message: '' };
+    if (!targetBooking.scheduledStartAt) return { allowed: true, message: '' };
+
+    const allowedAt = new Date(targetBooking.scheduledStartAt).getTime();
+    if (Date.now() >= allowedAt) return { allowed: true, message: '' };
+
+    return {
+      allowed: false,
+      message: `Chuyến đặt trước chỉ có thể bắt đầu thao tác từ ${new Date(allowedAt).toLocaleString('vi-VN')}.`,
+    };
+  };
+
+  const ensureScheduledActionAllowed = (targetBooking: Booking) => {
+    const gate = getScheduledActionGate(targetBooking);
+    if (gate.allowed) return true;
+    showWarning('Chưa đến giờ chuyến đặt trước', gate.message);
+    return false;
+  };
+
   const loadBooking = useCallback(async () => {
     if (!id) return;
     try {
@@ -97,7 +117,10 @@ export default function DriverBookingDetail() {
     if (!booking || !user) return;
     try {
       setLoading(true);
-      const updated = await apiClient.acceptBooking(booking.id, user.id);
+      const updated =
+        booking.bookingMode === 'scheduled' || booking.status === BOOKING_STATUS.SCHEDULED_PENDING_DRIVER
+          ? await apiClient.acceptScheduledBooking(booking.id)
+          : await apiClient.acceptBooking(booking.id, user.id);
       setBooking(updated);
       showSuccess('Đã xác nhận chuyến', 'Khách hàng sẽ nhận được thông báo realtime.');
     } catch (error: any) {
@@ -127,6 +150,7 @@ export default function DriverBookingDetail() {
 
   const markArriving = async () => {
     if (!booking) return;
+    if (!ensureScheduledActionAllowed(booking)) return;
     try {
       setLoading(true);
       const updated = await apiClient.markDriverArriving(booking.id);
@@ -141,6 +165,7 @@ export default function DriverBookingDetail() {
 
   const markArrived = async () => {
     if (!booking) return;
+    if (!ensureScheduledActionAllowed(booking)) return;
     const distanceToPickup =
       driverLocation && typeof booking.pickupLat === 'number' && typeof booking.pickupLng === 'number'
         ? getDistanceMeters(
@@ -167,6 +192,7 @@ export default function DriverBookingDetail() {
 
   const startTrip = async () => {
     if (!booking) return;
+    if (!ensureScheduledActionAllowed(booking)) return;
     try {
       setLoading(true);
       const updated = await apiClient.startTrip(booking.id);
@@ -208,7 +234,8 @@ export default function DriverBookingDetail() {
 
   const startTrackingGps = async (phase: TripPhase = tripPhase) => {
     if (!booking || !user) return;
-    if (![BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED, BOOKING_STATUS.TRIP_STARTED].includes(booking.status as any)) {
+    if (!ensureScheduledActionAllowed(booking)) return;
+    if (![BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED, BOOKING_STATUS.SCHEDULED_UPCOMING, BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED, BOOKING_STATUS.TRIP_STARTED].includes(booking.status as any)) {
       showWarning('Chưa thể chia sẻ GPS', 'Bạn cần xác nhận chuyến trước khi bắt đầu di chuyển.');
       return;
     }
@@ -250,6 +277,7 @@ export default function DriverBookingDetail() {
 
   const completeBooking = async () => {
     if (!booking) return;
+    if (!ensureScheduledActionAllowed(booking)) return;
     try {
       setLoading(true);
       watchRef.current?.remove();
@@ -300,14 +328,22 @@ export default function DriverBookingDetail() {
 
   const hasMap = [booking.pickupLat, booking.pickupLng, booking.dropoffLat, booking.dropoffLng].every((value) => typeof value === 'number');
   const statusInfo = getBookingStatusInfo(booking.status);
+  const scheduledActionGate = getScheduledActionGate(booking);
   const statusVariant =
     booking.status === BOOKING_STATUS.TRIP_COMPLETED
       ? 'success'
       : TERMINAL_BOOKING_STATUSES.includes(booking.status as any)
         ? 'error'
-        : booking.status === BOOKING_STATUS.SEARCHING_DRIVER
+        : booking.status === BOOKING_STATUS.SEARCHING_DRIVER || booking.status === BOOKING_STATUS.SCHEDULED_PENDING_DRIVER
           ? 'warning'
           : 'info';
+  const isNonPayableBooking = [
+    BOOKING_STATUS.CUSTOMER_CANCELLED,
+    BOOKING_STATUS.DRIVER_CANCELLED,
+    BOOKING_STATUS.EXPIRED,
+    BOOKING_STATUS.SCHEDULED_CANCELLED,
+    BOOKING_STATUS.SCHEDULED_DRIVER_REJECTED,
+  ].includes(booking.status as any);
 
   return (
     <Screen scroll>
@@ -366,7 +402,7 @@ export default function DriverBookingDetail() {
           <Text style={{ color: colors.textSecondary, marginTop: spacing.md }}>
             <Route size={14} color={colors.textSecondary} /> {booking.distance ?? '--'} km
           </Text>
-          {[BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED, BOOKING_STATUS.TRIP_STARTED].includes(booking.status as any) && (
+          {[BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED, BOOKING_STATUS.TRIP_STARTED].includes(booking.status as any) && (
             <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
               <Button
                 label={tracking ? 'Đang chia sẻ GPS realtime' : 'Bắt đầu chia sẻ GPS'}
@@ -440,16 +476,22 @@ export default function DriverBookingDetail() {
             </View>
             <PaymentStatusBadge status={booking.paymentStatus} />
           </View>
-          <Button
-            label="Xem / xác nhận thanh toán"
-            onPress={() => router.push({ pathname: '/(driver)/payment-review' as any, params: { bookingId: booking.id } })}
-            variant="outline"
-            size="sm"
-          />
+          {isNonPayableBooking ? (
+            <Text style={{ color: colors.textSecondary, lineHeight: 20 }}>
+              Chuyến đã hủy hoặc hết hạn nên không phát sinh xác nhận thanh toán.
+            </Text>
+          ) : (
+            <Button
+              label="Xem / xác nhận thanh toán"
+              onPress={() => router.push({ pathname: '/(driver)/payment-review' as any, params: { bookingId: booking.id } })}
+              variant="outline"
+              size="sm"
+            />
+          )}
         </View>
       </DetailSection>
 
-      {[BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED].includes(booking.status as any) && (
+      {[BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED, BOOKING_STATUS.SCHEDULED_UPCOMING, BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED].includes(booking.status as any) && (
         <DetailSection>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
             Lý do hủy nếu không thể nhận chuyến
@@ -475,23 +517,38 @@ export default function DriverBookingDetail() {
         </DetailSection>
       )}
 
+      {!scheduledActionGate.allowed && (
+        <View style={{ marginBottom: spacing.sm, padding: spacing.md, backgroundColor: colors.surfaceAlt, borderRadius: borderRadius.md }}>
+          <Text style={{ color: colors.warning, fontWeight: '800' }}>Chưa đến giờ thao tác</Text>
+          <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 }}>
+            {scheduledActionGate.message}
+          </Text>
+        </View>
+      )}
+
       <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg }}>
-        {booking.status === BOOKING_STATUS.SEARCHING_DRIVER && (
+        {(booking.status === BOOKING_STATUS.SEARCHING_DRIVER || booking.status === BOOKING_STATUS.SCHEDULED_PENDING_DRIVER) && (
           <Button label="Nhận chuyến" onPress={acceptBooking} loading={loading} disabled={loading} style={{ flex: 1 }} />
         )}
-        {booking.status === BOOKING_STATUS.DRIVER_ACCEPTED && (
-          <Button label="Tôi đang tới" onPress={markArriving} loading={loading} disabled={loading} style={{ flex: 1 }} />
+        {(booking.status === BOOKING_STATUS.DRIVER_ACCEPTED || booking.status === BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED || booking.status === BOOKING_STATUS.SCHEDULED_UPCOMING) && (
+          <Button
+            label="Tôi đang tới"
+            onPress={markArriving}
+            loading={loading}
+            disabled={loading || !scheduledActionGate.allowed}
+            style={{ flex: 1 }}
+          />
         )}
         {booking.status === BOOKING_STATUS.DRIVER_ARRIVING && (
-          <Button label="Đã tới nơi" onPress={markArrived} loading={loading} disabled={loading} style={{ flex: 1 }} />
+          <Button label="Đã tới nơi" onPress={markArrived} loading={loading} disabled={loading || !scheduledActionGate.allowed} style={{ flex: 1 }} />
         )}
         {booking.status === BOOKING_STATUS.DRIVER_ARRIVED && (
-          <Button label="Bắt đầu chuyến" onPress={startTrip} loading={loading} disabled={loading} style={{ flex: 1 }} />
+          <Button label="Bắt đầu chuyến" onPress={startTrip} loading={loading} disabled={loading || !scheduledActionGate.allowed} style={{ flex: 1 }} />
         )}
         {booking.status === BOOKING_STATUS.TRIP_STARTED && (
-          <Button label="Hoàn thành" onPress={confirmCompleteBooking} loading={loading} disabled={loading} style={{ flex: 1 }} />
+          <Button label="Hoàn thành" onPress={confirmCompleteBooking} loading={loading} disabled={loading || !scheduledActionGate.allowed} style={{ flex: 1 }} />
         )}
-        {[BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED].includes(booking.status as any) && (
+        {[BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED, BOOKING_STATUS.SCHEDULED_UPCOMING, BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED].includes(booking.status as any) && (
           <Button label="Hủy chuyến" onPress={cancelBooking} loading={loading} disabled={loading} variant="danger" style={{ flex: 1 }} />
         )}
       </View>

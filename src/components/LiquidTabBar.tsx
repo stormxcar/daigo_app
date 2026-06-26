@@ -82,8 +82,11 @@ export function LiquidTabBar({
     }
     if (routeName === 'booking' || routeName === 'bookings') {
       return items.filter((notification) =>
-        !!notification.relatedBookingId ||
-        ['booking_success', 'driver_confirm', 'driver_cancel', 'trip_done', 'booking_update', 'payment_update'].includes(notification.type)
+        notification.type !== 'incoming_call' &&
+        (
+          !!notification.relatedBookingId ||
+          ['booking_success', 'driver_confirm', 'driver_cancel', 'trip_done', 'booking_update', 'payment_update'].includes(notification.type)
+        )
       );
     }
     if (routeName === 'dashboard') {

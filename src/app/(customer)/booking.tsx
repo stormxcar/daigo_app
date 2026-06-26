@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Image,
   Text,
   TouchableOpacity,
@@ -28,6 +29,7 @@ import {
   Home,
   LocateFixed,
   MapPin,
+  RotateCcw,
   Search,
   SlidersHorizontal,
   Users,
@@ -66,6 +68,7 @@ type SortMode =
   | "brand_asc"
   | "name_asc";
 type SavedLocationTarget = "pickup" | "dropoff";
+type BookingMode = "instant" | "scheduled";
 
 const quickTimes = ["07:00", "09:00", "12:00", "15:00", "18:00", "20:00"];
 const sortOptions: { label: string; value: SortMode }[] = [
@@ -100,8 +103,11 @@ export default function BookingScreen() {
   const { isAuthenticated, user } = useAuthStore();
   const routeParams = useLocalSearchParams<Record<string, string | string[]>>();
   const savedLocationsSheetRef = useRef<BottomSheetModal>(null);
+  const vehicleResultsSheetRef = useRef<BottomSheetModal>(null);
+  const modeSlideAnim = useRef(new Animated.Value(0)).current;
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
+  const [bookingMode, setBookingMode] = useState<BookingMode>("instant");
   const [scheduleDate, setScheduleDate] = useState(getInitialSchedule);
   const [dateInput, setDateInput] = useState(() =>
     toVietnamDateInput(getInitialSchedule()),
@@ -126,6 +132,8 @@ export default function BookingScreen() {
   const [searched, setSearched] = useState(false);
   const [vehiclesData, setVehiclesData] = useState<Vehicle[]>([]);
   const [bookedVehicleIds, setBookedVehicleIds] = useState<string[]>([]);
+  const [scheduledAvailableVehicleIds, setScheduledAvailableVehicleIds] =
+    useState<string[] | null>(null);
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
   const [visibleVehicleCount, setVisibleVehicleCount] = useState(8);
   const [pickupSuggestions, setPickupSuggestions] = useState<
@@ -262,6 +270,11 @@ export default function BookingScreen() {
     const restoredTime = stringParam(routeParams.time);
     const restoredPassengers = stringParam(routeParams.passengers);
     const restoredNote = stringParam(routeParams.note);
+    const restoredBookingMode = stringParam(routeParams.bookingMode);
+
+    if (restoredBookingMode === "scheduled" || restoredBookingMode === "instant") {
+      changeBookingMode(restoredBookingMode);
+    }
 
     if (restoredDateInput || restoredTime) {
       const [day, month, year] = (restoredDateInput || dateInput)
@@ -353,6 +366,7 @@ export default function BookingScreen() {
     routeParams.dropoffLat,
     routeParams.dropoffLng,
     routeParams.dropoffLocation,
+    routeParams.bookingMode,
     routeParams.mapAddress,
     routeParams.mapLat,
     routeParams.mapLng,
@@ -446,6 +460,12 @@ export default function BookingScreen() {
       .filter(
         (vehicle) => statusFilter === "all" || vehicle.status === statusFilter,
       )
+      .filter(
+        (vehicle) =>
+          bookingMode !== "scheduled" ||
+          scheduledAvailableVehicleIds === null ||
+          scheduledAvailableVehicleIds.includes(vehicle.id),
+      )
       .filter((vehicle) => !onlyAvailable || vehicleAvailability(vehicle))
       .sort((a, b) => {
         if (sortMode === "price_desc") return b.pricePerKm - a.pricePerKm;
@@ -462,29 +482,31 @@ export default function BookingScreen() {
     minPrice,
     maxPrice,
     brandFilter,
+    bookingMode,
     statusFilter,
     onlyAvailable,
+    scheduledAvailableVehicleIds,
     sortMode,
     vehicleAvailability,
   ]);
 
-  const selectedVehicle = vehicles.find(
-    (vehicle) => vehicle.id === selectedVehicleId,
-  );
-  const selectedPriceQuote = selectedVehicle
-    ? calculateBookingPrice(
-        routeDistance || 1,
-        selectedVehicle.pricePerKm,
-        passengerCount,
-        time,
-      )
-    : null;
   const brandOptions = useMemo(
     () =>
       Array.from(
         new Set(vehiclesData.map((vehicle) => vehicle.brand).filter(Boolean)),
       ).sort((a, b) => a.localeCompare(b)),
     [vehiclesData],
+  );
+
+  const vehicleResultsSnapPoints = useMemo(() => ["42%", "78%"], []);
+
+  const estimatePickupMinutes = useCallback(
+    (vehicle: Vehicle, index: number) => {
+      if (!vehicleAvailability(vehicle)) return null;
+      const base = routeDistance ? Math.min(12, Math.max(4, Math.round(routeDistance * 0.45))) : 6;
+      return Math.min(25, base + index * 2);
+    },
+    [routeDistance, vehicleAvailability],
   );
   const activeFilterCount = [
     minPrice,
@@ -515,6 +537,53 @@ export default function BookingScreen() {
     setSearched(false);
     setSelectedVehicleId(null);
     return true;
+  };
+
+  const changeBookingMode = (mode: BookingMode) => {
+    setBookingMode(mode);
+    setRoute(null);
+    setSearched(false);
+    setSelectedVehicleId(null);
+    setScheduledAvailableVehicleIds(null);
+    Animated.spring(modeSlideAnim, {
+      toValue: mode === "instant" ? 0 : 1,
+      useNativeDriver: false,
+      tension: 140,
+      friction: 10,
+    }).start();
+  };
+
+  const getScheduledWindow = (routeOverride?: DrivingRoute | null) => {
+    if (!bookingDate) return null;
+    const [year, month, day] = bookingDate.split("-").map(Number);
+    const [hour, minute] = time.split(":").map(Number);
+    if (![year, month, day, hour, minute].every(Number.isFinite)) return null;
+
+    const pickupAt = new Date(year, month - 1, day, hour, minute, 0, 0);
+    const nextRoute = routeOverride ?? route;
+    const durationMinutes = nextRoute?.durationSeconds
+      ? Math.max(30, Math.ceil(nextRoute.durationSeconds / 60))
+      : Math.max(45, Math.round(((routeDistance || 8) / 40) * 60));
+    const bufferBeforeMinutes = 15;
+    const bufferAfterMinutes = 15;
+    const startAt = new Date(pickupAt.getTime() - bufferBeforeMinutes * 60 * 1000);
+    const endAt = new Date(pickupAt.getTime() + (durationMinutes + bufferAfterMinutes) * 60 * 1000);
+    const responseDeadlineAt = new Date(
+      Math.min(
+        Date.now() + 30 * 60 * 1000,
+        pickupAt.getTime() - 30 * 60 * 1000,
+      ),
+    );
+
+    return {
+      pickupAt,
+      startAt,
+      endAt,
+      responseDeadlineAt,
+      durationMinutes,
+      bufferBeforeMinutes,
+      bufferAfterMinutes,
+    };
   };
 
   const handleScheduleChange = (
@@ -564,24 +633,42 @@ export default function BookingScreen() {
         { latitude: dropoffPoint.lat, longitude: dropoffPoint.lng },
       );
       setRoute(goongRoute);
-      const bookings = await apiClient.getBookings({
-        date: bookingDate,
-        time,
-      });
-      setBookedVehicleIds(
-        bookings
-          .filter(
-            (booking) => booking.date === bookingDate && booking.time === time,
-          )
-          .filter(
-            (booking) =>
-              !TERMINAL_BOOKING_STATUSES.includes(booking.status as any),
-          )
-          .map((booking) => booking.vehicleId),
-      );
+      if (bookingMode === "scheduled") {
+        const window = getScheduledWindow(goongRoute);
+        if (!window || window.pickupAt.getTime() <= Date.now() + 45 * 60 * 1000) {
+          showError("Thời gian đặt trước chưa hợp lệ", "Vui lòng chọn thời điểm cách hiện tại ít nhất 45 phút.");
+          return;
+        }
+        const availableDrivers = await apiClient.findAvailableScheduledDrivers({
+          startAt: window.startAt.toISOString(),
+          endAt: window.endAt.toISOString(),
+          pickupLat: pickupPoint.lat,
+          pickupLng: pickupPoint.lng,
+        });
+        setScheduledAvailableVehicleIds(availableDrivers.map((item) => item.vehicleId));
+        setBookedVehicleIds([]);
+      } else {
+        const bookings = await apiClient.getBookings({
+          date: bookingDate,
+          time,
+        });
+        setBookedVehicleIds(
+          bookings
+            .filter(
+              (booking) => booking.date === bookingDate && booking.time === time,
+            )
+            .filter(
+              (booking) =>
+                !TERMINAL_BOOKING_STATUSES.includes(booking.status as any),
+            )
+            .map((booking) => booking.vehicleId),
+        );
+        setScheduledAvailableVehicleIds(null);
+      }
     } catch {
       setRoute(null);
       setBookedVehicleIds([]);
+      setScheduledAvailableVehicleIds(null);
       showWarning(
         "Chưa tải được lộ trình Goong",
         "App sẽ tạm dùng khoảng cách ước tính để lọc xe.",
@@ -596,10 +683,45 @@ export default function BookingScreen() {
       ? vehicles.find((vehicle) => vehicle.id === suggestedVehicleId)
       : null;
     setSelectedVehicleId(suggestedVehicle?.id ?? vehicles[0]?.id ?? null);
+    setVisibleVehicleCount(8);
+    requestAnimationFrame(() => vehicleResultsSheetRef.current?.present());
     showSuccess(
       "Đã tìm xe phù hợp",
       `${vehicles.length} xe khớp với thông tin chuyến đi.`,
     );
+  };
+
+  const resetBookingForm = () => {
+    const nextSchedule = getInitialSchedule();
+    setPickupLocation("");
+    setDropoffLocation("");
+    setPickupPoint(null);
+    setDropoffPoint(null);
+    setPickupSuggestions([]);
+    setDropoffSuggestions([]);
+    setScheduleDate(nextSchedule);
+    setDateInput(toVietnamDateInput(nextSchedule));
+    setTime(toTimeInput(nextSchedule));
+    setPassengers("2");
+    setBookingMode("instant");
+    modeSlideAnim.setValue(0);
+    setNote("");
+    setMinPrice("");
+    setMaxPrice("");
+    setMinSeats("");
+    setBrandFilter("all");
+    setStatusFilter("all");
+    setOnlyAvailable(true);
+    setSortMode("price_asc");
+    setFiltersExpanded(false);
+    setRoute(null);
+    setBookedVehicleIds([]);
+    setScheduledAvailableVehicleIds(null);
+    setSelectedVehicleId(null);
+    setSearched(false);
+    setVisibleVehicleCount(8);
+    vehicleResultsSheetRef.current?.dismiss();
+    showSuccess("Đã làm mới", "Bạn có thể nhập lại thông tin chuyến đi.");
   };
 
   const handleUseCurrentLocation = async () => {
@@ -705,6 +827,7 @@ export default function BookingScreen() {
         dropoffLocation,
         dateInput,
         time,
+        bookingMode,
         passengers,
         note,
         pickupLat: pickupPoint ? String(pickupPoint.lat) : "",
@@ -749,28 +872,39 @@ export default function BookingScreen() {
     }
   };
 
-  const handleCreateBooking = () => {
-    if (!selectedVehicle) {
-      showError("Chưa chọn xe", "Vui lòng chọn một xe phù hợp trước khi đặt.");
+  const openBookingDetailWithVehicle = (vehicle: Vehicle) => {
+    if (!bookingDate) {
+      showError("Ngày chưa hợp lệ", "Vui lòng nhập theo định dạng dd/MM/yyyy.");
       return;
     }
-
-    if (!pickupPoint || !dropoffPoint || !bookingDate) {
-      showError(
-        "Thông tin chưa hợp lệ",
-        "Vui lòng kiểm tra điểm đón, điểm đến và ngày đi.",
-      );
+    if (!pickupPoint || !dropoffPoint) {
+      showError("Thiếu tọa độ", "Vui lòng chọn điểm đón và điểm đến hợp lệ.");
       return;
     }
-
+    const priceQuote = calculateBookingPrice(
+      routeDistance || 1,
+      vehicle.pricePerKm,
+      passengerCount,
+      time,
+    );
+    setSelectedVehicleId(vehicle.id);
+    vehicleResultsSheetRef.current?.dismiss();
+    const scheduledWindow = bookingMode === "scheduled" ? getScheduledWindow() : null;
     router.push({
       pathname: "/(customer)/booking-detail" as any,
       params: {
-        vehicleId: selectedVehicle.id,
+        vehicleId: vehicle.id,
         pickupLocation,
         dropoffLocation,
         date: bookingDate,
         time,
+        bookingMode,
+        scheduledStartAt: scheduledWindow?.startAt.toISOString() ?? "",
+        scheduledEndAt: scheduledWindow?.endAt.toISOString() ?? "",
+        scheduledResponseDeadlineAt: scheduledWindow?.responseDeadlineAt.toISOString() ?? "",
+        estimatedDurationMinutes: String(scheduledWindow?.durationMinutes ?? 90),
+        bufferBeforeMinutes: String(scheduledWindow?.bufferBeforeMinutes ?? 15),
+        bufferAfterMinutes: String(scheduledWindow?.bufferAfterMinutes ?? 15),
         passengers: String(passengerCount),
         note,
         pickupLat: String(pickupPoint.lat),
@@ -778,7 +912,7 @@ export default function BookingScreen() {
         dropoffLat: String(dropoffPoint.lat),
         dropoffLng: String(dropoffPoint.lng),
         distance: String(routeDistance),
-        estimatedPrice: String(selectedPriceQuote?.totalPrice ?? 0),
+        estimatedPrice: String(priceQuote.totalPrice),
         routeDuration: route?.duration ?? "",
       },
     });
@@ -819,16 +953,110 @@ export default function BookingScreen() {
   return (
     <Screen scroll refreshing={isLoadingVehicles} onRefresh={loadVehicles}>
       <Card style={{ marginBottom: spacing.lg }}>
-        <Text
+        <View
           style={{
-            color: colors.text,
-            fontSize: 18,
-            fontWeight: "700",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: spacing.md,
             marginBottom: spacing.md,
           }}
         >
-          Tìm chuyến đi
-        </Text>
+          <Text
+            style={{
+              color: colors.text,
+              fontSize: 18,
+              fontWeight: "700",
+            }}
+          >
+            Tìm chuyến đi
+          </Text>
+          <TouchableOpacity
+            activeOpacity={0.82}
+            onPress={resetBookingForm}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.xs,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+              borderRadius: borderRadius.full,
+              backgroundColor: colors.surfaceAlt,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <RotateCcw size={15} color={colors.primary} />
+            <Text
+              style={{
+                color: colors.primary,
+                fontSize: fontSize.sm,
+                fontWeight: "800",
+              }}
+            >
+              Làm mới
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View
+          style={{
+            position: "relative",
+            flexDirection: "row",
+            padding: 3,
+            borderRadius: borderRadius.full,
+            backgroundColor: colors.surfaceAlt,
+            borderWidth: 1,
+            borderColor: colors.border,
+            marginBottom: spacing.md,
+            overflow: "hidden",
+          }}
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              top: 3,
+              bottom: 3,
+              left: modeSlideAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ["0%", "50%"],
+              }),
+              width: "50%",
+              borderRadius: borderRadius.full,
+              backgroundColor: colors.primary,
+            }}
+          />
+          {([
+            { value: "instant", label: "Đi ngay" },
+            { value: "scheduled", label: "Đặt trước" },
+          ] as const).map((item) => {
+            const selected = bookingMode === item.value;
+            return (
+              <TouchableOpacity
+                key={item.value}
+                activeOpacity={0.86}
+                onPress={() => changeBookingMode(item.value)}
+                style={{
+                  flex: 1,
+                  alignItems: "center",
+                  paddingVertical: spacing.sm,
+                  zIndex: 1,
+                }}
+              >
+                <Text
+                  style={{
+                    color: selected ? "white" : colors.textSecondary,
+                    fontWeight: "900",
+                    fontSize: fontSize.sm,
+                  }}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         <TextInput
           label="Điểm đón"
@@ -1010,85 +1238,99 @@ export default function BookingScreen() {
           </View>
         )}
 
-        <View
-          style={{
-            flexDirection: "row",
-            gap: spacing.md,
-            marginBottom: spacing.md,
-          }}
-        >
-          <TouchableOpacity
-            activeOpacity={0.82}
-            onPress={() => setPickerMode("date")}
-            style={{
-              flex: 1,
-              padding: spacing.md,
-              borderRadius: borderRadius.lg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.surface,
-            }}
-          >
+        {bookingMode === "scheduled" && (
+          <>
             <View
               style={{
                 flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.sm,
-                marginBottom: spacing.xs,
+                gap: spacing.md,
+                marginBottom: spacing.md,
               }}
             >
-              <Calendar size={18} color={colors.textSecondary} />
-              <Text
+              <TouchableOpacity
+                activeOpacity={0.82}
+                onPress={() => setPickerMode("date")}
                 style={{
-                  color: colors.textSecondary,
-                  fontSize: fontSize.xs,
-                  fontWeight: "700",
+                  flex: 1,
+                  padding: spacing.md,
+                  borderRadius: borderRadius.lg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
                 }}
               >
-                Ngày
-              </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.sm,
+                    marginBottom: spacing.xs,
+                  }}
+                >
+                  <Calendar size={18} color={colors.textSecondary} />
+                  <Text
+                    style={{
+                      color: colors.textSecondary,
+                      fontSize: fontSize.xs,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Ngày
+                  </Text>
+                </View>
+                <Text style={{ color: colors.text, fontWeight: "900" }}>
+                  {dateInput}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.82}
+                onPress={() => setPickerMode("time")}
+                style={{
+                  flex: 1,
+                  padding: spacing.md,
+                  borderRadius: borderRadius.lg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing.sm,
+                    marginBottom: spacing.xs,
+                  }}
+                >
+                  <Clock size={18} color={colors.textSecondary} />
+                  <Text
+                    style={{
+                      color: colors.textSecondary,
+                      fontSize: fontSize.xs,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Giờ
+                  </Text>
+                </View>
+                <Text style={{ color: colors.text, fontWeight: "900" }}>
+                  {time}
+                </Text>
+              </TouchableOpacity>
             </View>
-            <Text style={{ color: colors.text, fontWeight: "900" }}>
-              {dateInput}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.82}
-            onPress={() => setPickerMode("time")}
-            style={{
-              flex: 1,
-              padding: spacing.md,
-              borderRadius: borderRadius.lg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.surface,
-            }}
-          >
-            <View
+            <Text
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.sm,
-                marginBottom: spacing.xs,
+                color: colors.primary,
+                fontWeight: "800",
+                fontSize: fontSize.sm,
+                marginBottom: spacing.md,
               }}
             >
-              <Clock size={18} color={colors.textSecondary} />
-              <Text
-                style={{
-                  color: colors.textSecondary,
-                  fontSize: fontSize.xs,
-                  fontWeight: "700",
-                }}
-              >
-                Giờ
-              </Text>
-            </View>
-            <Text style={{ color: colors.text, fontWeight: "900" }}>
-              {time}
+              Bạn đang đặt chuyến lúc {time}, ngày {dateInput}
             </Text>
-          </TouchableOpacity>
-        </View>
-        {pickerMode && (
+          </>
+        )}
+        {bookingMode === "scheduled" && pickerMode && (
           <DateTimePicker
             value={scheduleDate}
             mode={pickerMode}
@@ -1448,224 +1690,259 @@ export default function BookingScreen() {
       </Card>
 
       {searched && (
-        <View style={{ marginBottom: spacing.xl }}>
-          <Text
+        <TouchableOpacity
+          activeOpacity={0.86}
+          onPress={() => vehicleResultsSheetRef.current?.present()}
+          style={{
+            marginBottom: spacing.xl,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.md,
+            backgroundColor: colors.surface,
+            borderTopWidth: 1,
+            borderBottomWidth: 1,
+            borderColor: colors.border,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.md,
+          }}
+        >
+          <View
             style={{
-              color: colors.text,
-              fontSize: 18,
-              fontWeight: "700",
-              marginBottom: spacing.sm,
-              paddingHorizontal: spacing.lg,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: colors.surfaceAlt,
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            Xe phù hợp
+            <Car size={22} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontWeight: "900" }}>
+              {vehicles.length} xe phù hợp
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={{
+                color: colors.textSecondary,
+                fontSize: fontSize.sm,
+                marginTop: spacing.xs,
+              }}
+            >
+              {dateInput} lúc {time}
+              {routeDistance ? ` - ${routeDistance} km` : ""}
+            </Text>
+          </View>
+          <Text style={{ color: colors.primary, fontWeight: "900" }}>
+            Xem
           </Text>
-          <Text
+        </TouchableOpacity>
+      )}
+
+      <BottomSheetModal
+        ref={vehicleResultsSheetRef}
+        snapPoints={vehicleResultsSnapPoints}
+        backgroundStyle={{ backgroundColor: colors.surface }}
+        handleIndicatorStyle={{ backgroundColor: colors.border }}
+      >
+        <BottomSheetScrollView
+          contentContainerStyle={{
+            paddingTop: spacing.md,
+            paddingBottom: spacing.xl,
+          }}
+        >
+          <View
             style={{
-              color: colors.textSecondary,
-              fontSize: fontSize.sm,
-              marginBottom: spacing.md,
               paddingHorizontal: spacing.lg,
+              paddingBottom: spacing.md,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
             }}
           >
-            {vehicles.length} xe khớp ngày {dateInput}, giờ {time},{" "}
-            {passengerCount} hành khách
-            {routeDistance ? `, lộ trình Goong khoảng ${routeDistance} km` : ""}
-            {route?.duration ? `, ${route.duration}` : ""}
-          </Text>
+            <Text
+              style={{
+                color: colors.text,
+                fontSize: 20,
+                fontWeight: "900",
+              }}
+            >
+              Xe phù hợp
+            </Text>
+            <Text
+              style={{
+                color: colors.textSecondary,
+                fontSize: fontSize.sm,
+                marginTop: spacing.xs,
+                lineHeight: 20,
+              }}
+            >
+              {vehicles.length} xe khớp ngày {dateInput}, giờ {time}
+              {routeDistance ? `, lộ trình khoảng ${routeDistance} km` : ""}
+              {route?.duration ? `, ${route.duration}` : ""}.
+            </Text>
+          </View>
 
-          {vehicles.slice(0, visibleVehicleCount).map((vehicle) => {
-            const selected = selectedVehicleId === vehicle.id;
-            const available = vehicleAvailability(vehicle);
-            const priceQuote = calculateBookingPrice(
-              routeDistance || 1,
-              vehicle.pricePerKm,
-              passengerCount,
-              time,
-            );
-
-            return (
-              <TouchableOpacity
-                key={vehicle.id}
-                onPress={() => {
-                  if (!bookingDate) {
-                    showError(
-                      "Ngày chưa hợp lệ",
-                      "Vui lòng nhập theo định dạng dd/MM/yyyy.",
-                    );
-                    return;
-                  }
-                  setSelectedVehicleId(vehicle.id);
-                  router.push({
-                    pathname: "/(customer)/booking-detail" as any,
-                    params: {
-                      vehicleId: vehicle.id,
-                      pickupLocation,
-                      dropoffLocation,
-                      date: bookingDate,
-                      time,
-                      passengers: String(passengerCount),
-                      note,
-                      pickupLat: String(pickupPoint?.lat ?? ""),
-                      pickupLng: String(pickupPoint?.lng ?? ""),
-                      dropoffLat: String(dropoffPoint?.lat ?? ""),
-                      dropoffLng: String(dropoffPoint?.lng ?? ""),
-                      distance: String(routeDistance),
-                      estimatedPrice: String(priceQuote.totalPrice),
-                      routeDuration: route?.duration ?? "",
-                    },
-                  });
-                }}
-                activeOpacity={0.82}
+          {vehicles.length === 0 ? (
+            <View
+              style={{
+                padding: spacing.lg,
+                alignItems: "center",
+                gap: spacing.sm,
+              }}
+            >
+              <Car size={28} color={colors.textSecondary} />
+              <Text style={{ color: colors.text, fontWeight: "900" }}>
+                Chưa có xe phù hợp
+              </Text>
+              <Text
                 style={{
-                  paddingHorizontal: spacing.lg,
-                  paddingVertical: spacing.md,
-                  backgroundColor: colors.surface,
-                  borderTopWidth: 1,
-                  borderBottomWidth: 1,
-                  borderLeftWidth: selected ? 4 : 0,
-                  borderColor: selected ? colors.primary : colors.border,
+                  color: colors.textSecondary,
+                  textAlign: "center",
+                  lineHeight: 21,
                 }}
               >
-                <View
+                Hãy đổi thời gian, số người hoặc bộ lọc để tìm thêm lựa chọn.
+              </Text>
+            </View>
+          ) : (
+            vehicles.slice(0, visibleVehicleCount).map((vehicle, index) => {
+              const selected = selectedVehicleId === vehicle.id;
+              const pickupMinutes = estimatePickupMinutes(vehicle, index);
+              const priceQuote = calculateBookingPrice(
+                routeDistance || 1,
+                vehicle.pricePerKm,
+                passengerCount,
+                time,
+              );
+
+              return (
+                <TouchableOpacity
+                  key={vehicle.id}
+                  activeOpacity={0.86}
+                  onPress={() => openBookingDetailWithVehicle(vehicle)}
                   style={{
-                    flexDirection: "row",
-                    gap: spacing.md,
-                    alignItems: "flex-start",
+                    paddingHorizontal: spacing.lg,
+                    paddingVertical: spacing.md,
+                    backgroundColor: colors.surface,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                    borderLeftWidth: selected ? 4 : 0,
+                    borderLeftColor: colors.primary,
                   }}
                 >
-                  {vehicle.image ? (
-                    <Image
-                      source={{ uri: vehicle.image }}
-                      style={{
-                        width: 70,
-                        height: 70,
-                        borderRadius: borderRadius.lg,
-                        backgroundColor: colors.surfaceAlt,
-                      }}
-                    />
-                  ) : (
-                    <View
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 24,
-                        backgroundColor: selected
-                          ? colors.primary
-                          : colors.surfaceAlt,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Car size={24} color={selected ? "white" : colors.text} />
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: spacing.md,
+                    }}
+                  >
+                    {vehicle.image ? (
+                      <Image
+                        source={{ uri: vehicle.image }}
+                        style={{
+                          width: 66,
+                          height: 52,
+                          borderRadius: borderRadius.md,
+                          backgroundColor: colors.surfaceAlt,
+                        }}
+                      />
+                    ) : (
+                      <View
+                        style={{
+                          width: 66,
+                          height: 52,
+                          borderRadius: borderRadius.md,
+                          backgroundColor: colors.surfaceAlt,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Car size={26} color={colors.primary} />
+                      </View>
+                    )}
+
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          color: colors.text,
+                          fontSize: 16,
+                          fontWeight: "900",
+                        }}
+                      >
+                        {vehicle.name}
+                      </Text>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: spacing.sm,
+                          marginTop: spacing.xs,
+                        }}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <Users size={13} color={colors.textSecondary} />
+                          <Text
+                            style={{
+                              color: colors.textSecondary,
+                              fontSize: fontSize.xs,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {vehicle.seats} chỗ
+                          </Text>
+                        </View>
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            flex: 1,
+                            color: pickupMinutes ? colors.success : colors.warning,
+                            fontSize: fontSize.xs,
+                            fontWeight: "800",
+                          }}
+                        >
+                          {pickupMinutes
+                            ? `Có thể đón trong ${pickupMinutes} phút`
+                            : "Không trống giờ này"}
+                        </Text>
+                      </View>
                     </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        color: colors.text,
-                        fontSize: 16,
-                        fontWeight: "700",
-                      }}
-                    >
-                      {vehicle.name}
-                    </Text>
-                    <Text
-                      style={{
-                        color: colors.textSecondary,
-                        fontSize: fontSize.sm,
-                        marginTop: spacing.xs,
-                      }}
-                    >
-                      {vehicle.licensePlate} - {vehicle.color} - {vehicle.seats}{" "}
-                      chỗ
-                    </Text>
+
                     <Text
                       style={{
                         color: colors.primary,
-                        fontWeight: "700",
-                        marginTop: spacing.sm,
+                        fontSize: 15,
+                        fontWeight: "900",
                       }}
                     >
                       {formatCurrency(priceQuote.totalPrice)}
                     </Text>
-                    <Text
-                      style={{
-                        color: colors.textSecondary,
-                        fontSize: fontSize.xs,
-                        marginTop: spacing.xs,
-                      }}
-                    >
-                      {routeDistance || 1} km x{" "}
-                      {vehicle.pricePerKm.toLocaleString("vi-VN")}đ/km
-                      {priceQuote.peakFee > 0
-                        ? ` + phụ phí cao điểm ${formatCurrency(priceQuote.peakFee)}`
-                        : ""}
-                    </Text>
                   </View>
-                  <Text
-                    style={{
-                      color: available ? colors.success : colors.warning,
-                      fontSize: fontSize.xs,
-                      fontWeight: "700",
-                    }}
-                  >
-                    {available ? "Trống" : "Bận"}
-                  </Text>
-                </View>
-                {!!vehicle.imageUrls?.length &&
-                  vehicle.imageUrls.length > 1 && (
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        gap: spacing.sm,
-                        marginTop: spacing.md,
-                      }}
-                    >
-                      {vehicle.imageUrls.slice(1, 5).map((url, index) => (
-                        <Image
-                          key={`${vehicle.id}-result-${index}`}
-                          source={{ uri: url }}
-                          style={{
-                            flex: 1,
-                            height: 54,
-                            borderRadius: borderRadius.md,
-                            backgroundColor: colors.surfaceAlt,
-                          }}
-                        />
-                      ))}
-                    </View>
-                  )}
-              </TouchableOpacity>
-            );
-          })}
+                </TouchableOpacity>
+              );
+            })
+          )}
+
           {vehicles.length > visibleVehicleCount && (
-            <Button
-              label="Tải thêm xe"
-              onPress={() => setVisibleVehicleCount((current) => current + 8)}
-              variant="outline"
-            />
+            <View style={{ padding: spacing.lg }}>
+              <Button
+                label="Tải thêm xe"
+                onPress={() => setVisibleVehicleCount((current) => current + 8)}
+                variant="outline"
+              />
+            </View>
           )}
+        </BottomSheetScrollView>
+      </BottomSheetModal>
 
-          {vehicles.length === 0 && (
-            <Text
-              style={{
-                color: colors.textSecondary,
-                textAlign: "center",
-                marginVertical: spacing.xl,
-              }}
-            >
-              Không có xe phù hợp. Hãy đổi ngày, giờ, giá hoặc số người.
-            </Text>
-          )}
-
-          {/* <Button
-            label="Xem chi tiết và xác nhận"
-            onPress={handleCreateBooking}
-            disabled={!selectedVehicle}
-          /> */}
-        </View>
-      )}
       <BottomSheetModal
         ref={savedLocationsSheetRef}
         snapPoints={["48%", "76%"]}

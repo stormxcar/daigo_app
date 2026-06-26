@@ -78,7 +78,7 @@ async function createPaymentNotification(data: {
     user_id: data.userId,
     title: data.title,
     content: data.content,
-    type: 'booking_update',
+    type: 'payment_update',
     read: false,
     related_booking_id: data.bookingId,
   });

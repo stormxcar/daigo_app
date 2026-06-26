@@ -76,6 +76,11 @@ export interface Vehicle {
 export type BookingStatus =
   | 'CREATED'
   | 'SEARCHING_DRIVER'
+  | 'SCHEDULED_PENDING_DRIVER'
+  | 'SCHEDULED_DRIVER_ACCEPTED'
+  | 'SCHEDULED_DRIVER_REJECTED'
+  | 'SCHEDULED_CANCELLED'
+  | 'SCHEDULED_UPCOMING'
   | 'DRIVER_ACCEPTED'
   | 'DRIVER_ARRIVING'
   | 'DRIVER_ARRIVED'
@@ -104,6 +109,15 @@ export interface Booking {
   dropoffLng?: number;
   date: string;
   time: string;
+  bookingMode?: 'instant' | 'scheduled';
+  scheduledStartAt?: string;
+  scheduledEndAt?: string;
+  scheduledStatus?: 'pending_driver' | 'driver_accepted' | 'driver_rejected' | 'cancelled' | 'upcoming';
+  estimatedDurationMinutes?: number;
+  bufferBeforeMinutes?: number;
+  bufferAfterMinutes?: number;
+  scheduledResponseDeadlineAt?: string;
+  reminderSentAt?: string;
   passengers: number;
   note?: string;
   vehicleId: string;
@@ -214,6 +228,7 @@ export type NotificationType =
   | 'booking_update'
   | 'payment_update'
   | 'blog_interaction'
+  | 'incoming_call'
   | 'system';
 
 export interface NotificationItem {

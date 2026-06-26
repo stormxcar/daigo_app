@@ -83,3 +83,16 @@ export async function registerPushNotifications(userId: string) {
   registeredPushUserId = userId;
   return token;
 }
+
+export async function setAppIconBadgeCount(count: number) {
+  if (Constants.appOwnership === 'expo') {
+    return;
+  }
+
+  try {
+    const Notifications = await getNotificationsModule();
+    await Notifications.setBadgeCountAsync(Math.max(0, count));
+  } catch (error) {
+    if (__DEV__) console.warn('[DAIGO_BADGE_COUNT_ERROR]', error);
+  }
+}
