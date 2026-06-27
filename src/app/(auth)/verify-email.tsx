@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Text, TextInput as RNTextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Mail } from 'lucide-react-native';
 import { Button, TextInput } from '@/components/BaseComponents';
@@ -18,25 +18,38 @@ export default function VerifyEmailScreen() {
   const [email, setEmail] = useState(params.email ?? '');
   const [otp, setOtp] = useState('');
   const [localError, setLocalError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [notice, setNotice] = useState('');
+  const emailRef = useRef<RNTextInput>(null);
 
   const handleVerify = async () => {
-    if (!email || !otp) {
-      const message = 'Vui lòng nhập email và mã OTP.';
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      const message = 'Vui lòng nhập email.';
+      setEmailError(message);
+      emailRef.current?.focus();
+      setLocalError(message);
+      showError('Thiếu email', message);
+      return;
+    }
+    if (!otp) {
+      const message = 'Vui lòng nhập mã OTP.';
       setLocalError(message);
       showError('Thiếu thông tin', message);
       return;
     }
 
-    if (!isValidEmail(email)) {
+    if (!isValidEmail(normalizedEmail)) {
       const message = 'Email không đúng định dạng.';
+      setEmailError(message);
+      emailRef.current?.focus();
       setLocalError(message);
       showError('Email không hợp lệ', message);
       return;
     }
 
     try {
-      const response = await verifySignupOtp(email, otp);
+      const response = await verifySignupOtp(normalizedEmail, otp);
       showSuccess('Xác thực thành công', 'Tài khoản đã được kích hoạt.');
       router.replace(response.user.role === 'customer' ? '/(customer)/home' : '/(driver)/dashboard');
     } catch (err: any) {
@@ -47,22 +60,28 @@ export default function VerifyEmailScreen() {
   };
 
   const handleResend = async () => {
-    if (!email) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
       const message = 'Vui lòng nhập email để gửi lại OTP.';
+      setEmailError(message);
+      emailRef.current?.focus();
       setLocalError(message);
       showError('Thiếu email', message);
       return;
     }
 
-    if (!isValidEmail(email)) {
+    if (!isValidEmail(normalizedEmail)) {
       const message = 'Email không đúng định dạng.';
+      setEmailError(message);
+      emailRef.current?.focus();
       setLocalError(message);
       showError('Email không hợp lệ', message);
       return;
     }
 
     try {
-      await resendSignupOtp(email);
+      await resendSignupOtp(normalizedEmail);
+      setEmail(normalizedEmail);
       setNotice('Mã OTP mới đã được gửi đến email của bạn.');
       setLocalError('');
       showSuccess('Đã gửi lại OTP', 'Vui lòng kiểm tra email của bạn.');
@@ -98,15 +117,23 @@ export default function VerifyEmailScreen() {
       </Text>
 
       <TextInput
+        ref={emailRef}
         label="Email"
         placeholder="Nhập email"
         value={email}
         onChangeText={(value) => {
           setEmail(value);
+          setEmailError(value.trim() && isValidEmail(value) ? '' : emailError);
           setLocalError('');
         }}
         keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="done"
         disabled={isLoading}
+        error={emailError}
         icon={<Mail size={20} color={colors.textSecondary} />}
         style={{ marginBottom: spacing.lg }}
       />

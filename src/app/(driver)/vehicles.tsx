@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Image, Text, TouchableOpacity, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { Camera, Car, Edit3, Plus, Trash2, X } from "lucide-react-native";
+import { router } from "expo-router";
+import { Camera, Car, MoreVertical, Plus, X } from "lucide-react-native";
 import { useTheme } from "@/theme";
 import { borderRadius, fontSize, spacing } from "@/theme/tokens";
 import {
@@ -271,6 +272,14 @@ export default function DriverVehicles() {
     ]);
   };
 
+  const openVehicleActions = (vehicle: Vehicle) => {
+    Alert.alert("Tùy chọn xe", vehicle.name, [
+      { text: "Sửa thông tin", onPress: () => editVehicle(vehicle) },
+      { text: "Xóa xe", style: "destructive", onPress: () => deleteVehicle(vehicle) },
+      { text: "Đóng", style: "cancel" },
+    ]);
+  };
+
   return (
     <Screen scroll refreshing={loading} onRefresh={loadVehicles}>
       <View
@@ -528,8 +537,10 @@ export default function DriverVehicles() {
         </>
       ) : (
         filteredVehicles.slice(0, visibleCount).map((vehicle) => (
-          <View
+          <TouchableOpacity
             key={vehicle.id}
+            activeOpacity={0.86}
+            onPress={() => router.push({ pathname: "/(driver)/vehicle-detail" as any, params: { id: vehicle.id } })}
             style={{
               backgroundColor: colors.surface,
               borderTopWidth: 1,
@@ -537,8 +548,30 @@ export default function DriverVehicles() {
               borderColor: colors.border,
               paddingHorizontal: spacing.lg,
               paddingVertical: spacing.md,
+              position: "relative",
             }}
           >
+            <TouchableOpacity
+              activeOpacity={0.82}
+              onPress={() => openVehicleActions(vehicle)}
+              disabled={saving}
+              style={{
+                position: "absolute",
+                top: spacing.md,
+                right: spacing.lg,
+                zIndex: 3,
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.surface,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <MoreVertical size={18} color={colors.text} />
+            </TouchableOpacity>
             {!!vehicle.image && (
               <Image
                 source={{ uri: vehicle.image }}
@@ -567,6 +600,7 @@ export default function DriverVehicles() {
                 flexDirection: "row",
                 justifyContent: "space-between",
                 gap: spacing.md,
+                paddingRight: spacing.xl,
               }}
             >
               <View style={{ flex: 1 }}>
@@ -624,33 +658,7 @@ export default function DriverVehicles() {
                 {vehicle.description}
               </Text>
             )}
-            <View
-              style={{
-                flexDirection: "row",
-                gap: spacing.sm,
-                marginTop: spacing.md,
-              }}
-            >
-              <Button
-                label="Sửa"
-                onPress={() => editVehicle(vehicle)}
-                variant="secondary"
-                size="sm"
-                style={{ flex: 1 }}
-                icon={<Edit3 size={16} color={colors.text} />}
-                disabled={saving}
-              />
-              <Button
-                label="Xóa"
-                onPress={() => deleteVehicle(vehicle)}
-                variant="danger"
-                size="sm"
-                style={{ flex: 1 }}
-                icon={<Trash2 size={16} color="white" />}
-                disabled={saving}
-              />
-            </View>
-          </View>
+          </TouchableOpacity>
         ))
       )}
 

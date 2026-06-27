@@ -51,6 +51,17 @@ export const ACTIVE_BOOKING_STATUSES = [
   BOOKING_STATUS.TRIP_STARTED,
 ] as const;
 
+export const VISIBLE_ACTIVE_BOOKING_STATUSES = [
+  BOOKING_STATUS.SEARCHING_DRIVER,
+  BOOKING_STATUS.SCHEDULED_PENDING_DRIVER,
+  BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED,
+  BOOKING_STATUS.SCHEDULED_UPCOMING,
+  BOOKING_STATUS.DRIVER_ACCEPTED,
+  BOOKING_STATUS.DRIVER_ARRIVING,
+  BOOKING_STATUS.DRIVER_ARRIVED,
+  BOOKING_STATUS.TRIP_STARTED,
+] as const;
+
 export const TERMINAL_BOOKING_STATUSES = [
   BOOKING_STATUS.TRIP_COMPLETED,
   BOOKING_STATUS.SCHEDULED_DRIVER_REJECTED,
@@ -83,6 +94,9 @@ export const NOTIFICATION_TYPES = {
   DRIVER_CANCEL: 'driver_cancel',
   TRIP_DONE: 'trip_done',
   BOOKING_UPDATE: 'booking_update',
+  PAYMENT_UPDATE: 'payment_update',
+  BLOG_INTERACTION: 'blog_interaction',
+  INCOMING_CALL: 'incoming_call',
   SYSTEM: 'system',
 } as const;
 
@@ -205,14 +219,3 @@ export const SUCCESS_MESSAGES = {
   POST_DELETED: 'Bài viết được xóa thành công!',
 } as const;
 
-// Demo/Test Data
-export const DEMO_CREDENTIALS = {
-  CUSTOMER: {
-    email: 'khachhang@gmail.com',
-    password: 'password123',
-  },
-  DRIVER: {
-    email: 'taixe.nguyenxuandai@gmail.com',
-    password: 'tai-xe-quan-tri-7',
-  },
-} as const;

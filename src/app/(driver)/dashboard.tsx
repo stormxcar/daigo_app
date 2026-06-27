@@ -12,7 +12,7 @@ import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { BlogPost, Booking, RatingReview, Vehicle } from '@/types';
 import { DeviceLocation, getCurrentDeviceLocation } from '@/services/deviceLocation';
-import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
+import { VISIBLE_ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { showError, showSuccess } from '@/utils/toast';
 import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { getPaymentMethodLabel, PaymentStatusBadge } from '@/components/PaymentStatusBadge';
@@ -223,7 +223,7 @@ export default function DriverDashboard() {
 
   const stats = useMemo(() => {
     const completed = bookings.filter((booking) => booking.status === BOOKING_STATUS.TRIP_COMPLETED);
-    const active = bookings.filter((booking) => ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
+    const active = bookings.filter((booking) => VISIBLE_ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
     const cancelledByDriver = bookings.filter((booking) => booking.status === BOOKING_STATUS.DRIVER_CANCELLED);
     const accepted = bookings.filter((booking) => booking.driverId === user?.id);
     const revenue = completed.reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
@@ -264,7 +264,7 @@ export default function DriverDashboard() {
       monthTrips: monthCompleted.length,
     };
   }, [bookings, ratings, user?.id]);
-  const activeTrip = bookings.find((booking) => ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
+  const activeTrip = bookings.find((booking) => VISIBLE_ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
 
   const chart = useMemo(() => {
     const buckets = buildBuckets(mode);

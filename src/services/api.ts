@@ -266,11 +266,26 @@ export const normalizeVietnamPhone = (value: string) => {
 export const isValidVietnamPhone = (value: string) => /^\+84\d{9,10}$/.test(normalizeVietnamPhone(value));
 export const TEST_PHONE_OTP = '123456';
 export const isTestPhoneOtpEnabled = () =>
-  process.env.EXPO_PUBLIC_ENABLE_TEST_PHONE_OTP === 'true' ||
-  (__DEV__ && process.env.EXPO_PUBLIC_ENV !== 'production');
+  process.env.EXPO_PUBLIC_ENABLE_TEST_PHONE_OTP === 'true';
 export const isFirebasePhoneAuthEnabled = () => process.env.EXPO_PUBLIC_PHONE_AUTH_PROVIDER === 'firebase';
 
 const API_CACHE_TTL_MS = 45_000;
+const CUSTOMER_CANCELLABLE_STATUSES = [
+  BOOKING_STATUS.SEARCHING_DRIVER,
+  BOOKING_STATUS.SCHEDULED_PENDING_DRIVER,
+  BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED,
+  BOOKING_STATUS.SCHEDULED_UPCOMING,
+  BOOKING_STATUS.DRIVER_ACCEPTED,
+  BOOKING_STATUS.DRIVER_ARRIVING,
+  BOOKING_STATUS.DRIVER_ARRIVED,
+] as const;
+const DRIVER_CANCELLABLE_STATUSES = [
+  BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED,
+  BOOKING_STATUS.SCHEDULED_UPCOMING,
+  BOOKING_STATUS.DRIVER_ACCEPTED,
+  BOOKING_STATUS.DRIVER_ARRIVING,
+  BOOKING_STATUS.DRIVER_ARRIVED,
+] as const;
 
 type CacheEntry<T> = {
   expiresAt: number;
@@ -376,14 +391,16 @@ class ApiClient {
       (authUser.user_metadata?.avatar_url as string | undefined) ||
       undefined;
 
-    const payload = {
+    const payload: Record<string, string> = {
       id: authUser.id,
       full_name: fullName,
       email,
       phone,
-      avatar_url: avatarUrl,
       updated_at: new Date().toISOString(),
     };
+    if (avatarUrl) {
+      payload.avatar_url = avatarUrl;
+    }
 
     if (!existing) {
       const { data, error } = await supabase
@@ -1013,14 +1030,16 @@ class ApiClient {
       .from('bookings')
       .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
       .in('status', [...ACTIVE_BOOKING_STATUSES])
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .order('created_at', { ascending: false });
 
     query = role === 'driver' ? query.eq('driver_id', userId) : query.eq('customer_id', userId);
 
-    const { data, error } = await query.maybeSingle();
+    const { data, error } = await query.limit(2);
     if (error) throw error;
-    return data ? mapBooking(data) : null;
+    if ((data ?? []).length > 1 && __DEV__) {
+      console.warn('Phát hiện nhiều active booking cho cùng user', { userId, role, count: data?.length });
+    }
+    return data?.[0] ? mapBooking(data[0]) : null;
   }
 
   async createBooking(data: Partial<Booking> & { pickupLat?: number; pickupLng?: number; dropoffLat?: number; dropoffLng?: number }): Promise<Booking> {
@@ -1130,8 +1149,15 @@ class ApiClient {
 
   async cancelBooking(id: string, reason?: string): Promise<Booking> {
     const bookingBefore = await this.getBookingById(id);
-    if ([BOOKING_STATUS.TRIP_STARTED, BOOKING_STATUS.TRIP_COMPLETED].includes(bookingBefore.status as any)) {
-      throw new Error('Không thể hủy chuyến khi chuyến đi đã bắt đầu.');
+    if (!CUSTOMER_CANCELLABLE_STATUSES.includes(bookingBefore.status as any)) {
+      throw new Error('Không thể hủy chuyến ở trạng thái hiện tại.');
+    }
+    if (
+      bookingBefore.bookingMode === 'scheduled' &&
+      bookingBefore.scheduledStartAt &&
+      Date.now() >= new Date(bookingBefore.scheduledStartAt).getTime()
+    ) {
+      throw new Error('Chuyến đặt trước đã đến giờ tài xế thao tác nên không thể hủy trong app. Vui lòng liên hệ tài xế hoặc hỗ trợ.');
     }
 
     const booking = await this.updateBooking(id, {
@@ -1146,7 +1172,7 @@ class ApiClient {
         userId: receiverId,
         title: 'Khách hàng đã hủy chuyến',
         content: `Chuyến đi từ ${booking.pickupLocation} đến ${booking.dropoffLocation} đã bị khách hàng hủy.${reason ? ` Lý do: ${reason}` : ''}`,
-        type: 'driver_cancel',
+        type: 'booking_update',
         read: false,
         relatedBookingId: booking.id,
         createdAt: new Date().toISOString(),
@@ -1161,7 +1187,7 @@ class ApiClient {
       status: BOOKING_STATUS.TRIP_COMPLETED,
       completedAt: new Date().toISOString(),
     });
-    await supabase.from('trip_history').insert({
+    const { error: historyError } = await supabase.from('trip_history').insert({
       booking_id: booking.id,
       customer_id: booking.customerId,
       driver_id: booking.driverId || null,
@@ -1170,6 +1196,9 @@ class ApiClient {
       started_at: booking.startedAt,
       completed_at: booking.completedAt ?? new Date().toISOString(),
     });
+    if (historyError && __DEV__) {
+      console.warn('trip_history insert failed', historyError);
+    }
     await this.createNotificationSafely({
       userId: booking.customerId,
       title: 'Chuyến đi đã hoàn thành',
@@ -1239,8 +1268,15 @@ class ApiClient {
 
   async cancelBookingByDriver(id: string, reason?: string): Promise<Booking> {
     const bookingBefore = await this.getBookingById(id);
-    if ([BOOKING_STATUS.TRIP_STARTED, BOOKING_STATUS.TRIP_COMPLETED].includes(bookingBefore.status as any)) {
-      throw new Error('Không thể hủy chuyến khi chuyến đi đã bắt đầu.');
+    if (!DRIVER_CANCELLABLE_STATUSES.includes(bookingBefore.status as any)) {
+      throw new Error('Không thể hủy chuyến ở trạng thái hiện tại.');
+    }
+    if (
+      bookingBefore.bookingMode === 'scheduled' &&
+      bookingBefore.scheduledStartAt &&
+      Date.now() >= new Date(bookingBefore.scheduledStartAt).getTime()
+    ) {
+      throw new Error('Chuyến đặt trước đã đến giờ thao tác. Vui lòng cập nhật trạng thái chuyến thay vì hủy.');
     }
 
     const booking = await this.updateBooking(id, {
@@ -1273,6 +1309,9 @@ class ApiClient {
   async acceptScheduledBooking(id: string): Promise<Booking> {
     const { data, error } = await supabase.rpc('accept_scheduled_booking', { p_booking_id: id });
     if (error) throw error;
+    if (data?.driver_id) {
+      await supabase.from('conversations').update({ driver_id: data.driver_id }).eq('booking_id', id);
+    }
     return mapBooking(data);
   }
 
@@ -1337,6 +1376,11 @@ class ApiClient {
     rating: number;
     comment?: string;
   }): Promise<RatingReview> {
+    const existing = await this.getRatingForBooking(data.bookingId, data.fromUserId);
+    if (existing) {
+      throw new Error('Bạn đã đánh giá chuyến đi này rồi.');
+    }
+
     const { data: inserted, error } = await supabase
       .from('ratings')
       .insert({
@@ -1348,7 +1392,12 @@ class ApiClient {
       })
       .select('*')
       .single();
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23505') {
+        throw new Error('Bạn đã đánh giá chuyến đi này rồi.');
+      }
+      throw error;
+    }
     this.invalidateCache(`ratings:user:${data.toUserId}`);
     return mapRating(inserted);
   }

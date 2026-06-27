@@ -1,5 +1,5 @@
-import React, { FC, ReactNode } from 'react';
-import { ActivityIndicator, View, Text, TouchableOpacity, ViewStyle, TextInput as RNTextInput, Image as RNImage, DimensionValue } from 'react-native';
+import React, { FC, ReactNode, forwardRef } from 'react';
+import { ActivityIndicator, View, Text, TouchableOpacity, ViewStyle, TextInput as RNTextInput, Image as RNImage, DimensionValue, TextInputProps as RNTextInputProps } from 'react-native';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, shadows, fontSize } from '@/theme/tokens';
 
@@ -113,9 +113,17 @@ interface TextInputProps {
   style?: ViewStyle;
   multiline?: boolean;
   numberOfLines?: number;
+  autoCapitalize?: RNTextInputProps['autoCapitalize'];
+  autoCorrect?: boolean;
+  autoComplete?: RNTextInputProps['autoComplete'];
+  textContentType?: RNTextInputProps['textContentType'];
+  returnKeyType?: RNTextInputProps['returnKeyType'];
+  blurOnSubmit?: boolean;
+  onSubmitEditing?: RNTextInputProps['onSubmitEditing'];
+  contextMenuHidden?: boolean;
 }
 
-export const TextInput: FC<TextInputProps> = ({
+export const TextInput = forwardRef<RNTextInput, TextInputProps>(({
   label,
   placeholder,
   value,
@@ -129,7 +137,15 @@ export const TextInput: FC<TextInputProps> = ({
   style,
   multiline = false,
   numberOfLines,
-}) => {
+  autoCapitalize,
+  autoCorrect,
+  autoComplete,
+  textContentType,
+  returnKeyType,
+  blurOnSubmit,
+  onSubmitEditing,
+  contextMenuHidden,
+}, ref) => {
   const { colors } = useTheme();
 
   return (
@@ -160,6 +176,7 @@ export const TextInput: FC<TextInputProps> = ({
       >
         {icon && icon}
         <RNTextInput
+          ref={ref}
           style={{
             flex: 1,
             paddingVertical: spacing.md,
@@ -178,6 +195,14 @@ export const TextInput: FC<TextInputProps> = ({
           selectionColor={colors.primary}
           multiline={multiline}
           numberOfLines={numberOfLines}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
+          autoComplete={autoComplete}
+          textContentType={textContentType}
+          returnKeyType={returnKeyType}
+          blurOnSubmit={blurOnSubmit}
+          onSubmitEditing={onSubmitEditing}
+          contextMenuHidden={contextMenuHidden}
         />
         {rightIcon && rightIcon}
       </View>
@@ -194,7 +219,9 @@ export const TextInput: FC<TextInputProps> = ({
       )}
     </View>
   );
-};
+});
+
+TextInput.displayName = 'TextInput';
 
 interface CardProps {
   children: ReactNode;

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
+import { PasswordRequirementCard } from '@/components/PasswordRequirementCard';
 import { OtpCodeInput } from '@/components/OtpCodeInput';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
@@ -26,6 +27,10 @@ export default function ForgotPasswordScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; confirmPassword?: string }>({});
+  const emailRef = useRef<RNTextInput>(null);
+  const passwordRef = useRef<RNTextInput>(null);
+  const confirmPasswordRef = useRef<RNTextInput>(null);
 
   const showLocalError = (title: string, message: string) => {
     setLocalError(message);
@@ -35,10 +40,14 @@ export default function ForgotPasswordScreen() {
   const handleSendOtp = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
+      setFieldErrors((current) => ({ ...current, email: 'Vui lòng nhập email để đặt lại mật khẩu.' }));
+      emailRef.current?.focus();
       showLocalError('Thiếu email', 'Vui lòng nhập email để đặt lại mật khẩu.');
       return;
     }
     if (!isValidEmail(normalizedEmail)) {
+      setFieldErrors((current) => ({ ...current, email: 'Email không đúng định dạng.' }));
+      emailRef.current?.focus();
       showLocalError('Email không hợp lệ', 'Email không đúng định dạng.');
       return;
     }
@@ -46,6 +55,7 @@ export default function ForgotPasswordScreen() {
     try {
       setIsSubmitting(true);
       setLocalError('');
+      setFieldErrors({});
       await apiClient.resetPassword(normalizedEmail);
       setEmail(normalizedEmail);
       setStep('otp');
@@ -83,17 +93,28 @@ export default function ForgotPasswordScreen() {
 
   const handleUpdatePassword = async () => {
     if (!password || !confirmPassword) {
+      const nextErrors = {
+        password: password ? undefined : 'Vui lòng nhập mật khẩu mới.',
+        confirmPassword: confirmPassword ? undefined : 'Vui lòng nhập lại mật khẩu mới.',
+      };
+      setFieldErrors(nextErrors);
+      if (nextErrors.password) passwordRef.current?.focus();
+      else confirmPasswordRef.current?.focus();
       showLocalError('Thiếu mật khẩu', 'Vui lòng nhập đầy đủ mật khẩu mới.');
       return;
     }
 
     const passwordError = validatePassword(password);
     if (passwordError) {
+      setFieldErrors((current) => ({ ...current, password: passwordError }));
+      passwordRef.current?.focus();
       showLocalError('Mật khẩu chưa hợp lệ', passwordError);
       return;
     }
 
     if (password !== confirmPassword) {
+      setFieldErrors((current) => ({ ...current, confirmPassword: 'Mật khẩu xác nhận không khớp.' }));
+      confirmPasswordRef.current?.focus();
       showLocalError('Mật khẩu không khớp', 'Mật khẩu xác nhận không khớp.');
       return;
     }
@@ -167,22 +188,34 @@ export default function ForgotPasswordScreen() {
       {step === 'email' && (
         <>
           <TextInput
+            ref={emailRef}
             label="Email"
             placeholder="Nhập email của bạn"
             value={email}
             onChangeText={(value) => {
               setEmail(value);
               setLocalError('');
+              setFieldErrors((current) => ({
+                ...current,
+                email: value.trim() && isValidEmail(value) ? undefined : current.email,
+              }));
             }}
             keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="done"
+            onSubmitEditing={handleSendOtp}
             disabled={isSubmitting}
+            error={fieldErrors.email}
             icon={<Mail size={20} color={colors.textSecondary} />}
             style={{ marginBottom: spacing.lg }}
           />
           <Button
             label="Gửi mã OTP"
             onPress={handleSendOtp}
-            disabled={!email || isSubmitting}
+            disabled={isSubmitting}
             loading={isSubmitting}
             style={{ marginBottom: spacing.lg }}
           />
@@ -236,33 +269,63 @@ export default function ForgotPasswordScreen() {
       {step === 'password' && (
         <>
           <TextInput
+            ref={passwordRef}
             label="Mật khẩu mới"
             placeholder="Nhập mật khẩu mới"
             value={password}
             onChangeText={(value) => {
               setPassword(value);
               setLocalError('');
+              setFieldErrors((current) => ({
+                ...current,
+                password: validatePassword(value) ? current.password : undefined,
+                confirmPassword: confirmPassword && value === confirmPassword ? undefined : current.confirmPassword,
+              }));
             }}
             secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="new-password"
+            textContentType="newPassword"
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => confirmPasswordRef.current?.focus()}
             disabled={isSubmitting}
+            error={fieldErrors.password}
             icon={<Lock size={20} color={colors.textSecondary} />}
             rightIcon={
               <TouchableOpacity onPress={() => setShowPassword((value) => !value)} disabled={isSubmitting}>
                 {showPassword ? <EyeOff size={20} color={colors.textSecondary} /> : <Eye size={20} color={colors.textSecondary} />}
               </TouchableOpacity>
             }
-            style={{ marginBottom: spacing.lg }}
+            style={{ marginBottom: spacing.sm }}
           />
+          <View style={{ marginBottom: spacing.lg }}>
+            <PasswordRequirementCard password={password} />
+          </View>
           <TextInput
+            ref={confirmPasswordRef}
             label="Xác nhận mật khẩu"
             placeholder="Nhập lại mật khẩu mới"
             value={confirmPassword}
             onChangeText={(value) => {
               setConfirmPassword(value);
               setLocalError('');
+              setFieldErrors((current) => ({
+                ...current,
+                confirmPassword: value && value === password ? undefined : current.confirmPassword,
+              }));
             }}
             secureTextEntry={!showConfirmPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            textContentType="none"
+            returnKeyType="done"
+            onSubmitEditing={handleUpdatePassword}
+            contextMenuHidden
             disabled={isSubmitting}
+            error={fieldErrors.confirmPassword}
             icon={<Lock size={20} color={colors.textSecondary} />}
             rightIcon={
               <TouchableOpacity onPress={() => setShowConfirmPassword((value) => !value)} disabled={isSubmitting}>

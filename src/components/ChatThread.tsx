@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Linking, Modal, Platform, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Linking, Modal, Platform, Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -9,7 +9,7 @@ import { router } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { Download, Image as ImageIcon, PhoneCall, Play, Reply, Send, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, TextInput } from '@/components/BaseComponents';
+import { Button } from '@/components/BaseComponents';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { apiClient } from '@/services/api';
@@ -558,12 +558,27 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
           >
             {uploadingImage ? <ActivityIndicator size="small" color={colors.primary} /> : <ImageIcon size={20} color={colors.primary} />}
           </TouchableOpacity>
-          <TextInput
+          <RNTextInput
             value={text}
             onChangeText={handleTextChange}
             placeholder="Nhập tin nhắn..."
-            disabled={sending || uploadingImage}
-            style={{ flex: 1 }}
+            editable={!sending && !uploadingImage}
+            placeholderTextColor={colors.textTertiary}
+            multiline
+            returnKeyType="send"
+            onSubmitEditing={() => {
+              if (Platform.OS !== 'ios') sendText();
+            }}
+            style={{
+              flex: 1,
+              minHeight: 42,
+              maxHeight: 110,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: spacing.sm,
+              color: colors.text,
+              fontSize: fontSize.base,
+              textAlignVertical: 'center',
+            }}
           />
           <Button
             label=""

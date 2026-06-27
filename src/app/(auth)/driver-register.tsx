@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Image, KeyboardAvoidingView, Platform, Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { BadgeCheck, Camera, Car, FileText, Smartphone, User } from 'lucide-react-native';
@@ -32,7 +32,19 @@ export default function DriverRegisterScreen() {
   const [licenseNumber, setLicenseNumber] = useState('');
   const [documentUrlsText, setDocumentUrlsText] = useState('');
   const [localError, setLocalError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{
+    phone?: string;
+    fullName?: string;
+    email?: string;
+    cccdNumber?: string;
+    licenseNumber?: string;
+  }>({});
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const phoneRef = useRef<RNTextInput>(null);
+  const fullNameRef = useRef<RNTextInput>(null);
+  const emailRef = useRef<RNTextInput>(null);
+  const cccdRef = useRef<RNTextInput>(null);
+  const licenseRef = useRef<RNTextInput>(null);
 
   const normalizedPhone = useMemo(() => normalizeVietnamPhone(phone), [phone]);
   const firebasePhoneAuthEnabled = isFirebasePhoneAuthEnabled();
@@ -54,6 +66,8 @@ export default function DriverRegisterScreen() {
   const requestOtp = async () => {
     setLocalError('');
     if (!isValidVietnamPhone(phone)) {
+      setFieldErrors((current) => ({ ...current, phone: 'Vui lòng nhập số điện thoại Việt Nam hợp lệ.' }));
+      phoneRef.current?.focus();
       setError('Vui lòng nhập số điện thoại Việt Nam hợp lệ.');
       return;
     }
@@ -93,10 +107,14 @@ export default function DriverRegisterScreen() {
   const continueBasic = () => {
     setLocalError('');
     if (fullName.trim().length < 2) {
+      setFieldErrors((current) => ({ ...current, fullName: 'Vui lòng nhập họ tên tài xế.' }));
+      fullNameRef.current?.focus();
       setError('Vui lòng nhập họ tên tài xế.');
       return;
     }
     if (email.trim() && !isValidEmail(email.trim())) {
+      setFieldErrors((current) => ({ ...current, email: 'Email không đúng định dạng.' }));
+      emailRef.current?.focus();
       setError('Email không đúng định dạng.');
       return;
     }
@@ -256,15 +274,23 @@ export default function DriverRegisterScreen() {
         {step === 'phone' && (
           <>
             <TextInput
+              ref={phoneRef}
               label="Số điện thoại"
               placeholder="Ví dụ: 0912345678"
               value={phone}
               onChangeText={(text) => {
                 setPhone(text);
                 setLocalError('');
+                setFieldErrors((current) => ({
+                  ...current,
+                  phone: isValidVietnamPhone(text) ? undefined : current.phone,
+                }));
               }}
               keyboardType="phone-pad"
+              returnKeyType="done"
+              onSubmitEditing={requestOtp}
               disabled={isLoading}
+              error={fieldErrors.phone}
               icon={<Smartphone size={20} color={colors.textSecondary} />}
               style={{ marginBottom: spacing.lg }}
             />
@@ -340,11 +366,23 @@ export default function DriverRegisterScreen() {
               </View>
             </TouchableOpacity>
             <TextInput
+              ref={fullNameRef}
               label="Họ tên"
               placeholder="Tên tài xế"
               value={fullName}
-              onChangeText={setFullName}
+              onChangeText={(text) => {
+                setFullName(text);
+                setLocalError('');
+                setFieldErrors((current) => ({
+                  ...current,
+                  fullName: text.trim().length >= 2 ? undefined : current.fullName,
+                }));
+              }}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => emailRef.current?.focus()}
               disabled={isLoading}
+              error={fieldErrors.fullName}
               icon={<User size={20} color={colors.textSecondary} />}
               style={{ marginBottom: spacing.lg }}
             />
@@ -358,12 +396,27 @@ export default function DriverRegisterScreen() {
               style={{ marginBottom: spacing.lg }}
             />
             <TextInput
+              ref={emailRef}
               label="Email"
               placeholder="Email nếu có"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                setLocalError('');
+                setFieldErrors((current) => ({
+                  ...current,
+                  email: !text.trim() || isValidEmail(text) ? undefined : current.email,
+                }));
+              }}
               keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              textContentType="emailAddress"
+              returnKeyType="done"
+              onSubmitEditing={continueBasic}
               disabled={isLoading}
+              error={fieldErrors.email}
               style={{ marginBottom: spacing.lg }}
             />
             <TextInput
@@ -381,20 +434,35 @@ export default function DriverRegisterScreen() {
         {step === 'docs' && (
           <>
             <TextInput
+              ref={cccdRef}
               label="Số CCCD"
               placeholder="Có thể bỏ trống"
               value={cccdNumber}
-              onChangeText={setCccdNumber}
+              onChangeText={(text) => {
+                setCccdNumber(text);
+                setFieldErrors((current) => ({ ...current, cccdNumber: undefined }));
+              }}
               keyboardType="numeric"
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => licenseRef.current?.focus()}
               disabled={isLoading}
+              error={fieldErrors.cccdNumber}
               style={{ marginBottom: spacing.lg }}
             />
             <TextInput
+              ref={licenseRef}
               label="Số GPLX"
               placeholder="Có thể bỏ trống"
               value={licenseNumber}
-              onChangeText={setLicenseNumber}
+              onChangeText={(text) => {
+                setLicenseNumber(text);
+                setFieldErrors((current) => ({ ...current, licenseNumber: undefined }));
+              }}
+              returnKeyType="next"
+              blurOnSubmit={false}
               disabled={isLoading}
+              error={fieldErrors.licenseNumber}
               style={{ marginBottom: spacing.lg }}
             />
             <TextInput

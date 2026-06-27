@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Image, View, Text, TouchableOpacity } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Image, View, Text, TextInput as RNTextInput, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
+import { PasswordRequirementCard } from '@/components/PasswordRequirementCard';
 import { useAuth } from '@/hooks/useAuth';
 import { Eye, EyeOff, User, Mail, Phone, Lock } from 'lucide-react-native';
 import { isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
@@ -23,49 +24,51 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({});
+  const fullNameRef = useRef<RNTextInput>(null);
+  const emailRef = useRef<RNTextInput>(null);
+  const phoneRef = useRef<RNTextInput>(null);
+  const passwordRef = useRef<RNTextInput>(null);
+  const confirmPasswordRef = useRef<RNTextInput>(null);
 
   const showError = (message: string) => {
     setLocalError(message);
     showErrorToast('Không thể đăng ký', message);
   };
 
-  const handleRegister = async () => {
-    if (!fullName || !email || !phone || !password || !confirmPassword) {
-      showError('Vui lòng nhập đầy đủ họ tên, email, số điện thoại và mật khẩu.');
-      return;
-    }
-
-    if (fullName.trim().length < 2) {
-      showError('Họ và tên phải có ít nhất 2 ký tự.');
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      showError('Email không đúng định dạng.');
-      return;
-    }
-
-    if (phone.trim().length < 9) {
-      showError('Số điện thoại không hợp lệ.');
-      return;
-    }
-
+  const validateRegister = () => {
+    const nextErrors: typeof fieldErrors = {};
+    if (fullName.trim().length < 2) nextErrors.fullName = 'Họ và tên phải có ít nhất 2 ký tự.';
+    if (!email.trim()) nextErrors.email = 'Vui lòng nhập email.';
+    else if (!isValidEmail(email)) nextErrors.email = 'Email không đúng định dạng.';
+    if (phone.trim().length < 9) nextErrors.phone = 'Số điện thoại không hợp lệ.';
     const passwordError = validatePassword(password);
-    if (passwordError) {
-      showError(passwordError);
-      return;
-    }
+    if (passwordError) nextErrors.password = passwordError;
+    if (!confirmPassword) nextErrors.confirmPassword = 'Vui lòng nhập lại mật khẩu.';
+    else if (password !== confirmPassword) nextErrors.confirmPassword = 'Mật khẩu xác nhận không khớp.';
+    setFieldErrors(nextErrors);
+    setLocalError('');
+    if (nextErrors.fullName) fullNameRef.current?.focus();
+    else if (nextErrors.email) emailRef.current?.focus();
+    else if (nextErrors.phone) phoneRef.current?.focus();
+    else if (nextErrors.password) passwordRef.current?.focus();
+    else if (nextErrors.confirmPassword) confirmPasswordRef.current?.focus();
+    return Object.keys(nextErrors).length === 0;
+  };
 
-    if (password !== confirmPassword) {
-      showError('Mật khẩu xác nhận không khớp.');
-      return;
-    }
-
+  const handleRegister = async () => {
+    if (!validateRegister()) return;
     try {
       const response = await register({
-        fullName,
-        email,
-        phone,
+        fullName: fullName.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
         password,
         confirmPassword,
       });
@@ -76,7 +79,7 @@ export default function RegisterScreen() {
         showInfo('Xác thực email', 'Tài khoản đã được tạo. Vui lòng nhập mã OTP được gửi về email để kích hoạt tài khoản.');
         router.replace({
           pathname: '/(auth)/verify-email' as any,
-          params: { email },
+          params: { email: email.trim().toLowerCase() },
         });
       }
     } catch (err: any) {
@@ -147,8 +150,17 @@ export default function RegisterScreen() {
           onChangeText={(text) => {
             setFullName(text);
             setLocalError('');
+            setFieldErrors((current) => ({
+              ...current,
+              fullName: text.trim().length >= 2 ? undefined : current.fullName,
+            }));
           }}
           disabled={isLoading}
+          error={fieldErrors.fullName}
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => emailRef.current?.focus()}
+          ref={fullNameRef}
           icon={<User size={20} color={colors.textSecondary} />}
           style={{ marginBottom: spacing.lg }}
         />
@@ -160,9 +172,22 @@ export default function RegisterScreen() {
           onChangeText={(text) => {
             setEmail(text);
             setLocalError('');
+            setFieldErrors((current) => ({
+              ...current,
+              email: text.trim() && isValidEmail(text) ? undefined : current.email,
+            }));
           }}
           keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="email"
+          textContentType="emailAddress"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => phoneRef.current?.focus()}
           disabled={isLoading}
+          error={fieldErrors.email}
+          ref={emailRef}
           icon={<Mail size={20} color={colors.textSecondary} />}
           style={{ marginBottom: spacing.lg }}
         />
@@ -174,9 +199,18 @@ export default function RegisterScreen() {
           onChangeText={(text) => {
             setPhone(text);
             setLocalError('');
+            setFieldErrors((current) => ({
+              ...current,
+              phone: text.trim().length >= 9 ? undefined : current.phone,
+            }));
           }}
           keyboardType="phone-pad"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => passwordRef.current?.focus()}
           disabled={isLoading}
+          error={fieldErrors.phone}
+          ref={phoneRef}
           icon={<Phone size={20} color={colors.textSecondary} />}
           style={{ marginBottom: spacing.lg }}
         />
@@ -188,9 +222,23 @@ export default function RegisterScreen() {
           onChangeText={(text) => {
             setPassword(text);
             setLocalError('');
+            setFieldErrors((current) => ({
+              ...current,
+              password: validatePassword(text) ? current.password : undefined,
+              confirmPassword: confirmPassword && text === confirmPassword ? undefined : current.confirmPassword,
+            }));
           }}
           secureTextEntry={!showPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="new-password"
+          textContentType="newPassword"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => confirmPasswordRef.current?.focus()}
           disabled={isLoading}
+          error={fieldErrors.password}
+          ref={passwordRef}
           icon={<Lock size={20} color={colors.textSecondary} />}
           rightIcon={
             <TouchableOpacity onPress={() => setShowPassword((value) => !value)} disabled={isLoading}>
@@ -201,8 +249,12 @@ export default function RegisterScreen() {
               )}
             </TouchableOpacity>
           }
-          style={{ marginBottom: spacing.lg }}
+          style={{ marginBottom: spacing.sm }}
         />
+
+        <View style={{ marginBottom: spacing.lg }}>
+          <PasswordRequirementCard password={password} />
+        </View>
 
         <TextInput
           label="Xác nhận mật khẩu"
@@ -211,9 +263,22 @@ export default function RegisterScreen() {
           onChangeText={(text) => {
             setConfirmPassword(text);
             setLocalError('');
+            setFieldErrors((current) => ({
+              ...current,
+              confirmPassword: text && text === password ? undefined : current.confirmPassword,
+            }));
           }}
           secureTextEntry={!showConfirmPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          textContentType="none"
+          returnKeyType="done"
+          onSubmitEditing={handleRegister}
+          contextMenuHidden
           disabled={isLoading}
+          error={fieldErrors.confirmPassword}
+          ref={confirmPasswordRef}
           icon={<Lock size={20} color={colors.textSecondary} />}
           rightIcon={
             <TouchableOpacity onPress={() => setShowConfirmPassword((value) => !value)} disabled={isLoading}>

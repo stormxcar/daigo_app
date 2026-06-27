@@ -1,6 +1,7 @@
 import { Booking, Payment, User } from '@/types';
 import { supabase } from './supabase';
 import { createTransferContent, generateVietQRUrl } from './vietqrService';
+import { BOOKING_STATUS } from '@/constants';
 
 type PaymentRow = {
   id: string;
@@ -58,6 +59,13 @@ const mapPayment = (row: PaymentRow): Payment => ({
 });
 
 const PAYMENT_EXPIRY_MINUTES = 15;
+const NON_PAYABLE_BOOKING_STATUSES = [
+  BOOKING_STATUS.CUSTOMER_CANCELLED,
+  BOOKING_STATUS.DRIVER_CANCELLED,
+  BOOKING_STATUS.EXPIRED,
+  BOOKING_STATUS.SCHEDULED_CANCELLED,
+  BOOKING_STATUS.SCHEDULED_DRIVER_REJECTED,
+] as const;
 
 function getPaymentExpiresAt(method: Payment['paymentMethod']) {
   if (method === 'cash') return null;
@@ -140,6 +148,9 @@ class PaymentService {
     }
     if (!booking.driverId) {
       throw new Error('Chuyến đi chưa có tài xế nhận nên chưa thể tạo VietQR.');
+    }
+    if (NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any)) {
+      throw new Error('Chuyến đi này đã hủy hoặc hết hạn nên không phát sinh thanh toán.');
     }
 
     const existing = await this.getPaymentByBooking(booking.id);

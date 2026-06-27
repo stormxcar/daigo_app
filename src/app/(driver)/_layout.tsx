@@ -21,12 +21,14 @@ export default function DriverLayout() {
   const missingVerificationCount = user
     ? [!user.emailVerified, !user.phoneVerified].filter(Boolean).length
     : 0;
-  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'payment-review', 'blog-detail', 'revenue'];
+  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'payment-review', 'blog-detail', 'revenue', 'vehicle-detail', 'schedule'];
   const backHrefByRoute: Partial<Record<string, Href>> = {
     notifications: '/(driver)/dashboard',
     'chat-detail': '/(driver)/chat',
     'booking-detail': '/(driver)/bookings',
+    schedule: '/(driver)/bookings',
     'blog-detail': '/(driver)/blog',
+    'vehicle-detail': '/(driver)/vehicles',
     revenue: '/(driver)/profile',
   };
   const getBackHref = (route: { name: string; params?: Record<string, any> }): Href | undefined => {
@@ -165,6 +167,13 @@ export default function DriverLayout() {
         }}
       />
       <Tabs.Screen
+        name="vehicle-detail"
+        options={{
+          href: null,
+          title: 'Chi tiết xe',
+        }}
+      />
+      <Tabs.Screen
         name="notifications"
         options={{
           href: null,
@@ -183,6 +192,13 @@ export default function DriverLayout() {
         options={{
           href: null,
           title: 'Chi tiết chuyến đi',
+        }}
+      />
+      <Tabs.Screen
+        name="schedule"
+        options={{
+          href: null,
+          title: 'Quản lý lịch',
         }}
       />
       <Tabs.Screen

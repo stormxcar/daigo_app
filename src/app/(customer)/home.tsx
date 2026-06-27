@@ -51,7 +51,7 @@ import {
   DeviceLocation,
   getCurrentDeviceLocation,
 } from "@/services/deviceLocation";
-import { ACTIVE_BOOKING_STATUSES } from "@/constants";
+import { VISIBLE_ACTIVE_BOOKING_STATUSES } from "@/constants";
 
 import { BlogPost, Vehicle } from "@/types";
 import { DAIGO_LOGO_URL } from "@/constants/branding";
@@ -642,7 +642,7 @@ export default function HomeScreen() {
   const recentTrips = isLoggedIn ? bookings.slice(0, 6) : [];
   const activeTrip = isLoggedIn
     ? bookings.find((booking) =>
-        ACTIVE_BOOKING_STATUSES.includes(booking.status as any),
+        VISIBLE_ACTIVE_BOOKING_STATUSES.includes(booking.status as any),
       )
     : null;
 
