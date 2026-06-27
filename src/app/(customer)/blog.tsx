@@ -57,7 +57,7 @@ function BlogPostSkeleton() {
 export default function BlogScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { user } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -110,7 +110,7 @@ export default function BlogScreen() {
   };
 
   const requireAuth = (action: string) => {
-    if (user) return true;
+    if (isAuthenticated && user) return true;
     showWarning("Bạn cần đăng nhập", `Vui lòng đăng nhập để ${action}.`);
     router.push("/(auth)/login");
     return false;

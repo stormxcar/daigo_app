@@ -18,7 +18,7 @@ export default function BlogDetailScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { user } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const [post, setPost] = useState<BlogPost | null>(null);
   const [comments, setComments] = useState<BlogComment[]>([]);
   const [commentText, setCommentText] = useState('');
@@ -48,7 +48,7 @@ export default function BlogDetailScreen() {
   }, [loadPost]);
 
   const requireAuth = (action: string) => {
-    if (user) return true;
+    if (isAuthenticated && user) return true;
     showWarning('Bạn cần đăng nhập', `Vui lòng đăng nhập để ${action}.`);
     router.push('/(auth)/login');
     return false;

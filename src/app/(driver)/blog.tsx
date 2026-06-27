@@ -29,6 +29,16 @@ const BLOG_SORTS = [
 ];
 
 const BLOG_PAGE_SIZE = 8;
+const BLOG_CAPTION_MAX_LENGTH = 1200;
+const BLOG_MAX_MEDIA = 10;
+const BLOG_MAX_VIDEOS = 2;
+const BLOG_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const BLOG_MAX_VIDEO_BYTES = 80 * 1024 * 1024;
+
+type BlogFormErrors = {
+  caption?: string;
+  media?: string;
+};
 
 function DriverBlogSkeleton() {
   return (
@@ -76,6 +86,7 @@ export default function DriverBlog() {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [activeSort, setActiveSort] = useState('newest');
+  const [formErrors, setFormErrors] = useState<BlogFormErrors>({});
 
   const loadPosts = useCallback(async () => {
     if (!user) return;
@@ -134,6 +145,7 @@ export default function DriverBlog() {
     setCaption('');
     setMediaUrls([]);
     setMediaTypes([]);
+    setFormErrors({});
     setEditingId(null);
     setMenuPostId(null);
     setShowForm(false);
@@ -143,6 +155,7 @@ export default function DriverBlog() {
     setCaption('');
     setMediaUrls([]);
     setMediaTypes([]);
+    setFormErrors({});
     setEditingId(null);
     setMenuPostId(null);
     setShowForm(true);
@@ -170,6 +183,32 @@ export default function DriverBlog() {
       quality: 0.85,
     });
     if (result.canceled || result.assets.length === 0) return;
+    if (mediaUrls.length + result.assets.length > BLOG_MAX_MEDIA) {
+      showWarning('Quá số lượng media', `Mỗi bài viết chỉ nên có tối đa ${BLOG_MAX_MEDIA} ảnh/video.`);
+      return;
+    }
+
+    const totalVideoCount =
+      mediaTypes.filter((type) => type === 'video').length +
+      result.assets.filter((asset) => asset.type === 'video').length;
+    if (totalVideoCount > BLOG_MAX_VIDEOS) {
+      showWarning('Quá số lượng video', `Mỗi bài viết chỉ nên có tối đa ${BLOG_MAX_VIDEOS} video để tải ổn định.`);
+      return;
+    }
+
+    const oversizedAsset = result.assets.find((asset) => {
+      const size = asset.fileSize ?? 0;
+      return asset.type === 'video' ? size > BLOG_MAX_VIDEO_BYTES : size > BLOG_MAX_IMAGE_BYTES;
+    });
+    if (oversizedAsset) {
+      showWarning(
+        'Tệp quá lớn',
+        oversizedAsset.type === 'video'
+          ? 'Vui lòng chọn video dưới 80MB.'
+          : 'Vui lòng chọn ảnh dưới 8MB.',
+      );
+      return;
+    }
 
     try {
       setSaving(true);
@@ -200,6 +239,7 @@ export default function DriverBlog() {
 
       setMediaUrls((current) => [...current, ...uploadedItems.map((item) => item.url)]);
       setMediaTypes((current) => [...current, ...uploadedItems.map((item) => item.type)]);
+      setFormErrors((current) => ({ ...current, media: undefined }));
       showSuccess('Đã upload media', `${uploadedItems.length} tệp đã được thêm vào bài viết.`);
     } catch (error: any) {
       showError('Không thể upload media', error.message);
@@ -209,10 +249,36 @@ export default function DriverBlog() {
     }
   };
 
+  const validatePost = () => {
+    const errors: BlogFormErrors = {};
+    const cleanCaption = caption.trim();
+    const videoCount = mediaTypes.filter((type) => type === 'video').length;
+
+    if (!cleanCaption && mediaUrls.length === 0) {
+      errors.caption = 'Vui lòng nhập nội dung hoặc upload media.';
+    } else if (cleanCaption.length > BLOG_CAPTION_MAX_LENGTH) {
+      errors.caption = `Nội dung tối đa ${BLOG_CAPTION_MAX_LENGTH} ký tự.`;
+    }
+    if (mediaUrls.length !== mediaTypes.length) {
+      errors.media = 'Danh sách media chưa đồng bộ, vui lòng xóa và upload lại.';
+    } else if (mediaUrls.length > BLOG_MAX_MEDIA) {
+      errors.media = `Mỗi bài viết tối đa ${BLOG_MAX_MEDIA} ảnh/video.`;
+    } else if (videoCount > BLOG_MAX_VIDEOS) {
+      errors.media = `Mỗi bài viết tối đa ${BLOG_MAX_VIDEOS} video.`;
+    } else if (mediaUrls.some((url) => !/^https?:\/\//i.test(url))) {
+      errors.media = 'Media chưa có URL hợp lệ.';
+    }
+
+    setFormErrors(errors);
+    return errors;
+  };
+
   const savePost = async () => {
     if (!user) return;
-    if (!caption.trim() && mediaUrls.length === 0) {
-      showError('Bài viết chưa hợp lệ', 'Vui lòng nhập nội dung hoặc upload media.');
+    const errors = validatePost();
+    const firstError = Object.values(errors).find(Boolean);
+    if (firstError) {
+      showError('Bài viết chưa hợp lệ', firstError);
       return;
     }
 
@@ -244,11 +310,14 @@ export default function DriverBlog() {
     setCaption(post.caption);
     setMediaUrls(post.mediaUrls);
     setMediaTypes(post.mediaTypes);
+    setFormErrors({});
     setMenuPostId(null);
     setShowForm(true);
   };
 
   const deletePost = (post: BlogPost) => {
+    if (!user) return;
+    const driverId = user.id;
     Alert.alert('Xóa bài viết', 'Bạn muốn xóa bài viết này?', [
       { text: 'Hủy', style: 'cancel' },
       {
@@ -257,7 +326,7 @@ export default function DriverBlog() {
         onPress: async () => {
           try {
             setSaving(true);
-            await apiClient.deleteBlogPost(post.id);
+            await apiClient.deleteBlogPost(post.id, driverId);
             await loadPosts();
             showSuccess('Đã xóa bài viết', 'Bài viết đã được xóa khỏi database.');
           } catch (error: any) {
@@ -318,11 +387,15 @@ export default function DriverBlog() {
           </Text>
           <TextInput
             value={caption}
-            onChangeText={setCaption}
+            onChangeText={(value) => {
+              setCaption(value);
+              setFormErrors((current) => ({ ...current, caption: undefined }));
+            }}
             placeholder="Bạn muốn chia sẻ điều gì với khách hàng?"
             multiline
             numberOfLines={4}
             disabled={saving}
+            error={formErrors.caption}
             style={{ marginBottom: spacing.md }}
           />
           <TouchableOpacity
@@ -346,6 +419,11 @@ export default function DriverBlog() {
                 {uploadProgress.label} - {uploadProgress.percent}%
               </Text>
             </View>
+          )}
+          {!!formErrors.media && (
+            <Text style={{ color: colors.error, fontSize: fontSize.xs, marginBottom: spacing.md }}>
+              {formErrors.media}
+            </Text>
           )}
           {mediaUrls.length > 0 && (
             <View style={{ marginBottom: spacing.md, gap: spacing.sm }}>

@@ -10,7 +10,7 @@ import { PasswordRequirementCard } from '@/components/PasswordRequirementCard';
 import { OtpCodeInput } from '@/components/OtpCodeInput';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
-import { isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
+import { getEmailValidationError, isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
 import { showError, showSuccess } from '@/utils/toast';
 
 type ResetStep = 'email' | 'otp' | 'password';
@@ -39,16 +39,11 @@ export default function ForgotPasswordScreen() {
 
   const handleSendOtp = async () => {
     const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      setFieldErrors((current) => ({ ...current, email: 'Vui lòng nhập email để đặt lại mật khẩu.' }));
+    const emailError = getEmailValidationError(normalizedEmail);
+    if (emailError) {
+      setFieldErrors((current) => ({ ...current, email: emailError }));
       emailRef.current?.focus();
-      showLocalError('Thiếu email', 'Vui lòng nhập email để đặt lại mật khẩu.');
-      return;
-    }
-    if (!isValidEmail(normalizedEmail)) {
-      setFieldErrors((current) => ({ ...current, email: 'Email không đúng định dạng.' }));
-      emailRef.current?.focus();
-      showLocalError('Email không hợp lệ', 'Email không đúng định dạng.');
+      showLocalError('Email không hợp lệ', emailError);
       return;
     }
 

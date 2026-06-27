@@ -76,6 +76,16 @@ type ProfileSettingsRow = {
   updated_at: string;
 };
 
+const createDefaultProfileSettings = (userId: string): ProfileSettings => ({
+  userId,
+  pushEnabled: true,
+  smsEnabled: true,
+  locationSharingEnabled: true,
+  hasSeenAppTour: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+});
+
 type SupabaseResult<T> = {
   data: T | null;
   error: any;
@@ -179,6 +189,34 @@ const mapBooking = (row: any): Booking => {
     cancelReason: row.cancel_reason ?? undefined,
   } as Booking;
 };
+
+const getMessageText = (message: any) => {
+  if (message?.is_deleted) return 'Tin nhắn đã được thu hồi';
+  if (message?.text) return message.text;
+  if (message?.media_type === 'video') return 'Video';
+  if (message?.media_type === 'image') return 'Ảnh';
+  return '';
+};
+
+const mapMessage = (message: any, currentUserId: string): Message => ({
+  id: message.id,
+  sender: message.sender_id === currentUserId ? 'user' as const : 'driver' as const,
+  senderName: message.profiles?.full_name ?? 'Người dùng',
+  text: getMessageText(message),
+  messageKind: message.message_kind ?? (message.media_url ? 'media' : 'text'),
+  mediaUrl: message.is_deleted ? undefined : message.media_url ?? undefined,
+  mediaType: message.is_deleted ? undefined : message.media_type ?? undefined,
+  replyToMessageId: message.reply_to_message_id ?? undefined,
+  replyToText: message.reply ? getMessageText(message.reply) : undefined,
+  replyToSenderName: message.reply?.profiles?.full_name ?? undefined,
+  isDeleted: !!message.is_deleted,
+  deletedBy: message.deleted_by ?? undefined,
+  callSessionId: message.call_session_id ?? undefined,
+  callStatus: message.call_status ?? undefined,
+  callDurationSeconds: message.call_duration_seconds ?? undefined,
+  timestamp: message.created_at,
+  read: message.read,
+});
 
 const mapBlogPost = (row: any): BlogPost => ({
   id: row.id,
@@ -692,6 +730,11 @@ class ApiClient {
   }
 
   async getProfileSettings(userId: string): Promise<ProfileSettings> {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session || sessionData.session.user.id !== userId) {
+      return createDefaultProfileSettings(userId);
+    }
+
     const data = await this.runQuery<any>(() =>
       supabase
         .from('profile_settings')
@@ -713,6 +756,11 @@ class ApiClient {
   }
 
   async updateProfileSettings(userId: string, data: Partial<ProfileSettings>): Promise<ProfileSettings> {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session || sessionData.session.user.id !== userId) {
+      throw new Error('Bạn cần đăng nhập để cập nhật cài đặt hồ sơ.');
+    }
+
     const updated = await this.runQuery<any>(() =>
       supabase
         .from('profile_settings')
@@ -918,7 +966,7 @@ class ApiClient {
   }
 
   async updateVehicle(id: string, data: Partial<Vehicle>): Promise<Vehicle> {
-    const { data: updated, error } = await supabase
+    let query = supabase
       .from('vehicles')
       .update({
         name: data.name,
@@ -933,16 +981,19 @@ class ApiClient {
         image_urls: data.imageUrls,
         description: data.description,
       })
-      .eq('id', id)
-      .select('*')
-      .single();
+      .eq('id', id);
+    if (data.driverId) query = query.eq('driver_id', data.driverId);
+
+    const { data: updated, error } = await query.select('*').single();
     if (error) throw error;
     this.invalidateCache('vehicles:');
     return mapVehicle(updated as VehicleRow);
   }
 
-  async deleteVehicle(id: string): Promise<void> {
-    const { error } = await supabase.from('vehicles').delete().eq('id', id);
+  async deleteVehicle(id: string, driverId?: string): Promise<void> {
+    let query = supabase.from('vehicles').delete().eq('id', id);
+    if (driverId) query = query.eq('driver_id', driverId);
+    const { error } = await query;
     if (error) throw error;
     this.invalidateCache('vehicles:');
   }
@@ -1510,6 +1561,18 @@ class ApiClient {
   }
 
   async createNotification(data: Omit<NotificationItem, 'id'> & { id?: string }): Promise<NotificationItem> {
+    const { data: rpcInserted, error: rpcError } = await supabase.rpc('create_app_notification', {
+      p_user_id: data.userId,
+      p_title: data.title,
+      p_content: data.content,
+      p_type: data.type,
+      p_related_booking_id: data.relatedBookingId ?? null,
+      p_related_post_id: data.relatedPostId ?? null,
+    });
+    if (!rpcError && rpcInserted) {
+      return this.mapNotification(Array.isArray(rpcInserted) ? rpcInserted[0] : rpcInserted);
+    }
+
     const { data: inserted, error } = await supabase
       .from('notifications')
       .insert({
@@ -1630,23 +1693,26 @@ class ApiClient {
   }
 
   async updateBlogPost(id: string, data: Partial<BlogPost>): Promise<BlogPost> {
-    const { data: updated, error } = await supabase
+    let query = supabase
       .from('blog_posts')
       .update({
         caption: data.caption,
         media_urls: data.mediaUrls,
         media_types: data.mediaTypes,
       })
-      .eq('id', id)
-      .select('*, profiles!blog_posts_driver_id_fkey(full_name, avatar_url)')
-      .single();
+      .eq('id', id);
+    if (data.driverId) query = query.eq('driver_id', data.driverId);
+
+    const { data: updated, error } = await query.select('*, profiles!blog_posts_driver_id_fkey(full_name, avatar_url)').single();
     if (error) throw error;
     this.invalidateCache('blog:');
     return mapBlogPost(updated);
   }
 
-  async deleteBlogPost(id: string): Promise<void> {
-    const { error } = await supabase.from('blog_posts').delete().eq('id', id);
+  async deleteBlogPost(id: string, driverId?: string): Promise<void> {
+    let query = supabase.from('blog_posts').delete().eq('id', id);
+    if (driverId) query = query.eq('driver_id', driverId);
+    const { error } = await query;
     if (error) throw error;
     this.invalidateCache('blog:');
   }
@@ -1765,7 +1831,7 @@ class ApiClient {
     const [{ data, error }, { data: hiddenData, error: hiddenError }] = await Promise.all([
       supabase
       .from('conversations')
-      .select('*, customer:profiles!conversations_customer_id_fkey(*), driver:profiles!conversations_driver_id_fkey(*), messages(*, profiles!messages_sender_id_fkey(full_name, role), reply:messages!reply_to_message_id(text, sender_id, profiles!messages_sender_id_fkey(full_name)))')
+      .select('*, customer:profiles!conversations_customer_id_fkey(*), driver:profiles!conversations_driver_id_fkey(*), messages(*, profiles!messages_sender_id_fkey(full_name, role), reply:messages!reply_to_message_id(text, sender_id, is_deleted, media_type, media_url, message_kind, profiles!messages_sender_id_fkey(full_name)))')
       .or(`customer_id.eq.${userId},driver_id.eq.${userId}`)
         .order('updated_at', { ascending: false }),
       supabase
@@ -1783,19 +1849,7 @@ class ApiClient {
       const messages = [...(row.messages ?? [])].sort(
         (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
-      const mappedMessages: Message[] = messages.map((message: any) => ({
-        id: message.id,
-        sender: message.sender_id === userId ? 'user' as const : 'driver' as const,
-        senderName: message.profiles?.full_name ?? 'Người dùng',
-        text: message.text,
-        mediaUrl: message.media_url ?? undefined,
-        mediaType: message.media_type ?? undefined,
-        replyToMessageId: message.reply_to_message_id ?? undefined,
-        replyToText: message.reply?.text ?? undefined,
-        replyToSenderName: message.reply?.profiles?.full_name ?? undefined,
-        timestamp: message.created_at,
-        read: message.read,
-      }));
+      const mappedMessages: Message[] = messages.map((message: any) => mapMessage(message, userId));
       const lastMessage = mappedMessages[mappedMessages.length - 1];
 
       return {
@@ -1876,6 +1930,62 @@ class ApiClient {
     });
   }
 
+  async getConversationDetail(conversationId: string, userId: string): Promise<ChatConversation> {
+    const { data: baseConversation, error } = await supabase
+      .from('conversations')
+      .select('*, customer:profiles!conversations_customer_id_fkey(*), driver:profiles!conversations_driver_id_fkey(*)')
+      .eq('id', conversationId)
+      .single();
+    if (error) throw error;
+
+    const baseRow: any = baseConversation;
+    if (baseRow.customer_id !== userId && baseRow.driver_id !== userId) {
+      throw new Error('Bạn không có quyền xem cuộc trò chuyện này.');
+    }
+
+    const { data: rows, error: listError } = await supabase
+      .from('conversations')
+      .select('*, customer:profiles!conversations_customer_id_fkey(*), driver:profiles!conversations_driver_id_fkey(*), messages(*, profiles!messages_sender_id_fkey(full_name, role), reply:messages!reply_to_message_id(text, sender_id, is_deleted, media_type, media_url, message_kind, profiles!messages_sender_id_fkey(full_name)))')
+      .eq('customer_id', baseRow.customer_id)
+      .eq('driver_id', baseRow.driver_id)
+      .order('updated_at', { ascending: false });
+    if (listError) throw listError;
+
+    const visibleRows = rows?.length ? rows : [baseRow];
+    const participant = baseRow.customer_id === userId ? baseRow.driver : baseRow.customer;
+    const messages = visibleRows.flatMap((row: any) => row.messages ?? []).sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    const mappedMessages = messages.map((message: any) => mapMessage(message, userId));
+    const messageLookup = new Map(mappedMessages.map((message) => [message.id, message]));
+    const messagesWithReplies = mappedMessages.map((message) => {
+      if (!message.replyToMessageId || message.replyToText) return message;
+      const original = messageLookup.get(message.replyToMessageId);
+      if (!original) return message;
+      return {
+        ...message,
+        replyToText: original.isDeleted ? 'Tin nhắn đã được thu hồi' : original.text || (original.mediaType === 'video' ? 'Video' : original.mediaType === 'image' ? 'Ảnh' : undefined),
+        replyToSenderName: original.senderName,
+      };
+    });
+    const lastMessage = messagesWithReplies[messagesWithReplies.length - 1];
+
+    return {
+      id: baseRow.id,
+      bookingId: baseRow.booking_id ?? undefined,
+      threadIds: visibleRows.map((row: any) => row.id),
+      participantId: participant?.id ?? '',
+      participantName: participant?.full_name ?? 'Người dùng',
+      participantPhone: participant?.phone ?? undefined,
+      participantAvatar: participant?.avatar_url ?? undefined,
+      lastMessage: lastMessage?.text ?? 'Chưa có tin nhắn',
+      lastMessageTime: lastMessage?.timestamp ? new Date(lastMessage.timestamp).toLocaleString('vi-VN') : '',
+      unreadCount: messages.filter((message: any) => !message.read && message.sender_id !== userId).length,
+      messages: messagesWithReplies,
+      isSummary: false,
+    };
+  }
+
   async hideConversations(userId: string, conversationIds: string[]): Promise<void> {
     const uniqueIds = Array.from(new Set(conversationIds.filter(Boolean)));
     if (uniqueIds.length === 0) return;
@@ -1908,9 +2018,10 @@ class ApiClient {
         text: message,
         media_url: media?.url,
         media_type: media?.type,
+        message_kind: media ? 'media' : 'text',
         reply_to_message_id: replyToMessageId,
       })
-      .select('*, profiles!messages_sender_id_fkey(full_name, role), reply:messages!reply_to_message_id(text, sender_id, profiles!messages_sender_id_fkey(full_name))')
+      .select('*, profiles!messages_sender_id_fkey(full_name, role), reply:messages!reply_to_message_id(text, sender_id, is_deleted, media_type, media_url, message_kind, profiles!messages_sender_id_fkey(full_name))')
       .single();
     if (error) throw error;
 
@@ -1938,27 +2049,20 @@ class ApiClient {
       });
     }
 
-    return {
-      id: data.id,
-      sender: 'user',
-      senderName: data.profiles?.full_name ?? 'Bạn',
-      text: data.text,
-      mediaUrl: data.media_url ?? undefined,
-      mediaType: data.media_type ?? undefined,
-      replyToMessageId: data.reply_to_message_id ?? undefined,
-      replyToText: data.reply?.text ?? undefined,
-      replyToSenderName: data.reply?.profiles?.full_name ?? undefined,
-      timestamp: data.created_at,
-      read: data.read,
-    };
+    return mapMessage(data, senderId);
   }
 
   async deleteMessage(messageId: string, senderId: string): Promise<void> {
     const { error } = await supabase
       .from('messages')
-      .delete()
+      .update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        deleted_by: senderId,
+      })
       .eq('id', messageId)
-      .eq('sender_id', senderId);
+      .eq('sender_id', senderId)
+      .eq('is_deleted', false);
     if (error) throw error;
   }
 

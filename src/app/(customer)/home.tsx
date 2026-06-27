@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import {
   CalendarClock,
   Car,
@@ -444,6 +444,7 @@ function HomeVehicleSkeleton() {
 
 export default function HomeScreen() {
   const { colors } = useTheme();
+  const pathname = usePathname();
   const { user } = useAuth();
   const { vehicles, fetchVehicles, isLoading } = useVehicles();
   const { bookings, fetchBookings } = useBooking();
@@ -479,7 +480,8 @@ export default function HomeScreen() {
   }, [loadHomeData]);
 
   useEffect(() => {
-    if (!user?.id) {
+    const isCustomerHome = pathname.includes('/(customer)/home') || pathname.endsWith('/home');
+    if (!user?.id || !isCustomerHome) {
       setTourPromptVisible(false);
       setTourVisible(false);
       return;
@@ -490,7 +492,7 @@ export default function HomeScreen() {
         if (!settings.hasSeenAppTour) setTourPromptVisible(true);
       })
       .catch(() => undefined);
-  }, [user?.id]);
+  }, [pathname, user?.id]);
 
   const refreshHome = async () => {
     setRefreshing(true);

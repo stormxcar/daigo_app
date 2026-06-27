@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/theme";
 import { spacing, borderRadius, fontSize } from "@/theme/tokens";
 import { Screen } from "@/components/ScreenComponents";
@@ -24,7 +24,7 @@ import {
   RotateCcw,
   Square,
 } from "lucide-react-native";
-import { isValidEmail, toVietnameseAuthError } from "@/utils/authValidation";
+import { getEmailValidationError, isValidEmail, toVietnameseAuthError } from "@/utils/authValidation";
 import { DAIGO_LOGO_URL, APP_TAGLINE } from "@/constants/branding";
 import { getAuthRedirectUri } from "@/utils/authRedirect";
 import { showError as showErrorToast, showSuccess } from "@/utils/toast";
@@ -34,7 +34,9 @@ const REMEMBER_PASSWORD_KEY = "booking_daigo_remember_password";
 
 export default function LoginScreen() {
   const { colors } = useTheme();
+  const params = useLocalSearchParams<{ next?: string }>();
   const { login, loginWithGoogle, isLoading, error } = useAuth();
+  const nextRoute = params.next === "driver-onboarding" ? "/(auth)/driver-register" : undefined;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -75,9 +77,8 @@ export default function LoginScreen() {
   const validateLogin = () => {
     const nextErrors: typeof fieldErrors = {};
     const normalizedEmail = email.trim();
-    if (!normalizedEmail) nextErrors.email = "Vui lòng nhập email.";
-    else if (!isValidEmail(normalizedEmail))
-      nextErrors.email = "Email không đúng định dạng.";
+    const emailError = getEmailValidationError(normalizedEmail);
+    if (emailError) nextErrors.email = emailError;
     if (!password) nextErrors.password = "Vui lòng nhập mật khẩu.";
     setFieldErrors(nextErrors);
     setLocalError("");
@@ -99,9 +100,10 @@ export default function LoginScreen() {
         await SecureStore.deleteItemAsync(REMEMBER_PASSWORD_KEY);
       }
       router.replace(
-        response.user.role === "customer"
-          ? "/(customer)/home"
-          : "/(driver)/dashboard",
+        (nextRoute ??
+          (response.user.role === "customer"
+            ? "/(customer)/home"
+            : "/(driver)/dashboard")) as any,
       );
       showSuccess(
         "Đăng nhập thành công",
@@ -119,9 +121,10 @@ export default function LoginScreen() {
       setLocalError("");
       const response = await loginWithGoogle(getAuthRedirectUri());
       router.replace(
-        response.user.role === "customer"
-          ? "/(customer)/home"
-          : "/(driver)/dashboard",
+        (nextRoute ??
+          (response.user.role === "customer"
+            ? "/(customer)/home"
+            : "/(driver)/dashboard")) as any,
       );
       showSuccess(
         "Đăng nhập Google thành công",
@@ -457,7 +460,12 @@ export default function LoginScreen() {
           Chưa có tài khoản?
         </Text>
         <TouchableOpacity
-          onPress={() => router.push("/(auth)/register")}
+          onPress={() =>
+            router.push({
+              pathname: "/(auth)/register" as any,
+              params: nextRoute ? { next: "driver-onboarding" } : undefined,
+            })
+          }
           disabled={isLoading}
         >
           <Text

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Text } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { apiClient } from '@/services/api';
@@ -8,25 +8,24 @@ import { Screen } from '@/components/ScreenComponents';
 import { useTheme } from '@/theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
+import { ChatConversation } from '@/types';
 
 export default function DriverChatDetail() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { user } = useAuthStore();
-  const { conversations, setConversations, addMessage, removeMessage, markConversationAsRead } = useChatStore();
+  const { addMessage, markConversationAsRead } = useChatStore();
+  const [conversation, setConversation] = useState<ChatConversation | null>(null);
   const [loading, setLoading] = useState(true);
   const channelInstanceId = useRef(Math.random().toString(36).slice(2)).current;
-  const conversation = useMemo(
-    () => conversations.find((item) => item.id === id && !item.isSummary),
-    [conversations, id],
-  );
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!user) return;
-    const latest = await apiClient.getConversations(user.id);
-    setConversations(latest);
+    if (!user || !id) return;
+    const latest = await apiClient.getConversationDetail(id, user.id);
+    setConversation(latest);
     setLoading(false);
-  }, [setConversations, user]);
+  }, [id, user]);
 
   useEffect(() => {
     refresh().catch(() => setLoading(false));
@@ -41,19 +40,32 @@ export default function DriverChatDetail() {
   useEffect(() => {
     if (!id) return;
     let active = true;
+    const scheduleRefresh = () => {
+      if (!active || !user) return;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        apiClient
+          .markConversationThreadMessagesAsRead(id, user.id)
+          .then(refresh)
+          .catch(() => refresh().catch(() => undefined));
+      }, 180);
+    };
 
     const channel = supabase
       .channel(`driver-chat-detail-${id}-${channelInstanceId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
-        if (active) refresh().catch(() => undefined);
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
+        scheduleRefresh
+      )
       .subscribe();
 
     return () => {
       active = false;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       supabase.removeChannel(channel);
     };
-  }, [id, refresh, channelInstanceId]);
+  }, [id, refresh, channelInstanceId, user]);
 
   if (!user || loading || !conversation) {
     return (
@@ -70,9 +82,16 @@ export default function DriverChatDetail() {
       conversation={conversation}
       user={user}
       roleLabel="Khách hàng"
-      onMessageSent={(message) => addMessage(conversation.id, message)}
+      onMessageSent={(message) => {
+        addMessage(conversation.id, message);
+        setConversation((current) =>
+          current?.id === conversation.id
+            ? { ...current, messages: [...current.messages, message], lastMessage: message.text, lastMessageTime: message.timestamp }
+            : current
+        );
+      }}
       onMessageDeleted={(messageId) => {
-        removeMessage(conversation.id, messageId);
+        void messageId;
         refresh().catch(() => undefined);
       }}
     />

@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { BadgeCheck, Camera, Car, FileText, Smartphone, User } from 'lucide-react-native';
 import { Button, TextInput } from '@/components/BaseComponents';
-import { AuthRequired } from '@/components/AuthRequired';
 import { OtpCodeInput } from '@/components/OtpCodeInput';
 import { Screen } from '@/components/ScreenComponents';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,7 +18,7 @@ type DriverStep = 'phone' | 'otp' | 'basic' | 'docs';
 
 export default function DriverRegisterScreen() {
   const { colors } = useTheme();
-  const { sendPhoneOtp, verifyPhoneOtp, startDriverOnboarding, isLoading, user } = useAuth();
+  const { sendPhoneOtp, verifyPhoneOtp, startDriverOnboarding, isLoading, isAuthenticated, isSessionRestored, user } = useAuth();
 
   const [step, setStep] = useState<DriverStep>(user?.phoneVerified ? 'basic' : 'phone');
   const [phone, setPhone] = useState(user?.phone ?? '');
@@ -57,6 +56,15 @@ export default function DriverRegisterScreen() {
     }, 1000);
     return () => clearInterval(timer);
   }, [countdown]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    setStep(user.phoneVerified ? 'basic' : 'phone');
+    setPhone(user.phone ?? '');
+    setFullName(user.fullName ?? '');
+    setEmail(user.email ?? '');
+    setAvatarUrl(user.avatarUrl ?? '');
+  }, [isAuthenticated, user?.id]);
 
   const setError = (message: string) => {
     setLocalError(message);
@@ -191,14 +199,64 @@ export default function DriverRegisterScreen() {
     docs: 'Giấy tờ tài xế',
   }[step];
 
-  if ((firebasePhoneAuthEnabled || testOtpEnabled) && !user) {
+  if (!isSessionRestored) {
     return (
-      <AuthRequired
-        title="Đăng nhập trước"
-        description="Tài xế hãy đăng nhập/đăng ký bằng Email hoặc Google trước. Firebase chỉ dùng để xác minh SĐT và lưu trạng thái vào Supabase."
-        actionLabel="Đăng nhập"
-        onActionPress={() => router.replace('/(auth)/login')}
-      />
+      <Screen padding>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md }}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={{ color: colors.textSecondary }}>Đang kiểm tra phiên đăng nhập...</Text>
+        </View>
+      </Screen>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return (
+      <Screen padding>
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <View style={{ alignItems: 'center', marginBottom: spacing.xl }}>
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: colors.surfaceAlt,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: spacing.md,
+              }}
+            >
+              <Car size={32} color={colors.primary} />
+            </View>
+            <Text style={{ color: colors.text, fontSize: 24, fontWeight: '900', textAlign: 'center' }}>
+              Đăng ký làm tài xế
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, lineHeight: 21, textAlign: 'center', marginTop: spacing.sm }}>
+              Bước 1 là tạo hoặc đăng nhập tài khoản Daigo. Sau khi email được xác thực, app sẽ tự đưa bạn sang hồ sơ tài xế.
+            </Text>
+          </View>
+          <Button
+            label="Tạo tài khoản tài xế"
+            onPress={() =>
+              router.replace({
+                pathname: '/(auth)/register' as any,
+                params: { next: 'driver-onboarding' },
+              })
+            }
+            style={{ marginBottom: spacing.md }}
+          />
+          <Button
+            label="Tôi đã có tài khoản"
+            variant="outline"
+            onPress={() =>
+              router.replace({
+                pathname: '/(auth)/login' as any,
+                params: { next: 'driver-onboarding' },
+              })
+            }
+          />
+        </View>
+      </Screen>
     );
   }
 
@@ -235,7 +293,7 @@ export default function DriverRegisterScreen() {
                     ? 'Luồng tài xế dùng Firebase OTP để xác minh SĐT, Supabase vẫn quản lý tài khoản chính.'
                     : testOtpEnabled
                     ? `Luồng tài xế đang dùng OTP test ${TEST_PHONE_OTP}, không gửi SMS thật.`
-                    : 'Luồng tài xế tách riêng, xác minh OTP trước khi tạo hồ sơ.'}
+                    : 'Bạn đang nâng cấp tài khoản hiện tại thành tài xế Daigo, không cần đăng xuất hay tạo tài khoản mới.'}
               </Text>
             </View>
           </View>
@@ -417,14 +475,6 @@ export default function DriverRegisterScreen() {
               onSubmitEditing={continueBasic}
               disabled={isLoading}
               error={fieldErrors.email}
-              style={{ marginBottom: spacing.lg }}
-            />
-            <TextInput
-              label="Avatar URL"
-              placeholder="Tự điền sau khi chọn ảnh, hoặc dán URL"
-              value={avatarUrl}
-              onChangeText={setAvatarUrl}
-              disabled={isLoading || avatarUploading}
               style={{ marginBottom: spacing.lg }}
             />
             <Button label="Tiếp tục" onPress={continueBasic} disabled={isLoading} />

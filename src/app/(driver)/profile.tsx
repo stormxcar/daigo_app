@@ -368,6 +368,7 @@ export default function DriverProfile() {
 
   const handleLogout = async () => {
     await logout();
+    showSuccess('Đã đăng xuất', 'Bạn đã đăng xuất khỏi tài khoản tài xế.');
     router.replace('/(auth)/login');
   };
 

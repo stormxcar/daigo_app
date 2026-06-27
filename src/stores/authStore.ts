@@ -61,14 +61,20 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       const response = await apiClient.register(data);
       set({
-        user: response.user,
+        user: response.token ? response.user : null,
         token: response.token,
         isAuthenticated: !!response.token,
         isLoading: false,
       });
       return response;
     } catch (error: any) {
-      set({ error: toVietnameseAuthError(error.message) || 'Đăng ký không thành công', isLoading: false });
+      set({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        error: toVietnameseAuthError(error.message) || 'Đăng ký không thành công',
+        isLoading: false,
+      });
       throw error;
     }
   },

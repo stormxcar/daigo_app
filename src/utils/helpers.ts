@@ -60,8 +60,10 @@ export const formatPhoneNumber = (phone: string): string => {
 
 // Validate email
 export const validateEmail = (email: string): boolean => {
+  const normalized = email.trim().toLowerCase();
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  if (!emailRegex.test(normalized)) return false;
+  return !['gmai.com', 'gmial.com', 'gamil.com', 'gmail.con', 'gmail.co'].includes(normalized.split('@')[1]);
 };
 
 // Validate phone

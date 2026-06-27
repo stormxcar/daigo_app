@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Mic, PhoneOff, Volume2 } from 'lucide-react-native';
@@ -30,6 +30,7 @@ export default function CallScreen() {
   const [statusText, setStatusText] = useState('Đang chuẩn bị cuộc gọi...');
   const [joining, setJoining] = useState(true);
   const [joined, setJoined] = useState(false);
+  const closingRef = useRef(false);
 
   const channelName = call?.agoraChannel ?? call?.id;
   const activeCallId = call?.id;
@@ -60,6 +61,10 @@ export default function CallScreen() {
               : 'Cuộc gọi không thành công'
         );
         leaveAgoraVoiceChannel();
+        if (!closingRef.current) {
+          closingRef.current = true;
+          setTimeout(() => router.back(), 700);
+        }
       }
     });
   }, [callId]);
@@ -130,6 +135,7 @@ export default function CallScreen() {
       return;
     }
     leaveAgoraVoiceChannel();
+    closingRef.current = true;
     const hasConnected = joined || call.status === 'accepted' || !!call.acceptedAt;
     await callService
       .updateCallStatus(call.id, hasConnected ? 'ended' : 'missed', call.acceptedAt ?? call.startedAt)

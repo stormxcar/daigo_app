@@ -249,11 +249,17 @@ export interface Message {
   sender: 'user' | 'driver';
   senderName: string;
   text: string;
+  messageKind?: 'text' | 'media' | 'call';
   mediaUrl?: string;
   mediaType?: 'image' | 'video';
   replyToMessageId?: string;
   replyToText?: string;
   replyToSenderName?: string;
+  isDeleted?: boolean;
+  deletedBy?: string;
+  callSessionId?: string;
+  callStatus?: CallStatus;
+  callDurationSeconds?: number;
   timestamp: string;
   read: boolean;
 }

@@ -68,19 +68,34 @@ async function createCallNotification(data: {
 
 async function createCallChatMessage(call: CallSessionRow, status: CallStatus) {
   if (!call.chat_id) return;
+  const durationSeconds = call.duration_seconds ?? 0;
+  const durationText = durationSeconds > 0
+    ? ` · ${Math.floor(durationSeconds / 60)}:${String(durationSeconds % 60).padStart(2, '0')}`
+    : '';
   const text =
-    status === 'rejected'
+    status === 'ended'
+      ? `Cuộc gọi thoại đã kết thúc${durationText}`
+      : status === 'rejected'
       ? 'Cuộc gọi đã bị từ chối'
       : status === 'failed'
         ? 'Cuộc gọi không thành công'
         : 'Cuộc gọi nhỡ';
 
   try {
-    await supabase.from('messages').insert({
-      conversation_id: call.chat_id,
-      sender_id: call.caller_id,
-      text,
-    });
+    await supabase
+      .from('messages')
+      .upsert(
+        {
+          conversation_id: call.chat_id,
+          sender_id: call.caller_id,
+          text,
+          message_kind: 'call',
+          call_session_id: call.id,
+          call_status: status,
+          call_duration_seconds: status === 'ended' ? durationSeconds : null,
+        },
+        { onConflict: 'call_session_id' }
+      );
   } catch {
     // Call state should not fail just because the auxiliary chat log cannot be written.
   }
@@ -217,14 +232,14 @@ class CallService {
 
     const row = data as CallSessionRow;
     const isUnansweredEnd = status === 'ended' && !shouldEndAsCompleted && !row.accepted_at;
-    if (['rejected', 'missed', 'failed'].includes(status) || isUnansweredEnd) {
+    if (['ended', 'rejected', 'missed', 'failed'].includes(status) || isUnansweredEnd) {
       await createCallChatMessage(row, isUnansweredEnd ? 'missed' : status);
     }
 
     return mapCallSession(data as CallSessionRow);
   }
 
-  subscribeIncomingCalls(userId: string, onIncoming: (call: CallSession) => void) {
+  subscribeIncomingCalls(userId: string, onIncoming: (call: CallSession | null) => void) {
     const instanceId = Math.random().toString(36).slice(2);
     const channel = supabase
       .channel(`incoming-calls-${userId}-${instanceId}`)
@@ -237,6 +252,8 @@ class CallService {
           const call = mapCallSession(next);
           if (call.callType === 'agora' && isFreshRingingCall(call)) {
             onIncoming(call);
+          } else {
+            onIncoming(null);
           }
         }
       )

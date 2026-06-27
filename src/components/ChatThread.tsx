@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Linking, Modal, Platform, Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
@@ -7,7 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { router } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { Download, Image as ImageIcon, PhoneCall, Play, Reply, Send, X } from 'lucide-react-native';
+import { Download, Image as ImageIcon, PhoneCall, Play, Reply, RotateCcw, Send, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/BaseComponents';
 import { useTheme } from '@/theme';
@@ -35,6 +35,11 @@ const MAX_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
 
 const formatMessageTime = (timestamp: string) =>
   new Date(timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+const formatCallDuration = (seconds?: number) => {
+  if (!seconds) return '';
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+};
 
 function ChatVideoPreview({ uri, onPress }: { uri: string; onPress: () => void }) {
   const posterUri = buildCloudinaryVideoPosterUrl(uri, { width: 520 });
@@ -121,6 +126,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const callOptionsRef = useRef<BottomSheetModal>(null);
+  const listRef = useRef<FlatList<Message>>(null);
 
   const messages = useMemo(() => [...conversation.messages].reverse(), [conversation.messages]);
   const lastOwnMessageId = useMemo(
@@ -168,8 +174,20 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
     try {
       setSending(true);
       broadcastTyping(false);
-      const message = await apiClient.sendMessage(conversation.id, text.trim(), user.id, undefined, replyTo?.id);
-      onMessageSent(message);
+      const currentReply = replyTo;
+      const message = await apiClient.sendMessage(conversation.id, text.trim(), user.id, undefined, currentReply?.id);
+      onMessageSent({
+        ...message,
+        replyToMessageId: message.replyToMessageId ?? currentReply?.id,
+        replyToText:
+          message.replyToText ??
+          (currentReply?.isDeleted
+            ? 'Tin nhắn đã được thu hồi'
+            : currentReply?.text || (currentReply?.mediaType === 'video' ? 'Video' : currentReply?.mediaType === 'image' ? 'Ảnh' : undefined)),
+        replyToSenderName:
+          message.replyToSenderName ??
+          (currentReply ? (currentReply.sender === 'user' ? user.fullName : conversation.participantName) : undefined),
+      });
       setText('');
       setReplyTo(null);
     } catch (error: any) {
@@ -212,11 +230,23 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
         name: asset.fileName ?? `chat-${conversation.id}-${Date.now()}.jpg`,
         type: asset.mimeType ?? 'image/jpeg',
       }, 'image');
+      const currentReply = replyTo;
       const message = await apiClient.sendMessage(conversation.id, 'Đã gửi một ảnh', user.id, {
         url: uploaded.secure_url,
         type: 'image',
-      }, replyTo?.id);
-      onMessageSent(message);
+      }, currentReply?.id);
+      onMessageSent({
+        ...message,
+        replyToMessageId: message.replyToMessageId ?? currentReply?.id,
+        replyToText:
+          message.replyToText ??
+          (currentReply?.isDeleted
+            ? 'Tin nhắn đã được thu hồi'
+            : currentReply?.text || (currentReply?.mediaType === 'video' ? 'Video' : currentReply?.mediaType === 'image' ? 'Ảnh' : undefined)),
+        replyToSenderName:
+          message.replyToSenderName ??
+          (currentReply ? (currentReply.sender === 'user' ? user.fullName : conversation.participantName) : undefined),
+      });
       setReplyTo(null);
       showSuccess('Đã gửi ảnh', 'Ảnh đã được gửi trong cuộc trò chuyện.');
     } catch (error: any) {
@@ -226,7 +256,8 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
     }
   };
 
-  const handleMessageLongPress = (message: Message) => {
+  const handleMessageLongPress = useCallback((message: Message) => {
+    if (message.isDeleted) return;
     const actions = [
       {
         text: 'Trả lời',
@@ -234,7 +265,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
       },
     ];
 
-    if (message.text && message.text !== 'Đã gửi một ảnh') {
+    if (message.text && message.text !== 'Đã gửi một ảnh' && message.messageKind !== 'call') {
       actions.push({
         text: 'Sao chép',
         onPress: async () => {
@@ -261,9 +292,19 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
 
     actions.push({ text: 'Hủy', onPress: () => undefined });
     Alert.alert('Tùy chọn tin nhắn', undefined, actions);
-  };
+  }, [onMessageDeleted, user.id]);
 
-  const startAgoraCall = async () => {
+  const scrollToMessage = useCallback((messageId?: string) => {
+    if (!messageId) return;
+    const index = messages.findIndex((message) => message.id === messageId);
+    if (index < 0) {
+      showWarning('Không tìm thấy tin nhắn gốc', 'Tin nhắn này có thể nằm ở cuộc trò chuyện cũ hoặc đã bị ẩn.');
+      return;
+    }
+    listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+  }, [messages]);
+
+  const startAgoraCall = useCallback(async () => {
     if (!conversation.participantId) {
       showError('Không thể gọi', 'Không tìm thấy người nhận cuộc gọi.');
       return;
@@ -281,7 +322,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
     } catch (error: any) {
       showError('Không thể bắt đầu cuộc gọi', error.message);
     }
-  };
+  }, [conversation.bookingId, conversation.id, conversation.participantId, user.fullName, user.id]);
 
   const callPhoneNumber = async () => {
     callOptionsRef.current?.dismiss();
@@ -357,11 +398,16 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
     }
   };
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  const renderMessage = useCallback(({ item }: { item: Message }) => {
     const fromMe = item.sender === 'user';
     const showSeen = fromMe && item.id === lastOwnMessageId;
     const isMissedCall = item.text?.toLowerCase().includes('cuộc gọi nhỡ');
     const hasMedia = !!item.mediaUrl && (item.mediaType === 'image' || item.mediaType === 'video');
+    const isCallLog = item.messageKind === 'call' || !!item.callSessionId;
+    const isDeleted = !!item.isDeleted;
+    const recalledText = fromMe ? 'Bạn đã thu hồi tin nhắn' : 'Người kia đã thu hồi tin nhắn';
+    const replyLabel = item.replyToSenderName === user.fullName ? 'Bạn' : item.replyToSenderName ?? roleLabel;
+    const callDuration = formatCallDuration(item.callDurationSeconds);
 
     return (
       <View style={{ alignItems: fromMe ? 'flex-end' : 'flex-start', paddingHorizontal: spacing.lg, marginBottom: spacing.md }}>
@@ -373,15 +419,25 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
             borderRadius: borderRadius.xl,
             borderTopRightRadius: fromMe ? borderRadius.sm : borderRadius.xl,
             borderTopLeftRadius: fromMe ? borderRadius.xl : borderRadius.sm,
-            padding: hasMedia ? spacing.xs : spacing.md,
-            backgroundColor: isMissedCall ? 'rgba(239,68,68,0.1)' : fromMe ? colors.primary : colors.surface,
-            borderWidth: fromMe && !isMissedCall ? 0 : 1,
-            borderColor: isMissedCall ? colors.error : colors.border,
+            padding: hasMedia && !isDeleted ? spacing.xs : spacing.md,
+            backgroundColor: isDeleted
+              ? colors.surfaceAlt
+              : isMissedCall
+                ? 'rgba(239,68,68,0.1)'
+                : isCallLog
+                  ? colors.surface
+                  : fromMe
+                    ? colors.primary
+                    : colors.surface,
+            borderWidth: fromMe && !isMissedCall && !isDeleted && !isCallLog ? 0 : 1,
+            borderColor: isMissedCall ? colors.error : isDeleted ? colors.border : colors.border,
             ...shadows.xs,
           }}
         >
           {!!item.replyToText && (
-            <View
+            <TouchableOpacity
+              activeOpacity={0.82}
+              onPress={() => scrollToMessage(item.replyToMessageId)}
               style={{
                 padding: spacing.sm,
                 borderRadius: borderRadius.md,
@@ -392,14 +448,37 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
               }}
             >
               <Text style={{ color: fromMe ? 'rgba(255,255,255,0.8)' : colors.textSecondary, fontSize: fontSize.xs, fontWeight: '800' }}>
-                Trả lời {item.replyToSenderName ?? 'tin nhắn'}
+                Trả lời {replyLabel}
               </Text>
               <Text numberOfLines={1} style={{ color: fromMe ? 'white' : colors.text, fontSize: fontSize.sm, marginTop: spacing.xs }}>
                 {item.replyToText}
               </Text>
+            </TouchableOpacity>
+          )}
+          {isDeleted && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <RotateCcw size={16} color={colors.textSecondary} />
+              <Text style={{ color: colors.textSecondary, fontStyle: 'italic', fontWeight: '800' }}>
+                {recalledText}
+              </Text>
             </View>
           )}
-          {item.mediaType === 'image' && item.mediaUrl && (
+          {!isDeleted && isCallLog && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <PhoneCall size={17} color={isMissedCall ? colors.error : colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: isMissedCall ? colors.error : colors.text, fontWeight: '900' }}>
+                  {item.text}
+                </Text>
+                {!!callDuration && (
+                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
+                    Thời lượng {callDuration}
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
+          {!isDeleted && item.mediaType === 'image' && item.mediaUrl && (
             <TouchableOpacity activeOpacity={0.9} onPress={() => setPreviewMedia({ url: item.mediaUrl!, type: 'image' })}>
               <Image
                 source={{ uri: item.mediaUrl }}
@@ -414,10 +493,10 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
               />
             </TouchableOpacity>
           )}
-          {item.mediaType === 'video' && item.mediaUrl && (
+          {!isDeleted && item.mediaType === 'video' && item.mediaUrl && (
             <ChatVideoPreview uri={item.mediaUrl} onPress={() => setPreviewMedia({ url: item.mediaUrl!, type: 'video' })} />
           )}
-          {!!item.text && item.text !== 'Đã gửi một ảnh' && (
+          {!isDeleted && !isCallLog && !!item.text && item.text !== 'Đã gửi một ảnh' && (
             <Text style={{ color: isMissedCall ? colors.error : fromMe ? 'white' : colors.text, lineHeight: 21, fontWeight: isMissedCall ? '900' : '400' }}>
               {item.text}
             </Text>
@@ -459,13 +538,31 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
         )}
       </View>
     );
-  };
+  }, [
+    colors.border,
+    colors.error,
+    colors.primary,
+    colors.surface,
+    colors.surfaceAlt,
+    colors.text,
+    colors.textSecondary,
+    colors.textTertiary,
+    conversation.participantName,
+    handleMessageLongPress,
+    lastOwnMessageId,
+    roleLabel,
+    scrollToMessage,
+    startAgoraCall,
+    user.fullName,
+  ]);
+
+  const keyExtractor = useCallback((item: Message) => item.id, []);
 
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 18}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 8}
     >
       <ChatHeader
         conversation={conversation}
@@ -475,10 +572,18 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
       />
 
       <FlatList
+        ref={listRef}
         data={messages}
-        keyExtractor={(item) => item.id}
+        keyExtractor={keyExtractor}
         renderItem={renderMessage}
+        initialNumToRender={16}
+        maxToRenderPerBatch={10}
+        windowSize={9}
+        removeClippedSubviews={Platform.OS === 'android'}
         inverted
+        onScrollToIndexFailed={(info) => {
+          setTimeout(() => listRef.current?.scrollToIndex({ index: info.index, animated: true }), 120);
+        }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: spacing.md }}
@@ -503,7 +608,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
         style={{
           paddingHorizontal: spacing.lg,
           paddingTop: spacing.sm,
-          paddingBottom: Math.max(insets.bottom + spacing.lg, spacing.xl),
+          paddingBottom: Math.max(insets.bottom + spacing.xs, spacing.md),
           borderTopWidth: 1,
           borderTopColor: colors.border,
           backgroundColor: colors.background,

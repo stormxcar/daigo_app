@@ -185,6 +185,7 @@ export default function DriverLayout() {
         options={{
           href: null,
           title: 'Tin nhắn',
+          headerShown: false,
         }}
       />
       <Tabs.Screen

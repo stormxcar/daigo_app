@@ -1,4 +1,30 @@
-export const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+const COMMON_EMAIL_DOMAIN_FIXES: Record<string, string> = {
+  'gmai.com': 'gmail.com',
+  'gmial.com': 'gmail.com',
+  'gamil.com': 'gmail.com',
+  'gmail.con': 'gmail.com',
+  'gmail.co': 'gmail.com',
+  'hotmai.com': 'hotmail.com',
+  'hotmial.com': 'hotmail.com',
+  'yaho.com': 'yahoo.com',
+  'yahoo.con': 'yahoo.com',
+  'outlok.com': 'outlook.com',
+  'outlook.con': 'outlook.com',
+};
+
+export const getEmailValidationError = (email: string) => {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return 'Vui lòng nhập email.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) return 'Email không đúng định dạng.';
+
+  const domain = normalized.split('@')[1];
+  const suggestion = COMMON_EMAIL_DOMAIN_FIXES[domain];
+  if (suggestion) return `Email có thể bị nhập sai. Bạn muốn dùng ${normalized.replace(`@${domain}`, `@${suggestion}`)}?`;
+
+  return '';
+};
+
+export const isValidEmail = (email: string) => !getEmailValidationError(email);
 
 export const validatePassword = (password: string) => {
   if (password.length < 8) return 'Mật khẩu phải có ít nhất 8 ký tự.';

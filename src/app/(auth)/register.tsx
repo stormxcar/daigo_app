@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Image, View, Text, TextInput as RNTextInput, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
@@ -8,13 +8,15 @@ import { Button, TextInput } from '@/components/BaseComponents';
 import { PasswordRequirementCard } from '@/components/PasswordRequirementCard';
 import { useAuth } from '@/hooks/useAuth';
 import { Eye, EyeOff, User, Mail, Phone, Lock } from 'lucide-react-native';
-import { isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
+import { getEmailValidationError, isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
 import { DAIGO_LOGO_URL } from '@/constants/branding';
 import { showError as showErrorToast, showInfo, showSuccess } from '@/utils/toast';
 
 export default function RegisterScreen() {
   const { colors } = useTheme();
+  const params = useLocalSearchParams<{ next?: string }>();
   const { register, isLoading, error } = useAuth();
+  const isDriverIntent = params.next === 'driver-onboarding';
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -45,8 +47,8 @@ export default function RegisterScreen() {
   const validateRegister = () => {
     const nextErrors: typeof fieldErrors = {};
     if (fullName.trim().length < 2) nextErrors.fullName = 'Họ và tên phải có ít nhất 2 ký tự.';
-    if (!email.trim()) nextErrors.email = 'Vui lòng nhập email.';
-    else if (!isValidEmail(email)) nextErrors.email = 'Email không đúng định dạng.';
+    const emailError = getEmailValidationError(email);
+    if (emailError) nextErrors.email = emailError;
     if (phone.trim().length < 9) nextErrors.phone = 'Số điện thoại không hợp lệ.';
     const passwordError = validatePassword(password);
     if (passwordError) nextErrors.password = passwordError;
@@ -73,13 +75,13 @@ export default function RegisterScreen() {
         confirmPassword,
       });
       if (response.token) {
-        router.replace(response.user.role === 'driver' ? '/(driver)/dashboard' : '/(customer)/home');
+        router.replace((isDriverIntent ? '/(auth)/driver-register' : response.user.role === 'driver' ? '/(driver)/dashboard' : '/(customer)/home') as any);
         showSuccess('Đăng ký thành công', `Tài khoản ${response.user.fullName} đã sẵn sàng.`);
       } else {
         showInfo('Xác thực email', 'Tài khoản đã được tạo. Vui lòng nhập mã OTP được gửi về email để kích hoạt tài khoản.');
         router.replace({
           pathname: '/(auth)/verify-email' as any,
-          params: { email: email.trim().toLowerCase() },
+          params: { email: email.trim().toLowerCase(), ...(isDriverIntent ? { next: 'driver-onboarding' } : {}) },
         });
       }
     } catch (err: any) {
@@ -115,7 +117,7 @@ export default function RegisterScreen() {
           marginBottom: spacing.xs,
         }}
       >
-        Tạo tài khoản
+        {isDriverIntent ? 'Tạo tài khoản tài xế' : 'Tạo tài khoản'}
       </Text>
       <Text
         style={{
@@ -124,7 +126,9 @@ export default function RegisterScreen() {
           marginBottom: spacing.lg,
         }}
       >
-        Chào mừng bạn đến với Daigo!
+        {isDriverIntent
+          ? 'Tạo tài khoản trước, sau đó Daigo sẽ đưa bạn sang form hồ sơ tài xế.'
+          : 'Chào mừng bạn đến với Daigo!'}
       </Text>
 
       {(error || localError) && (
@@ -330,7 +334,15 @@ export default function RegisterScreen() {
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
           Đã có tài khoản?
         </Text>
-        <TouchableOpacity onPress={() => router.push('/(auth)/login')} disabled={isLoading}>
+        <TouchableOpacity
+          onPress={() =>
+            router.push({
+              pathname: '/(auth)/login' as any,
+              params: isDriverIntent ? { next: 'driver-onboarding' } : undefined,
+            })
+          }
+          disabled={isLoading}
+        >
           <Text
             style={{
               color: colors.primary,

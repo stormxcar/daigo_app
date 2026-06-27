@@ -168,6 +168,7 @@ export default function CustomerLayout() {
         options={{
           href: null,
           title: 'Tin nhắn',
+          headerShown: false,
         }}
       />
       <Tabs.Screen

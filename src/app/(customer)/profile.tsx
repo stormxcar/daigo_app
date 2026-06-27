@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import {
   Bell,
   Camera,
+  Car,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -472,8 +473,9 @@ export default function ProfileScreen() {
     setAddress(user?.address ?? '');
   }, [user?.address, user?.email, user?.fullName, user?.id, user?.phone]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
+    showSuccess('Đã đăng xuất', 'Bạn đã đăng xuất khỏi tài khoản.');
     router.replace('/(customer)/home');
   };
 
@@ -835,6 +837,17 @@ export default function ProfileScreen() {
               )}
             </>
           )}
+        </View>
+      )}
+
+      {isAuthenticated && user?.accountType !== 'driver' && user?.accountType !== 'both' && (
+        <View style={{ borderTopWidth: 8, borderTopColor: colors.surfaceAlt, borderBottomWidth: 8, borderBottomColor: colors.surfaceAlt }}>
+          <FlatRow
+            icon={<Car size={18} color={colors.primary} />}
+            label="Đăng ký làm tài xế"
+            onPress={() => router.push('/(auth)/driver-register')}
+            isLast
+          />
         </View>
       )}
 

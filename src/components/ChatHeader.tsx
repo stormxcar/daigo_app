@@ -1,6 +1,8 @@
 import React from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
-import { MoreVertical, Phone, ShieldCheck } from 'lucide-react-native';
+import { ChevronLeft, MoreVertical, Phone, ShieldCheck } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChatConversation } from '@/types';
 import { useTheme } from '@/theme';
 import { spacing } from '@/theme/tokens';
@@ -14,12 +16,13 @@ type Props = {
 
 export function ChatHeader({ conversation, roleLabel, onCallPress, onMenuPress }: Props) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <View
       style={{
         paddingHorizontal: spacing.lg,
-        paddingTop: spacing.md,
+        paddingTop: insets.top + spacing.sm,
         paddingBottom: spacing.md,
         backgroundColor: colors.background,
         borderBottomWidth: 1,
@@ -27,6 +30,19 @@ export function ChatHeader({ conversation, roleLabel, onCallPress, onMenuPress }
       }}
     >
       <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 19,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.surfaceAlt,
+          }}
+        >
+          <ChevronLeft size={22} color={colors.text} />
+        </TouchableOpacity>
         <Image
           source={{ uri: conversation.participantAvatar }}
           style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: colors.surfaceAlt }}

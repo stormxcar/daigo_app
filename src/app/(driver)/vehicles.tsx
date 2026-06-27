@@ -50,6 +50,13 @@ const blankForm = {
 };
 
 const statuses: VehicleStatus[] = ["Sẵn sàng", "Đang bận", "Bảo trì"];
+const MAX_VEHICLE_IMAGES = 8;
+const MAX_VEHICLE_IMAGE_BYTES = 5 * 1024 * 1024;
+const VEHICLE_NAME_MAX_LENGTH = 60;
+const VEHICLE_DESCRIPTION_MAX_LENGTH = 500;
+const LICENSE_PLATE_PATTERN = /^[0-9]{2}[A-Z][A-Z0-9]?-?[0-9]{4,5}$/i;
+
+type VehicleFormErrors = Partial<Record<keyof typeof blankForm, string>>;
 
 export default function DriverVehicles() {
   const { colors } = useTheme();
@@ -64,6 +71,7 @@ export default function DriverVehicles() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [activeSort, setActiveSort] = useState("newest");
+  const [formErrors, setFormErrors] = useState<VehicleFormErrors>({});
 
   const loadVehicles = useCallback(async () => {
     if (!user) return;
@@ -109,6 +117,7 @@ export default function DriverVehicles() {
 
   const resetForm = () => {
     setForm(blankForm);
+    setFormErrors({});
     setEditingId(null);
     setShowForm(false);
   };
@@ -141,6 +150,7 @@ export default function DriverVehicles() {
       imageUrls: vehicle.imageUrls?.length ? vehicle.imageUrls : vehicle.image ? [vehicle.image] : [],
       description: vehicle.description ?? "",
     });
+    setFormErrors({});
     setShowForm(true);
   };
 
@@ -162,6 +172,16 @@ export default function DriverVehicles() {
     });
 
     if (result.canceled || result.assets.length === 0) return;
+    if (form.imageUrls.length + result.assets.length > MAX_VEHICLE_IMAGES) {
+      showWarning("Quá số lượng ảnh", `Mỗi xe chỉ nên có tối đa ${MAX_VEHICLE_IMAGES} ảnh.`);
+      return;
+    }
+
+    const oversizedAsset = result.assets.find((asset) => (asset.fileSize ?? 0) > MAX_VEHICLE_IMAGE_BYTES);
+    if (oversizedAsset) {
+      showWarning("Ảnh quá lớn", "Vui lòng chọn ảnh dưới 5MB để app tải nhanh và ổn định hơn.");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -197,21 +217,42 @@ export default function DriverVehicles() {
   };
 
   const validate = () => {
-    if (!form.name.trim()) return "Vui lòng nhập tên xe.";
-    if (!form.brand.trim()) return "Vui lòng nhập hãng xe.";
-    if (!form.licensePlate.trim()) return "Vui lòng nhập biển số xe.";
-    if (!Number(form.seats) || Number(form.seats) < 1)
-      return "Số ghế không hợp lệ.";
-    if (!Number(form.pricePerKm) || Number(form.pricePerKm) < 0)
-      return "Giá theo km không hợp lệ.";
-    return "";
+    const errors: VehicleFormErrors = {};
+    const name = form.name.trim();
+    const brand = form.brand.trim();
+    const licensePlate = form.licensePlate.trim().toUpperCase();
+    const seats = Number(form.seats);
+    const pricePerKm = Number(form.pricePerKm);
+    const duplicatePlate = vehicles.some(
+      (vehicle) =>
+        vehicle.id !== editingId &&
+        vehicle.licensePlate.trim().toUpperCase() === licensePlate,
+    );
+
+    if (name.length < 2) errors.name = "Tên xe phải có ít nhất 2 ký tự.";
+    else if (name.length > VEHICLE_NAME_MAX_LENGTH) errors.name = `Tên xe tối đa ${VEHICLE_NAME_MAX_LENGTH} ký tự.`;
+    if (brand.length < 2) errors.brand = "Hãng xe phải có ít nhất 2 ký tự.";
+    if (!licensePlate) errors.licensePlate = "Vui lòng nhập biển số xe.";
+    else if (!LICENSE_PLATE_PATTERN.test(licensePlate)) errors.licensePlate = "Biển số chưa đúng định dạng phổ biến, ví dụ 30A-12345.";
+    else if (duplicatePlate) errors.licensePlate = "Biển số này đã tồn tại trong danh sách xe của bạn.";
+    if (form.color.trim().length > 30) errors.color = "Màu xe tối đa 30 ký tự.";
+    if (!Number.isInteger(seats) || seats < 2 || seats > 45) errors.seats = "Số ghế phải từ 2 đến 45.";
+    if (!Number.isFinite(pricePerKm) || pricePerKm < 5000 || pricePerKm > 100000)
+      errors.pricePerKm = "Giá/km nên nằm trong khoảng 5.000đ đến 100.000đ.";
+    if (form.imageUrls.length > MAX_VEHICLE_IMAGES) errors.imageUrls = `Tối đa ${MAX_VEHICLE_IMAGES} ảnh cho mỗi xe.`;
+    if (form.description.trim().length > VEHICLE_DESCRIPTION_MAX_LENGTH)
+      errors.description = `Mô tả tối đa ${VEHICLE_DESCRIPTION_MAX_LENGTH} ký tự.`;
+
+    setFormErrors(errors);
+    return errors;
   };
 
   const saveVehicle = async () => {
     if (!user) return;
-    const error = validate();
-    if (error) {
-      showError("Thông tin chưa hợp lệ", error);
+    const errors = validate();
+    const firstError = Object.values(errors).find(Boolean);
+    if (firstError) {
+      showError("Thông tin chưa hợp lệ", firstError);
       return;
     }
 
@@ -256,7 +297,7 @@ export default function DriverVehicles() {
         onPress: async () => {
           try {
             setSaving(true);
-            await apiClient.deleteVehicle(vehicle.id);
+            await apiClient.deleteVehicle(vehicle.id, user?.id);
             await loadVehicles();
             showSuccess(
               "Đã xóa xe",
@@ -412,8 +453,12 @@ export default function DriverVehicles() {
             label="Tên xe"
             value={form.name}
             onChangeText={(name) =>
-              setForm((current) => ({ ...current, name }))
+              {
+                setForm((current) => ({ ...current, name }));
+                setFormErrors((current) => ({ ...current, name: undefined }));
+              }
             }
+            error={formErrors.name}
             disabled={saving}
             style={{ marginBottom: spacing.md }}
           />
@@ -421,8 +466,12 @@ export default function DriverVehicles() {
             label="Hãng xe"
             value={form.brand}
             onChangeText={(brand) =>
-              setForm((current) => ({ ...current, brand }))
+              {
+                setForm((current) => ({ ...current, brand }));
+                setFormErrors((current) => ({ ...current, brand: undefined }));
+              }
             }
+            error={formErrors.brand}
             disabled={saving}
             style={{ marginBottom: spacing.md }}
           />
@@ -430,8 +479,13 @@ export default function DriverVehicles() {
             label="Biển số"
             value={form.licensePlate}
             onChangeText={(licensePlate) =>
-              setForm((current) => ({ ...current, licensePlate }))
+              {
+                setForm((current) => ({ ...current, licensePlate: licensePlate.toUpperCase() }));
+                setFormErrors((current) => ({ ...current, licensePlate: undefined }));
+              }
             }
+            autoCapitalize="characters"
+            error={formErrors.licensePlate}
             disabled={saving}
             style={{ marginBottom: spacing.md }}
           />
@@ -440,8 +494,12 @@ export default function DriverVehicles() {
               label="Màu xe"
               value={form.color}
               onChangeText={(color) =>
-                setForm((current) => ({ ...current, color }))
+                {
+                  setForm((current) => ({ ...current, color }));
+                  setFormErrors((current) => ({ ...current, color: undefined }));
+                }
               }
+              error={formErrors.color}
               disabled={saving}
               style={{ flex: 1, marginBottom: spacing.md }}
             />
@@ -449,8 +507,12 @@ export default function DriverVehicles() {
               label="Số ghế"
               value={form.seats}
               onChangeText={(seats) =>
-                setForm((current) => ({ ...current, seats }))
+                {
+                  setForm((current) => ({ ...current, seats: seats.replace(/\D/g, "") }));
+                  setFormErrors((current) => ({ ...current, seats: undefined }));
+                }
               }
+              error={formErrors.seats}
               keyboardType="numeric"
               disabled={saving}
               style={{ width: 96, marginBottom: spacing.md }}
@@ -460,8 +522,12 @@ export default function DriverVehicles() {
             label="Giá/km"
             value={form.pricePerKm}
             onChangeText={(pricePerKm) =>
-              setForm((current) => ({ ...current, pricePerKm }))
+              {
+                setForm((current) => ({ ...current, pricePerKm: pricePerKm.replace(/\D/g, "") }));
+                setFormErrors((current) => ({ ...current, pricePerKm: undefined }));
+              }
             }
+            error={formErrors.pricePerKm}
             keyboardType="numeric"
             disabled={saving}
             style={{ marginBottom: spacing.md }}
@@ -514,8 +580,12 @@ export default function DriverVehicles() {
             label="Mô tả"
             value={form.description}
             onChangeText={(description) =>
-              setForm((current) => ({ ...current, description }))
+              {
+                setForm((current) => ({ ...current, description }));
+                setFormErrors((current) => ({ ...current, description: undefined }));
+              }
             }
+            error={formErrors.description}
             multiline
             numberOfLines={3}
             disabled={saving}
