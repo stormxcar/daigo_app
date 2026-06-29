@@ -4,7 +4,7 @@ import { useTheme } from '@/theme';
 import { spacing, fontSize, borderRadius } from '@/theme/tokens';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Play, Sparkles } from 'lucide-react-native';
-import { buildCloudinaryVideoPosterUrl } from '@/services/videoOptimizationService';
+import { buildCloudinaryVideoPosterUrl, buildOptimizedCloudinaryImageUrl } from '@/services/videoOptimizationService';
 
 interface Promotion {
   id: string;
@@ -21,7 +21,7 @@ function PromoVideoBackground({ uri }: { uri: string }) {
   const posterUri = buildCloudinaryVideoPosterUrl(uri, { width: 640 });
   return (
     <View style={StyleSheet.absoluteFill}>
-      {!!posterUri && <Image source={{ uri: posterUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />}
+      {!!posterUri && <Image source={{ uri: posterUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />}
       <VideoPlayOverlay />
     </View>
   );
@@ -71,6 +71,10 @@ export const PromoBanner: React.FC<{ promotions: Promotion[] }> = ({ promotions 
       showsHorizontalScrollIndicator={false}
       keyExtractor={(item) => item.id}
       contentContainerStyle={{ gap: spacing.md }}
+      removeClippedSubviews
+      initialNumToRender={3}
+      maxToRenderPerBatch={4}
+      windowSize={5}
       renderItem={({ item }) => (
         <TouchableOpacity
           activeOpacity={0.86}
@@ -89,7 +93,15 @@ export const PromoBanner: React.FC<{ promotions: Promotion[] }> = ({ promotions 
           {item.mediaType === 'video' && item.mediaUrl ? (
             <PromoVideoBackground uri={item.mediaUrl} />
           ) : item.image ? (
-            <ImageBackground source={item.image} resizeMode="cover" style={StyleSheet.absoluteFill} />
+            <ImageBackground
+              source={
+                typeof item.image?.uri === 'string'
+                  ? { uri: buildOptimizedCloudinaryImageUrl(item.image.uri, { width: 720 }) }
+                  : item.image
+              }
+              resizeMode="cover"
+              style={{ width: '100%', height: '100%' }}
+            />
           ) : (
             <View style={StyleSheet.absoluteFill}>
               <IllustrationBlock height={120} tone="primary" icon={<Sparkles size={24} color="white" />} />

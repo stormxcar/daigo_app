@@ -8,6 +8,7 @@ import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Badge } from '@/components/BaseComponents';
 import { Car, MapPin, Navigation, Route, User } from 'lucide-react-native';
 import { formatCurrency, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
+import { buildOptimizedCloudinaryImageUrl } from '@/services/videoOptimizationService';
 
 export const RecentTripsCarousel: React.FC<{
   trips: Booking[];
@@ -27,13 +28,18 @@ export const RecentTripsCarousel: React.FC<{
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ gap: spacing.md }}
+        removeClippedSubviews
+        initialNumToRender={4}
+        maxToRenderPerBatch={6}
+        windowSize={7}
         renderItem={({ item }) => (
           <TouchableOpacity activeOpacity={0.84} onPress={() => onTripPress?.(item)}>
             <Card style={{ width: 286, padding: spacing.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border }}>
               {item.vehicle?.image?.startsWith('http') ? (
                 <Image
-                  source={{ uri: item.vehicle.image }}
+                  source={{ uri: buildOptimizedCloudinaryImageUrl(item.vehicle.image, { width: 480 }) }}
                   style={{ width: '100%', height: 80, borderRadius: borderRadius.sm, marginBottom: spacing.xs }}
+                  resizeMode="cover"
                 />
               ) : (
                 <View style={{ marginBottom: spacing.xs }}>

@@ -274,6 +274,7 @@ export default function BookingDetailScreen() {
 
     try {
       setLoading(true);
+      setSubmitted(true);
       const created = await apiClient.createBooking({
         customerId: user.id,
         customerName: user.fullName,
@@ -301,10 +302,10 @@ export default function BookingDetailScreen() {
         estimatedPrice,
         distance,
       });
-      setSubmitted(true);
       showSuccess('Đặt xe thành công', `Yêu cầu đặt ${vehicle.name} đã được lưu vào Supabase.`);
       router.replace({ pathname: '/(customer)/booking-detail' as any, params: { id: created.id } });
     } catch (error: any) {
+      setSubmitted(false);
       showError('Không thể đặt xe', error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.');
     } finally {
       setLoading(false);

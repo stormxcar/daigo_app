@@ -46,6 +46,7 @@ import { apiClient } from "@/services/api";
 import {
   getDistanceKm,
   LocationSuggestion,
+  reverseVietnamLocation,
   searchVietnamLocations,
 } from "@/services/locations";
 import { DrivingRoute, getDrivingRoute } from "@/services/mapRouteService";
@@ -58,6 +59,13 @@ import {
   formatCurrency,
   vietnamDateToIsoDate,
 } from "@/utils/helpers";
+import {
+  getInitialSchedule,
+  numberParam,
+  stringParam,
+  toTimeInput,
+  toVietnamDateInput,
+} from "@/utils/bookingFormUtils";
 import { showError, showSuccess, showWarning } from "@/utils/toast";
 
 type SortMode =
@@ -80,24 +88,6 @@ const sortOptions: { label: string; value: SortMode }[] = [
   { label: "Tên A-Z", value: "name_asc" },
 ];
 
-const stringParam = (value: string | string[] | undefined) =>
-  Array.isArray(value) ? value[0] : value;
-const numberParam = (value: string | string[] | undefined) => {
-  const parsed = Number(stringParam(value));
-  return Number.isFinite(parsed) ? parsed : null;
-};
-const pad2 = (value: number) => String(value).padStart(2, "0");
-const toVietnamDateInput = (date: Date) =>
-  `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`;
-const toTimeInput = (date: Date) =>
-  `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-const getInitialSchedule = () => {
-  const date = new Date();
-  date.setMinutes(date.getMinutes() + 30);
-  date.setSeconds(0, 0);
-  return date;
-};
-
 export default function BookingScreen() {
   const { colors } = useTheme();
   const { isAuthenticated, user } = useAuthStore();
@@ -105,6 +95,8 @@ export default function BookingScreen() {
   const savedLocationsSheetRef = useRef<BottomSheetModal>(null);
   const vehicleResultsSheetRef = useRef<BottomSheetModal>(null);
   const modeSlideAnim = useRef(new Animated.Value(0)).current;
+  const autoPickupAttemptedRef = useRef(false);
+  const pickupEditedByUserRef = useRef(false);
   const [pickupLocation, setPickupLocation] = useState("");
   const [dropoffLocation, setDropoffLocation] = useState("");
   const [bookingMode, setBookingMode] = useState<BookingMode>("instant");
@@ -304,6 +296,7 @@ export default function BookingScreen() {
     if (restoredNote !== undefined) setNote(restoredNote);
 
     if (target === "pickup") {
+      pickupEditedByUserRef.current = true;
       setPickupPoint({
         id: "map-pickup",
         label: mapAddress,
@@ -340,7 +333,10 @@ export default function BookingScreen() {
       setDropoffLocation(mapAddress);
       setDropoffSuggestions([]);
 
-      if (restoredPickupLocation) setPickupLocation(restoredPickupLocation);
+      if (restoredPickupLocation) {
+        pickupEditedByUserRef.current = true;
+        setPickupLocation(restoredPickupLocation);
+      }
       if (
         restoredPickupLocation &&
         restoredPickupLat !== null &&
@@ -395,6 +391,51 @@ export default function BookingScreen() {
       })
       .finally(() => setSavedLocationsLoading(false));
   }, [user?.id]);
+
+  useEffect(() => {
+    if (
+      autoPickupAttemptedRef.current ||
+      pickupEditedByUserRef.current ||
+      pickupLocation.trim() ||
+      pickupPoint
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    autoPickupAttemptedRef.current = true;
+
+    const autofillPickupFromGps = async () => {
+      try {
+        setGpsLoading(true);
+        const location = await getCurrentDeviceLocation();
+        const resolved = await reverseVietnamLocation(location.lat, location.lng).catch(() => ({
+          id: "current-location",
+          label: location.label,
+          lat: location.lat,
+          lng: location.lng,
+          provider: "goong" as const,
+        }));
+
+        if (cancelled || pickupEditedByUserRef.current) return;
+
+        setPickupPoint(resolved);
+        setPickupLocation(resolved.label);
+        setPickupSuggestions([]);
+        setLocationAccessBlocked(false);
+      } catch {
+        if (!cancelled) setLocationAccessBlocked(true);
+      } finally {
+        if (!cancelled) setGpsLoading(false);
+      }
+    };
+
+    autofillPickupFromGps();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pickupLocation, pickupPoint]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -508,6 +549,46 @@ export default function BookingScreen() {
     },
     [routeDistance, vehicleAvailability],
   );
+  const vehicleQuickPickStats = useMemo(() => {
+    const visibleVehicles = vehicles.slice(0, visibleVehicleCount);
+    if (visibleVehicles.length === 0) {
+      return {
+        nearestId: null as string | null,
+        bestPriceId: null as string | null,
+        largestSeatsId: null as string | null,
+      };
+    }
+
+    const scored = visibleVehicles.map((vehicle, index) => ({
+      vehicle,
+      pickupMinutes: estimatePickupMinutes(vehicle, index) ?? Number.POSITIVE_INFINITY,
+      price: calculateBookingPrice(
+        routeDistance || 1,
+        vehicle.pricePerKm,
+        passengerCount,
+        time,
+      ).totalPrice,
+    }));
+
+    return {
+      nearestId: scored.reduce((best, item) =>
+        item.pickupMinutes < best.pickupMinutes ? item : best,
+      ).vehicle.id,
+      bestPriceId: scored.reduce((best, item) =>
+        item.price < best.price ? item : best,
+      ).vehicle.id,
+      largestSeatsId: scored.reduce((best, item) =>
+        item.vehicle.seats > best.vehicle.seats ? item : best,
+      ).vehicle.id,
+    };
+  }, [
+    estimatePickupMinutes,
+    passengerCount,
+    routeDistance,
+    time,
+    vehicles,
+    visibleVehicleCount,
+  ]);
   const activeFilterCount = [
     minPrice,
     maxPrice,
@@ -720,6 +801,8 @@ export default function BookingScreen() {
     setSelectedVehicleId(null);
     setSearched(false);
     setVisibleVehicleCount(8);
+    autoPickupAttemptedRef.current = false;
+    pickupEditedByUserRef.current = false;
     vehicleResultsSheetRef.current?.dismiss();
     showSuccess("Đã làm mới", "Bạn có thể nhập lại thông tin chuyến đi.");
   };
@@ -728,12 +811,14 @@ export default function BookingScreen() {
     try {
       setGpsLoading(true);
       const location = await getCurrentDeviceLocation();
-      const point = {
+      const point = await reverseVietnamLocation(location.lat, location.lng).catch(() => ({
         id: "current-location",
         label: location.label,
         lat: location.lat,
         lng: location.lng,
-      };
+        provider: "goong" as const,
+      }));
+      pickupEditedByUserRef.current = true;
       setPickupPoint(point);
       setPickupLocation(point.label);
       setPickupSuggestions([]);
@@ -758,6 +843,7 @@ export default function BookingScreen() {
       lng: place.longitude,
       provider: "goong" as const,
     };
+    pickupEditedByUserRef.current = true;
     setPickupPoint(point);
     setPickupLocation(point.label);
     setPickupSuggestions([]);
@@ -782,6 +868,7 @@ export default function BookingScreen() {
       lng: location.lng,
     };
     if (target === "pickup") {
+      pickupEditedByUserRef.current = true;
       setPickupPoint(point);
       setPickupLocation(location.address);
       setPickupSuggestions([]);
@@ -1063,6 +1150,7 @@ export default function BookingScreen() {
           placeholder="Nhập địa chỉ đón"
           value={pickupLocation}
           onChangeText={(text) => {
+            pickupEditedByUserRef.current = true;
             setPickupLocation(text);
             setPickupPoint(null);
           }}
@@ -1114,6 +1202,7 @@ export default function BookingScreen() {
           <TouchableOpacity
             key={item.id}
             onPress={() => {
+              pickupEditedByUserRef.current = true;
               setPickupPoint(item);
               setPickupLocation(item.label);
               setPickupSuggestions([]);
@@ -1214,6 +1303,7 @@ export default function BookingScreen() {
                 }}
                 selectable
                 onPickupChange={(point) => {
+                  pickupEditedByUserRef.current = true;
                   setPickupPoint({
                     id: "map-pickup",
                     label: point.label,
@@ -1815,6 +1905,19 @@ export default function BookingScreen() {
                 passengerCount,
                 time,
               );
+              const quickLabels = [
+                vehicle.id === vehicleQuickPickStats.nearestId
+                  ? { label: "Gần nhất", color: colors.success }
+                  : null,
+                vehicle.id === vehicleQuickPickStats.bestPriceId
+                  ? { label: "Giá tốt", color: colors.primary }
+                  : null,
+                vehicle.id === vehicleQuickPickStats.largestSeatsId
+                  ? { label: "Xe rộng", color: colors.info }
+                  : null,
+              ].filter((item): item is { label: string; color: string } =>
+                Boolean(item),
+              );
 
               return (
                 <TouchableOpacity
@@ -1874,6 +1977,40 @@ export default function BookingScreen() {
                       >
                         {vehicle.name}
                       </Text>
+                      {quickLabels.length > 0 && (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            gap: spacing.xs,
+                            marginTop: spacing.xs,
+                          }}
+                        >
+                          {quickLabels.map((badge) => (
+                            <View
+                              key={badge.label}
+                              style={{
+                                paddingHorizontal: spacing.sm,
+                                paddingVertical: 3,
+                                borderRadius: borderRadius.full,
+                                backgroundColor: `${badge.color}18`,
+                                borderWidth: 1,
+                                borderColor: `${badge.color}55`,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: badge.color,
+                                  fontSize: 10,
+                                  fontWeight: "900",
+                                }}
+                              >
+                                {badge.label}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
                       <View
                         style={{
                           flexDirection: "row",
@@ -1901,12 +2038,13 @@ export default function BookingScreen() {
                           </Text>
                         </View>
                         <Text
-                          numberOfLines={1}
+                          numberOfLines={2}
                           style={{
                             flex: 1,
                             color: pickupMinutes ? colors.success : colors.warning,
                             fontSize: fontSize.xs,
                             fontWeight: "800",
+                            flexWrap: 'wrap'
                           }}
                         >
                           {pickupMinutes

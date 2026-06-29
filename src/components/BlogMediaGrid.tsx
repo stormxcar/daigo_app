@@ -32,7 +32,7 @@ import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing, shadows } from '@/theme/tokens';
 import { showError, showInfo, showSuccess } from '@/utils/toast';
 import { VideoLoadingOverlay } from '@/components/VideoLoadingOverlay';
-import { buildCloudinaryVideoPosterUrl, buildOptimizedCloudinaryVideoUrl, shouldUseHlsVideo } from '@/services/videoOptimizationService';
+import { buildCloudinaryVideoPosterUrl, buildOptimizedCloudinaryImageUrl, buildOptimizedCloudinaryVideoUrl, shouldUseHlsVideo } from '@/services/videoOptimizationService';
 import { ZoomableImage } from '@/components/ZoomableImage';
 
 interface BlogMediaGridProps {
@@ -49,7 +49,7 @@ function FullscreenVideo({ uri }: { uri: string }) {
   if (Constants.appOwnership === 'expo') {
     return (
       <View style={StyleSheet.absoluteFill}>
-        {!!posterUri && <Image source={{ uri: posterUri }} style={StyleSheet.absoluteFill} resizeMode="contain" />}
+        {!!posterUri && <Image source={{ uri: posterUri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />}
         <VideoLoadingOverlay label="VIDEO" />
       </View>
     );
@@ -96,7 +96,7 @@ function InlineVideo({
   if (Constants.appOwnership === 'expo' || (!active && !preload)) {
     return (
       <TouchableOpacity activeOpacity={0.9} onPress={onOpen} style={styles.videoWrapper}>
-        {!!posterUri && <Image source={{ uri: posterUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />}
+        {!!posterUri && <Image source={{ uri: posterUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />}
         <View style={styles.videoGradientBottom} pointerEvents="none" />
         <VideoLoadingOverlay label="VIDEO" />
       </TouchableOpacity>
@@ -413,7 +413,11 @@ export function BlogMediaGrid({ urls, types, height = 260, active = true, preloa
                   onOpen={() => openMedia(index)}
                 />
               ) : (
-                <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                <Image
+                  source={{ uri: buildOptimizedCloudinaryImageUrl(url, { width: 720 }) }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
               )}
               {index === 3 && moreCount > 0 && (
                 <View style={styles.moreOverlay}>

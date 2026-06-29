@@ -11,7 +11,7 @@ import { OtpCodeInput } from '@/components/OtpCodeInput';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { getEmailValidationError, isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
-import { showError, showSuccess } from '@/utils/toast';
+import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 type ResetStep = 'email' | 'otp' | 'password';
 
@@ -319,6 +319,10 @@ export default function ForgotPasswordScreen() {
             returnKeyType="done"
             onSubmitEditing={handleUpdatePassword}
             contextMenuHidden
+            preventBulkInput
+            onBulkInputBlocked={() =>
+              showWarning('Không thể dán mật khẩu', 'Vui lòng nhập thủ công phần xác nhận mật khẩu.')
+            }
             disabled={isSubmitting}
             error={fieldErrors.confirmPassword}
             icon={<Lock size={20} color={colors.textSecondary} />}

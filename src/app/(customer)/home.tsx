@@ -43,10 +43,12 @@ import {
 } from "@/components/DestinationSearchInput";
 import { AppTourGuide } from "@/components/AppTourGuide";
 import { LocationAccessFallback } from "@/components/LocationAccessFallback";
+import { LazyMount } from "@/components/LazyMount";
 
 import { HelpSupportRow } from "@/components/HelpSupportRow";
 import { useVehicles } from "@/hooks/useVehicles";
 import { apiClient } from "@/services/api";
+import { buildOptimizedCloudinaryImageUrl } from "@/services/videoOptimizationService";
 import {
   DeviceLocation,
   getCurrentDeviceLocation,
@@ -118,7 +120,7 @@ function DriverVehicleCard({ vehicle }: { vehicle: Vehicle }) {
     >
       {!!vehicle.image && (
         <Image
-          source={{ uri: vehicle.image }}
+          source={{ uri: buildOptimizedCloudinaryImageUrl(vehicle.image, { width: 720 }) }}
           style={{
             width: "100%",
             height: 176,
@@ -139,7 +141,7 @@ function DriverVehicleCard({ vehicle }: { vehicle: Vehicle }) {
           {vehicle.imageUrls.slice(1, 5).map((url, index) => (
             <Image
               key={`${vehicle.id}-preview-${index}`}
-              source={{ uri: url }}
+              source={{ uri: buildOptimizedCloudinaryImageUrl(url, { width: 240 }) }}
               style={{
                 flex: 1,
                 height: 58,
@@ -1036,42 +1038,57 @@ export default function HomeScreen() {
         )}
       </View>
       {/* New premium sections */}
-      {promotions.length > 0 && <PromoBanner promotions={promotions} />}
+      {promotions.length > 0 && (
+        <LazyMount minHeight={240} label="Đang chuẩn bị ưu đãi..." style={{ marginHorizontal: spacing.md, marginBottom: spacing.xl }}>
+          <PromoBanner promotions={promotions} />
+        </LazyMount>
+      )}
 
-      <NearbyDriverMapCard
-        vehicles={recommendedVehicles}
-        currentLocation={currentLocation}
-        onPress={(vehicle) =>
-          router.push({
-            pathname: "/(customer)/booking" as any,
-            params: vehicle?.id ? { suggestedVehicleId: vehicle.id } : undefined,
-          })
-        }
-      />
-      <RecommendedVehicleCarousel
-        vehicles={recommendedVehicles}
-        onVehiclePress={() => router.push("/(customer)/booking")}
-      />
-      {isLoggedIn && (
-        <RecentTripsCarousel
-          trips={recentTrips}
-          onTripPress={(booking) =>
+      <LazyMount minHeight={280} label="Đang tải bản đồ tài xế gần bạn..." style={{ marginHorizontal: spacing.md, marginBottom: spacing.xl }}>
+        <NearbyDriverMapCard
+          vehicles={recommendedVehicles}
+          currentLocation={currentLocation}
+          onPress={(vehicle) =>
             router.push({
-              pathname: "/(customer)/booking-detail" as any,
-              params: { id: booking.id },
+              pathname: "/(customer)/booking" as any,
+              params: vehicle?.id ? { suggestedVehicleId: vehicle.id } : undefined,
             })
           }
         />
+      </LazyMount>
+
+      <LazyMount minHeight={180} label="Đang chuẩn bị gợi ý xe..." style={{ marginHorizontal: spacing.md, marginBottom: spacing.xl }}>
+        <RecommendedVehicleCarousel
+          vehicles={recommendedVehicles}
+          onVehiclePress={() => router.push("/(customer)/booking")}
+        />
+      </LazyMount>
+
+      {isLoggedIn && (
+        <LazyMount minHeight={220} label="Đang tải lịch sử chuyến đi..." style={{ marginHorizontal: spacing.md, marginBottom: spacing.xl }}>
+          <RecentTripsCarousel
+            trips={recentTrips}
+            onTripPress={(booking) =>
+              router.push({
+                pathname: "/(customer)/booking-detail" as any,
+                params: { id: booking.id },
+              })
+            }
+          />
+        </LazyMount>
       )}
-      <NewsUpdatesList
-        posts={blogPosts}
-        onPostPress={(post) =>
-          router.push({
-            pathname: "/(customer)/blog-detail" as any,
-            params: { id: post.id },
-          })
-        }
-      />
+
+      <LazyMount minHeight={180} label="Đang tải tin tức..." style={{ marginHorizontal: spacing.md, marginBottom: spacing.xl }}>
+        <NewsUpdatesList
+          posts={blogPosts}
+          onPostPress={(post) =>
+            router.push({
+              pathname: "/(customer)/blog-detail" as any,
+              params: { id: post.id },
+            })
+          }
+        />
+      </LazyMount>
     </Screen>
   );
 }

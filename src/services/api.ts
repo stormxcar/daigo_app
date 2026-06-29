@@ -4,6 +4,13 @@ import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { supabase } from './supabase';
 import { getAuthRedirectUri } from '@/utils/authRedirect';
 import { firebasePhoneAuth } from './firebasePhoneAuth';
+import {
+  isFirebasePhoneAuthEnabled,
+  isTestPhoneOtpEnabled,
+  isValidVietnamPhone,
+  normalizeVietnamPhone,
+  TEST_PHONE_OTP,
+} from './phoneAuthConfig';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -291,21 +298,6 @@ const mapDriverStatus = (row: DriverRow): DriverStatus => ({
   licenseNumber: row.license_number ?? undefined,
   documentUrls: row.document_urls ?? [],
 });
-
-export const normalizeVietnamPhone = (value: string) => {
-  const cleaned = value.trim().replace(/[^\d+]/g, '');
-  if (!cleaned) return '';
-  if (cleaned.startsWith('+')) return cleaned;
-  if (cleaned.startsWith('84')) return `+${cleaned}`;
-  if (cleaned.startsWith('0')) return `+84${cleaned.slice(1)}`;
-  return `+84${cleaned}`;
-};
-
-export const isValidVietnamPhone = (value: string) => /^\+84\d{9,10}$/.test(normalizeVietnamPhone(value));
-export const TEST_PHONE_OTP = '123456';
-export const isTestPhoneOtpEnabled = () =>
-  process.env.EXPO_PUBLIC_ENABLE_TEST_PHONE_OTP === 'true';
-export const isFirebasePhoneAuthEnabled = () => process.env.EXPO_PUBLIC_PHONE_AUTH_PROVIDER === 'firebase';
 
 const API_CACHE_TTL_MS = 45_000;
 const CUSTOMER_CANCELLABLE_STATUSES = [
@@ -661,6 +653,19 @@ class ApiClient {
   }
 
   async register(data: RegisterData): Promise<AuthResponse> {
+    const normalizedPhone = normalizeVietnamPhone(data.phone);
+    if (!isValidVietnamPhone(normalizedPhone)) {
+      throw new Error('Số điện thoại không hợp lệ. Vui lòng nhập số Việt Nam hợp lệ.');
+    }
+
+    const { data: phoneAvailable, error: phoneCheckError } = await supabase.rpc('is_phone_available', {
+      p_phone: normalizedPhone,
+    });
+    if (phoneCheckError) throw phoneCheckError;
+    if (phoneAvailable === false) {
+      throw new Error('Số điện thoại này đã được đăng ký. Vui lòng đăng nhập hoặc dùng số khác.');
+    }
+
     const { data: signUpData, error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
@@ -668,7 +673,7 @@ class ApiClient {
         emailRedirectTo: getAuthRedirectUri(),
         data: {
           full_name: data.fullName,
-          phone: data.phone,
+          phone: normalizedPhone,
           role: 'customer',
         },
       },
@@ -682,7 +687,7 @@ class ApiClient {
           id: signUpData.user?.id ?? '',
           fullName: data.fullName,
           email: data.email,
-          phone: data.phone,
+          phone: normalizedPhone,
           role: 'customer',
           accountType: 'customer',
           phoneVerified: false,
@@ -697,7 +702,7 @@ class ApiClient {
     const user = await this.ensureCurrentUserProfile({
       fullName: data.fullName,
       email: data.email,
-      phone: data.phone,
+      phone: normalizedPhone,
     });
     if (!user) throw new Error('Không tìm thấy hồ sơ người dùng');
     return { token: signUpData.session.access_token, user };

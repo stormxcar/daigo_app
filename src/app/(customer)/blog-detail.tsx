@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Heart, MessageCircle, Send, Share2 } from 'lucide-react-native';
@@ -14,6 +14,8 @@ import { showError, showSuccess, showWarning } from '@/utils/toast';
 import { shareBlogPostNative } from '@/utils/share';
 import { BlogMediaGrid } from '@/components/BlogMediaGrid';
 
+const COMMENT_COOLDOWN_MS = 10_000;
+
 export default function BlogDetailScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -25,6 +27,7 @@ export default function BlogDetailScreen() {
   const [replyTo, setReplyTo] = useState<BlogComment | null>(null);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const lastCommentAtRef = useRef(0);
 
   const loadPost = useCallback(async () => {
     if (!id) return;
@@ -71,7 +74,16 @@ export default function BlogDetailScreen() {
   const submitComment = async () => {
     if (!post || !commentText.trim() || loading) return;
     if (!requireAuth('bình luận bài viết')) return;
+    const remainingMs = COMMENT_COOLDOWN_MS - (Date.now() - lastCommentAtRef.current);
+    if (remainingMs > 0) {
+      showWarning(
+        'Gửi quá nhanh',
+        `Vui lòng chờ thêm ${Math.ceil(remainingMs / 1000)} giây trước khi bình luận tiếp.`,
+      );
+      return;
+    }
     try {
+      lastCommentAtRef.current = Date.now();
       setLoading(true);
       const comment = await apiClient.createBlogComment(post.id, user!.id, commentText.trim(), replyTo?.id);
       setComments((current) => [...current, comment]);
@@ -79,6 +91,7 @@ export default function BlogDetailScreen() {
       setReplyTo(null);
       setPost(await apiClient.getBlogPostById(post.id));
     } catch (error: any) {
+      lastCommentAtRef.current = 0;
       showError('Không thể bình luận', error.message);
     } finally {
       setLoading(false);

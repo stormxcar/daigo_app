@@ -2,11 +2,13 @@ import React, { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Crosshair, LocateFixed, MapPin } from 'lucide-react-native';
+import { Crosshair, Heart, LocateFixed, MapPin } from 'lucide-react-native';
 import { Button } from '@/components/BaseComponents';
 import { NativeMapUnavailable, getNativeMapLibre } from '@/components/NativeMapLibre';
+import { apiClient } from '@/services/api';
 import { getCurrentDeviceLocation } from '@/services/deviceLocation';
 import { LocationSuggestion, reverseVietnamLocation } from '@/services/locations';
+import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
@@ -65,6 +67,7 @@ function PinMarker({ color }: { color: string }) {
 export default function CustomerMapPickerScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { user, isAuthenticated } = useAuthStore();
   const params = useLocalSearchParams<Record<string, string>>();
   const nativeMap = getNativeMapLibre();
   const cameraRef = useRef<any>(null);
@@ -81,6 +84,8 @@ export default function CustomerMapPickerScreen() {
   });
   const [resolvingAddress, setResolvingAddress] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const [savedCurrentPoint, setSavedCurrentPoint] = useState(false);
 
   const styleUrl = goongStyleUrl();
   const Camera = nativeMap?.Camera;
@@ -91,7 +96,7 @@ export default function CustomerMapPickerScreen() {
     ? 'Chạm vào bản đồ để đặt vị trí tài xế đến đón.'
     : 'Chạm vào bản đồ để đặt vị trí trả khách.';
   const center = useMemo<[number, number]>(() => [point.lng, point.lat], [point.lat, point.lng]);
-  const liquidTabClearance = Math.max(insets.bottom, spacing.md) + 92;
+  const bottomClearance = Math.max(insets.bottom, spacing.md) + spacing.md;
 
   const updatePoint = async (lat: number, lng: number, fallbackLabel = 'Vị trí đã chọn') => {
     try {
@@ -104,6 +109,7 @@ export default function CustomerMapPickerScreen() {
         provider: 'goong' as const,
       }));
       setPoint(resolved);
+      setSavedCurrentPoint(false);
       cameraRef.current?.flyTo?.({ center: [resolved.lng, resolved.lat], zoom: 16, duration: 450, easing: 'ease' });
     } finally {
       setResolvingAddress(false);
@@ -158,6 +164,36 @@ export default function CustomerMapPickerScreen() {
     });
   };
 
+  const handleSaveLocation = async () => {
+    if (!isAuthenticated || !user?.id) {
+      showWarning('Bạn cần đăng nhập', 'Vui lòng đăng nhập để lưu địa điểm yêu thích.');
+      return;
+    }
+
+    try {
+      setSavingLocation(true);
+      await apiClient.createSavedLocation({
+        userId: user.id,
+        label: target === 'pickup' ? 'Điểm đón đã lưu' : 'Điểm đến đã lưu',
+        address: point.label,
+        lat: point.lat,
+        lng: point.lng,
+        type: target === 'pickup' ? 'favorite' : 'favorite',
+      });
+      setSavedCurrentPoint(true);
+      showSuccess(
+        'Đã lưu địa điểm',
+        target === 'pickup'
+          ? 'Điểm đón này đã được thêm vào danh sách địa điểm đã lưu.'
+          : 'Điểm đến này đã được thêm vào danh sách địa điểm đã lưu.',
+      );
+    } catch (error: any) {
+      showError('Không thể lưu địa điểm', error.message || 'Vui lòng thử lại sau.');
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {nativeMap && Camera && Map && Marker ? (
@@ -209,7 +245,7 @@ export default function CustomerMapPickerScreen() {
         activeOpacity={0.9}
         onPress={handleUseCurrentLocation}
         disabled={locating}
-        style={[styles.locateButton, { right: spacing.lg, bottom: liquidTabClearance + 172, backgroundColor: colors.surface }]}
+        style={[styles.locateButton, { right: spacing.lg, bottom: bottomClearance + 160, backgroundColor: colors.surface }]}
       >
         {locating ? <ActivityIndicator color={colors.primary} /> : <LocateFixed size={22} color={colors.primary} />}
       </TouchableOpacity>
@@ -218,7 +254,7 @@ export default function CustomerMapPickerScreen() {
         style={[
           styles.confirmPanel,
           {
-            bottom: liquidTabClearance,
+            bottom: bottomClearance,
             paddingBottom: spacing.md,
             backgroundColor: colors.surface,
             borderColor: colors.border,
@@ -231,15 +267,34 @@ export default function CustomerMapPickerScreen() {
             <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: '800' }} numberOfLines={3}>
               {point.label}
             </Text>
-            <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: spacing.xs }}>
-              {point.lat.toFixed(6)}, {point.lng.toFixed(6)}
-            </Text>
             {resolvingAddress && (
               <Text style={{ color: colors.primary, fontSize: fontSize.xs, marginTop: spacing.xs }}>
                 Đang lấy tên địa điểm...
               </Text>
             )}
           </View>
+          <TouchableOpacity
+            activeOpacity={0.86}
+            onPress={handleSaveLocation}
+            disabled={savingLocation || resolvingAddress}
+            style={[
+              styles.saveButton,
+              {
+                backgroundColor: savedCurrentPoint ? colors.error : colors.surfaceAlt,
+                borderColor: savedCurrentPoint ? colors.error : colors.border,
+              },
+            ]}
+          >
+            {savingLocation ? (
+              <ActivityIndicator size="small" color={savedCurrentPoint ? 'white' : colors.primary} />
+            ) : (
+              <Heart
+                size={20}
+                color={savedCurrentPoint ? 'white' : colors.error}
+                fill={savedCurrentPoint ? 'white' : 'transparent'}
+              />
+            )}
+          </TouchableOpacity>
         </View>
 
         <Button
@@ -262,6 +317,14 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     padding: spacing.md,
     ...shadows.md,
+  },
+  saveButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   locateButton: {
     position: 'absolute',

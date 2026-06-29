@@ -5,6 +5,7 @@ import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Vehicle } from '@/types';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Car } from 'lucide-react-native';
+import { buildOptimizedCloudinaryImageUrl } from '@/services/videoOptimizationService';
 
 export const RecommendedVehicleCarousel: React.FC<{
   vehicles: Vehicle[];
@@ -24,6 +25,10 @@ export const RecommendedVehicleCarousel: React.FC<{
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ gap: spacing.md }}
+        removeClippedSubviews
+        initialNumToRender={5}
+        maxToRenderPerBatch={6}
+        windowSize={7}
         renderItem={({ item }) => (
           <TouchableOpacity activeOpacity={0.84} onPress={() => onVehiclePress?.(item)}>
             <View
@@ -38,8 +43,9 @@ export const RecommendedVehicleCarousel: React.FC<{
             >
             {item.image?.startsWith('http') ? (
               <Image
-                source={{ uri: item.image }}
+                source={{ uri: buildOptimizedCloudinaryImageUrl(item.image, { width: 420 }) }}
                 style={{ width: '100%', height: 80, borderRadius: borderRadius.sm, marginBottom: spacing.xs }}
+                resizeMode="cover"
               />
             ) : (
               <View style={{ marginBottom: spacing.xs }}>

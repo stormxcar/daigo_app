@@ -73,7 +73,11 @@ export default function CustomerLayout() {
           elevation: 0,
         },
       }}
-      tabBar={(props: any) => <LiquidTabBar {...props} />}
+      tabBar={(props: any) => {
+        const currentRouteName = props.state.routes[props.state.index]?.name;
+        if (currentRouteName === 'map-picker') return null;
+        return <LiquidTabBar {...props} />;
+      }}
     >
       <Tabs.Screen
         name="home"

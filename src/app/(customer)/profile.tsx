@@ -845,7 +845,12 @@ export default function ProfileScreen() {
           <FlatRow
             icon={<Car size={18} color={colors.primary} />}
             label="Đăng ký làm tài xế"
-            onPress={() => router.push('/(auth)/driver-register')}
+            onPress={() =>
+              router.push({
+                pathname: '/(auth)/driver-register' as any,
+                params: { next: 'driver-onboarding', intent: 'driver' },
+              })
+            }
             isLast
           />
         </View>

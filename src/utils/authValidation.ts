@@ -41,6 +41,25 @@ export const toVietnameseAuthError = (message?: string) => {
   if (lower.includes('invalid login credentials')) return 'Email hoặc mật khẩu không đúng.';
   if (lower.includes('email not confirmed')) return 'Email chưa được xác thực. Vui lòng kiểm tra hộp thư.';
   if (lower.includes('user already registered') || lower.includes('already registered')) return 'Email này đã được đăng ký.';
+  if (
+    lower.includes('số điện thoại này đã được đăng ký') ||
+    lower.includes('profiles_unique_normalized_phone') ||
+    (lower.includes('duplicate key') && lower.includes('phone'))
+  ) {
+    return 'Số điện thoại này đã được đăng ký. Vui lòng đăng nhập hoặc dùng số khác.';
+  }
+  if (lower.includes('database error saving new user')) {
+    return 'Không thể tạo hồ sơ người dùng. Email hoặc số điện thoại có thể đã được đăng ký.';
+  }
+  if (
+    lower.includes('too many requests') ||
+    lower.includes('rate limit') ||
+    lower.includes('security purposes') ||
+    lower.includes('over_email_send_rate_limit') ||
+    lower.includes('email rate limit exceeded')
+  ) {
+    return 'Bạn thao tác quá nhanh hoặc nhập sai nhiều lần. Vui lòng chờ một lúc rồi thử lại.';
+  }
   if (lower.includes('password')) return 'Mật khẩu không hợp lệ. Vui lòng kiểm tra lại.';
   if (lower.includes('auth/operation-not-allowed') || lower.includes('operation-not-allowed')) {
     if (lower.includes('region enabled') || lower.includes('sms unable to be sent')) {
@@ -57,7 +76,7 @@ export const toVietnameseAuthError = (message?: string) => {
   if (lower.includes('auth/missing-client-identifier') || lower.includes('auth/missing-app-credential')) {
     return 'Firebase chưa xác thực được app để gửi SMS. Hãy kiểm tra SHA-1/SHA-256, Play Integrity/SafetyNet và tải lại google-services.json rồi build lại.';
   }
-  if (lower.includes('auth/quota-exceeded') || lower.includes('too many requests')) {
+  if (lower.includes('auth/quota-exceeded')) {
     return 'Firebase đã giới hạn gửi SMS tạm thời. Hãy thử số test trong Firebase Console hoặc chờ thêm trước khi gửi lại.';
   }
   if (lower.includes('auth/invalid-phone-number')) {

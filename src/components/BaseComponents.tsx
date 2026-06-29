@@ -121,6 +121,8 @@ interface TextInputProps {
   blurOnSubmit?: boolean;
   onSubmitEditing?: RNTextInputProps['onSubmitEditing'];
   contextMenuHidden?: boolean;
+  preventBulkInput?: boolean;
+  onBulkInputBlocked?: () => void;
 }
 
 export const TextInput = forwardRef<RNTextInput, TextInputProps>(({
@@ -145,6 +147,8 @@ export const TextInput = forwardRef<RNTextInput, TextInputProps>(({
   blurOnSubmit,
   onSubmitEditing,
   contextMenuHidden,
+  preventBulkInput,
+  onBulkInputBlocked,
 }, ref) => {
   const { colors } = useTheme();
 
@@ -188,7 +192,13 @@ export const TextInput = forwardRef<RNTextInput, TextInputProps>(({
           placeholder={placeholder}
           placeholderTextColor={colors.textTertiary}
           value={value}
-          onChangeText={onChangeText}
+          onChangeText={(nextText) => {
+            if (preventBulkInput && nextText.length - value.length > 1) {
+              onBulkInputBlocked?.();
+              return;
+            }
+            onChangeText(nextText);
+          }}
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
           editable={!disabled}

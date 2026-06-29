@@ -102,7 +102,11 @@ export default function DriverLayout() {
           elevation: 0,
         },
       }}
-      tabBar={(props: any) => <LiquidTabBar {...props} maxTabs={6} />}
+      tabBar={(props: any) => {
+        const currentRouteName = props.state.routes[props.state.index]?.name;
+        if (detailRoutes.includes(currentRouteName)) return null;
+        return <LiquidTabBar {...props} maxTabs={6} />;
+      }}
     >
       <Tabs.Screen
         name="dashboard"

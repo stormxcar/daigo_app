@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
-import { BadgeCheck, Camera, Car, FileText, Smartphone, User } from 'lucide-react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { BadgeCheck, Camera, Car, FileText, Image as ImageIcon, Smartphone, Trash2, User } from 'lucide-react-native';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { OtpCodeInput } from '@/components/OtpCodeInput';
 import { Screen } from '@/components/ScreenComponents';
 import { useAuth } from '@/hooks/useAuth';
-import { isFirebasePhoneAuthEnabled, isTestPhoneOtpEnabled, isValidVietnamPhone, normalizeVietnamPhone, TEST_PHONE_OTP } from '@/services/api';
+import { isFirebasePhoneAuthEnabled, isTestPhoneOtpEnabled, isValidVietnamPhone, normalizeVietnamPhone, TEST_PHONE_OTP } from '@/services/phoneAuthConfig';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { toVietnameseAuthError, isValidEmail } from '@/utils/authValidation';
@@ -18,9 +18,11 @@ type DriverStep = 'phone' | 'otp' | 'basic' | 'docs';
 
 export default function DriverRegisterScreen() {
   const { colors } = useTheme();
+  const params = useLocalSearchParams<{ next?: string; intent?: string }>();
   const { sendPhoneOtp, verifyPhoneOtp, startDriverOnboarding, isLoading, isAuthenticated, isSessionRestored, user } = useAuth();
+  const isDriverIntent = params.next === 'driver-onboarding' || params.intent === 'driver';
 
-  const [step, setStep] = useState<DriverStep>(user?.phoneVerified ? 'basic' : 'phone');
+  const [step, setStep] = useState<DriverStep>(isDriverIntent && user ? 'docs' : user?.phoneVerified ? 'basic' : 'phone');
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [otp, setOtp] = useState('');
   const [countdown, setCountdown] = useState(0);
@@ -30,6 +32,7 @@ export default function DriverRegisterScreen() {
   const [cccdNumber, setCccdNumber] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [documentUrlsText, setDocumentUrlsText] = useState('');
+  const [documentUrls, setDocumentUrls] = useState<string[]>([]);
   const [localError, setLocalError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{
     phone?: string;
@@ -39,6 +42,7 @@ export default function DriverRegisterScreen() {
     licenseNumber?: string;
   }>({});
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [documentsUploading, setDocumentsUploading] = useState(false);
   const phoneRef = useRef<RNTextInput>(null);
   const fullNameRef = useRef<RNTextInput>(null);
   const emailRef = useRef<RNTextInput>(null);
@@ -59,12 +63,12 @@ export default function DriverRegisterScreen() {
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
-    setStep(user.phoneVerified ? 'basic' : 'phone');
+    setStep(isDriverIntent ? 'docs' : user.phoneVerified ? 'basic' : 'phone');
     setPhone(user.phone ?? '');
     setFullName(user.fullName ?? '');
     setEmail(user.email ?? '');
     setAvatarUrl(user.avatarUrl ?? '');
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, isDriverIntent, user?.id]);
 
   const setError = (message: string) => {
     setLocalError(message);
@@ -164,12 +168,52 @@ export default function DriverRegisterScreen() {
     }
   };
 
+  const pickDocuments = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setError('Vui lòng cho phép truy cập thư viện ảnh để chọn giấy tờ.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: 8,
+      quality: 0.82,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+
+    try {
+      setDocumentsUploading(true);
+      const uploadedUrls: string[] = [];
+      for (let index = 0; index < result.assets.length; index += 1) {
+        const asset = result.assets[index];
+        const uploaded = await uploadMediaToCloudinary(
+          {
+            uri: asset.uri,
+            name: asset.fileName ?? `driver-document-${Date.now()}-${index}.jpg`,
+            type: asset.mimeType ?? 'image/jpeg',
+          },
+          'image',
+        );
+        uploadedUrls.push(uploaded.secure_url);
+      }
+      setDocumentUrls((current) => Array.from(new Set([...current, ...uploadedUrls])));
+      showSuccess('Đã upload giấy tờ', `${uploadedUrls.length} ảnh giấy tờ đã được thêm vào hồ sơ.`);
+    } catch (error: any) {
+      setError(error?.message ?? 'Không thể upload giấy tờ.');
+    } finally {
+      setDocumentsUploading(false);
+    }
+  };
+
   const finishOnboarding = async () => {
     setLocalError('');
-    const documentUrls = documentUrlsText
+    const manualDocumentUrls = documentUrlsText
       .split('\n')
       .map((item) => item.trim())
       .filter(Boolean);
+    const nextDocumentUrls = Array.from(new Set([...documentUrls, ...manualDocumentUrls]));
 
     try {
       const nextUser = await startDriverOnboarding({
@@ -178,9 +222,9 @@ export default function DriverRegisterScreen() {
         avatarUrl: avatarUrl.trim() || undefined,
         cccdNumber: cccdNumber.trim() || undefined,
         licenseNumber: licenseNumber.trim() || undefined,
-        documentUrls,
+        documentUrls: nextDocumentUrls,
       });
-      if (documentUrls.length || cccdNumber || licenseNumber) {
+      if (nextDocumentUrls.length || cccdNumber || licenseNumber) {
         showInfo('Hồ sơ đã gửi', 'Giấy tờ của bạn đang ở trạng thái chờ duyệt.');
       } else {
         showInfo('Có thể hoàn tất sau', 'Bạn vẫn có thể vào khu vực tài xế và bổ sung giấy tờ trong hồ sơ.');
@@ -240,7 +284,7 @@ export default function DriverRegisterScreen() {
             onPress={() =>
               router.replace({
                 pathname: '/(auth)/register' as any,
-                params: { next: 'driver-onboarding' },
+                params: { next: 'driver-onboarding', intent: 'driver' },
               })
             }
             style={{ marginBottom: spacing.md }}
@@ -251,7 +295,7 @@ export default function DriverRegisterScreen() {
             onPress={() =>
               router.replace({
                 pathname: '/(auth)/login' as any,
-                params: { next: 'driver-onboarding' },
+                params: { next: 'driver-onboarding', intent: 'driver' },
               })
             }
           />
@@ -517,7 +561,7 @@ export default function DriverRegisterScreen() {
             />
             <TextInput
               label="Ảnh giấy tờ"
-              placeholder="Dán mỗi URL ảnh trên một dòng. Upload file có thể hoàn thiện sau trong hồ sơ."
+              placeholder="Có thể dán URL ảnh trên mỗi dòng nếu bạn đã có sẵn."
               value={documentUrlsText}
               onChangeText={setDocumentUrlsText}
               multiline
@@ -525,6 +569,47 @@ export default function DriverRegisterScreen() {
               disabled={isLoading}
               style={{ marginBottom: spacing.lg }}
             />
+            <Button
+              label={documentsUploading ? 'Đang upload giấy tờ...' : 'Upload ảnh giấy tờ'}
+              onPress={pickDocuments}
+              loading={documentsUploading}
+              disabled={isLoading || documentsUploading}
+              variant="secondary"
+              icon={<ImageIcon size={18} color={colors.primary} />}
+              style={{ marginBottom: spacing.md }}
+            />
+            {documentUrls.length > 0 && (
+              <View style={{ gap: spacing.sm, marginBottom: spacing.lg }}>
+                {documentUrls.map((url, index) => (
+                  <View
+                    key={url}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: spacing.md,
+                      paddingVertical: spacing.sm,
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.border,
+                    }}
+                  >
+                    <Image
+                      source={{ uri: url }}
+                      style={{ width: 58, height: 44, borderRadius: borderRadius.sm, backgroundColor: colors.surfaceAlt }}
+                    />
+                    <Text style={{ flex: 1, color: colors.text, fontWeight: '800' }}>
+                      Ảnh giấy tờ {index + 1}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setDocumentUrls((current) => current.filter((item) => item !== url))}
+                      disabled={isLoading || documentsUploading}
+                      style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt }}
+                    >
+                      <Trash2 size={17} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
             <Button label="Hoàn tất đăng ký tài xế" onPress={finishOnboarding} loading={isLoading} disabled={isLoading} style={{ marginBottom: spacing.md }} />
             <Button label="Quay lại thông tin cơ bản" onPress={() => setStep('basic')} variant="outline" disabled={isLoading} />
           </>

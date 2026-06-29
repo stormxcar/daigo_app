@@ -10,13 +10,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { Eye, EyeOff, User, Mail, Phone, Lock } from 'lucide-react-native';
 import { getEmailValidationError, isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
 import { DAIGO_LOGO_URL } from '@/constants/branding';
-import { showError as showErrorToast, showInfo, showSuccess } from '@/utils/toast';
+import { showError as showErrorToast, showInfo, showSuccess, showWarning } from '@/utils/toast';
 
 export default function RegisterScreen() {
   const { colors } = useTheme();
-  const params = useLocalSearchParams<{ next?: string }>();
+  const params = useLocalSearchParams<{ next?: string; intent?: string }>();
   const { register, isLoading, error } = useAuth();
-  const isDriverIntent = params.next === 'driver-onboarding';
+  const isDriverIntent = params.next === 'driver-onboarding' || params.intent === 'driver';
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -75,13 +75,20 @@ export default function RegisterScreen() {
         confirmPassword,
       });
       if (response.token) {
-        router.replace((isDriverIntent ? '/(auth)/driver-register' : response.user.role === 'driver' ? '/(driver)/dashboard' : '/(customer)/home') as any);
+        router.replace(
+          isDriverIntent
+            ? {
+                pathname: '/(auth)/driver-register' as any,
+                params: { intent: 'driver' },
+              }
+            : (response.user.role === 'driver' ? '/(driver)/dashboard' : '/(customer)/home') as any,
+        );
         showSuccess('Đăng ký thành công', `Tài khoản ${response.user.fullName} đã sẵn sàng.`);
       } else {
         showInfo('Xác thực email', 'Tài khoản đã được tạo. Vui lòng nhập mã OTP được gửi về email để kích hoạt tài khoản.');
         router.replace({
           pathname: '/(auth)/verify-email' as any,
-          params: { email: email.trim().toLowerCase(), ...(isDriverIntent ? { next: 'driver-onboarding' } : {}) },
+          params: { email: email.trim().toLowerCase(), ...(isDriverIntent ? { next: 'driver-onboarding', intent: 'driver' } : {}) },
         });
       }
     } catch (err: any) {
@@ -280,6 +287,10 @@ export default function RegisterScreen() {
           returnKeyType="done"
           onSubmitEditing={handleRegister}
           contextMenuHidden
+          preventBulkInput
+          onBulkInputBlocked={() =>
+            showWarning('Không thể dán mật khẩu', 'Vui lòng nhập thủ công phần xác nhận mật khẩu.')
+          }
           disabled={isLoading}
           error={fieldErrors.confirmPassword}
           ref={confirmPasswordRef}
@@ -318,7 +329,15 @@ export default function RegisterScreen() {
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, lineHeight: 20, marginBottom: spacing.md }}>
           Tài xế xác minh số điện thoại trước, sau đó bổ sung hồ sơ xe và giấy tờ.
         </Text>
-        <TouchableOpacity onPress={() => router.push('/(auth)/driver-register')} disabled={isLoading}>
+        <TouchableOpacity
+          onPress={() =>
+            router.replace({
+              pathname: '/(auth)/register' as any,
+              params: { next: 'driver-onboarding', intent: 'driver' },
+            })
+          }
+          disabled={isLoading || isDriverIntent}
+        >
           <Text style={{ color: colors.primary, fontWeight: '800' }}>Đăng ký làm tài xế</Text>
         </TouchableOpacity>
       </View>
@@ -338,7 +357,7 @@ export default function RegisterScreen() {
           onPress={() =>
             router.push({
               pathname: '/(auth)/login' as any,
-              params: isDriverIntent ? { next: 'driver-onboarding' } : undefined,
+              params: isDriverIntent ? { next: 'driver-onboarding', intent: 'driver' } : undefined,
             })
           }
           disabled={isLoading}

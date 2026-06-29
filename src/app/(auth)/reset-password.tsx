@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme';
 import { toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
-import { showError as showErrorToast, showSuccess } from '@/utils/toast';
+import { showError as showErrorToast, showSuccess, showWarning } from '@/utils/toast';
 
 export default function ResetPasswordScreen() {
   const { colors } = useTheme();
@@ -151,6 +151,10 @@ export default function ResetPasswordScreen() {
         returnKeyType="done"
         onSubmitEditing={handleUpdatePassword}
         contextMenuHidden
+        preventBulkInput
+        onBulkInputBlocked={() =>
+          showWarning('Không thể dán mật khẩu', 'Vui lòng nhập thủ công phần xác nhận mật khẩu.')
+        }
         disabled={isLoading}
         error={fieldErrors.confirmPassword}
         icon={<Lock size={20} color={colors.textSecondary} />}

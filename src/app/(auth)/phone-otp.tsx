@@ -9,7 +9,7 @@ import { Screen } from '@/components/ScreenComponents';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { isFirebasePhoneAuthEnabled, isTestPhoneOtpEnabled, isValidVietnamPhone, normalizeVietnamPhone, TEST_PHONE_OTP } from '@/services/api';
+import { isFirebasePhoneAuthEnabled, isTestPhoneOtpEnabled, isValidVietnamPhone, normalizeVietnamPhone, TEST_PHONE_OTP } from '@/services/phoneAuthConfig';
 import { toVietnameseAuthError } from '@/utils/authValidation';
 import { showError, showSuccess } from '@/utils/toast';
 

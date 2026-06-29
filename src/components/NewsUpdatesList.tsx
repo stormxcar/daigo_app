@@ -5,7 +5,7 @@ import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { BlogPost } from '@/types';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Newspaper, Play } from 'lucide-react-native';
-import { buildCloudinaryVideoPosterUrl } from '@/services/videoOptimizationService';
+import { buildCloudinaryVideoPosterUrl, buildOptimizedCloudinaryImageUrl } from '@/services/videoOptimizationService';
 
 function NewsVideoPreview({ uri }: { uri: string }) {
   const posterUri = buildCloudinaryVideoPosterUrl(uri, { width: 480 });
@@ -32,6 +32,10 @@ export const NewsUpdatesList: React.FC<{
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ gap: spacing.md }}
+        removeClippedSubviews
+        initialNumToRender={4}
+        maxToRenderPerBatch={6}
+        windowSize={7}
         renderItem={({ item }) => {
           const firstMediaUrl = item.mediaUrls[0];
           const firstMediaType = item.mediaTypes?.[0] ?? 'image';
@@ -81,8 +85,9 @@ export const NewsUpdatesList: React.FC<{
                   </View>
                 ) : hasRemoteMedia ? (
                   <Image
-                    source={{ uri: firstMediaUrl }}
+                    source={{ uri: buildOptimizedCloudinaryImageUrl(firstMediaUrl, { width: 480 }) }}
                     style={{ width: '100%', height: 100, borderRadius: borderRadius.sm, marginBottom: spacing.xs }}
+                    resizeMode="cover"
                   />
                 ) : (
                   <View style={{ marginBottom: spacing.xs }}>

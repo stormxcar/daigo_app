@@ -1,4 +1,18 @@
 const CLOUDINARY_VIDEO_MARKER = '/video/upload/';
+const CLOUDINARY_IMAGE_MARKER = '/image/upload/';
+
+export function buildOptimizedCloudinaryImageUrl(url: string, options?: { width?: number; quality?: string }) {
+  if (!url || !url.includes(CLOUDINARY_IMAGE_MARKER)) return url;
+  const width = options?.width ?? 720;
+  const quality = options?.quality ?? 'q_auto:eco';
+  const transform = `f_auto,${quality},w_${width},c_limit`;
+  const [base, query = ''] = url.split('?');
+  const optimized = base.includes(`${CLOUDINARY_IMAGE_MARKER}${transform}/`)
+    ? base
+    : base.replace(CLOUDINARY_IMAGE_MARKER, `${CLOUDINARY_IMAGE_MARKER}${transform}/`);
+
+  return query ? `${optimized}?${query}` : optimized;
+}
 
 export function buildOptimizedCloudinaryVideoUrl(url: string, options?: { width?: number; hls?: boolean }) {
   if (!url || !url.includes(CLOUDINARY_VIDEO_MARKER)) return url;

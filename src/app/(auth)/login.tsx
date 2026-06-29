@@ -31,12 +31,27 @@ import { showError as showErrorToast, showSuccess } from "@/utils/toast";
 
 const REMEMBER_EMAIL_KEY = "booking_daigo_remember_email";
 const REMEMBER_PASSWORD_KEY = "booking_daigo_remember_password";
+const LOGIN_RATE_LIMIT_SECONDS = 60;
+
+const isRateLimitAuthError = (error: any) => {
+  const message = String(error?.message ?? "").toLowerCase();
+  const status = error?.status || error?.code;
+  return (
+    status === 429 ||
+    message.includes("too many requests") ||
+    message.includes("rate limit") ||
+    message.includes("security purposes") ||
+    message.includes("over_email_send_rate_limit") ||
+    message.includes("email rate limit exceeded")
+  );
+};
 
 export default function LoginScreen() {
   const { colors } = useTheme();
-  const params = useLocalSearchParams<{ next?: string }>();
+  const params = useLocalSearchParams<{ next?: string; intent?: string }>();
   const { login, loginWithGoogle, isLoading, error } = useAuth();
-  const nextRoute = params.next === "driver-onboarding" ? "/(auth)/driver-register" : undefined;
+  const isDriverIntent = params.next === "driver-onboarding" || params.intent === "driver";
+  const nextRoute = isDriverIntent ? "/(auth)/driver-register" : undefined;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,8 +64,15 @@ export default function LoginScreen() {
   }>({});
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState("");
+  const [loginCooldownUntil, setLoginCooldownUntil] = useState(0);
+  const [now, setNow] = useState(Date.now());
   const emailRef = useRef<RNTextInput>(null);
   const passwordRef = useRef<RNTextInput>(null);
+  const loginCooldownSeconds = Math.max(
+    0,
+    Math.ceil((loginCooldownUntil - now) / 1000),
+  );
+  const isLoginBlocked = loginCooldownSeconds > 0;
 
   useEffect(() => {
     const loadRememberedLogin = async () => {
@@ -68,6 +90,12 @@ export default function LoginScreen() {
 
     loadRememberedLogin();
   }, []);
+
+  useEffect(() => {
+    if (!loginCooldownUntil) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [loginCooldownUntil]);
 
   const showError = (message: string) => {
     setLocalError(message);
@@ -88,6 +116,10 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
+    if (isLoginBlocked) {
+      showError(`Supabase đang tạm giới hạn đăng nhập. Vui lòng thử lại sau ${loginCooldownSeconds} giây.`);
+      return;
+    }
     if (!validateLogin()) return;
     try {
       const normalizedEmail = email.trim().toLowerCase();
@@ -110,6 +142,10 @@ export default function LoginScreen() {
         `Xin chào ${response.user.fullName}.`,
       );
     } catch (err: any) {
+      if (isRateLimitAuthError(err)) {
+        setLoginCooldownUntil(Date.now() + LOGIN_RATE_LIMIT_SECONDS * 1000);
+        setNow(Date.now());
+      }
       showError(toVietnameseAuthError(err.message));
     }
   };
@@ -347,11 +383,39 @@ export default function LoginScreen() {
       </View>
 
       <Button
-        label="Đăng nhập"
+        label={isLoginBlocked ? `Thử lại sau ${loginCooldownSeconds}s` : "Đăng nhập"}
         onPress={handleLogin}
         loading={isLoading}
+        disabled={isLoading || isLoginBlocked}
         style={{ marginBottom: spacing.lg }}
       />
+
+      {isLoginBlocked && (
+        <View
+          style={{
+            padding: spacing.md,
+            borderRadius: borderRadius.md,
+            backgroundColor: colors.surfaceAlt,
+            borderWidth: 1,
+            borderColor: colors.warning,
+            marginBottom: spacing.md,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "800" }}>
+            Tạm khóa đăng nhập
+          </Text>
+          <Text
+            style={{
+              color: colors.textSecondary,
+              fontSize: fontSize.sm,
+              marginTop: spacing.xs,
+              lineHeight: 20,
+            }}
+          >
+            Bạn đã thử đăng nhập quá nhiều lần. Hãy chờ {loginCooldownSeconds} giây rồi thử lại để tránh bị Supabase giới hạn lâu hơn.
+          </Text>
+        </View>
+      )}
 
       <Button
         label="Đăng nhập với Google"
@@ -463,7 +527,7 @@ export default function LoginScreen() {
           onPress={() =>
             router.push({
               pathname: "/(auth)/register" as any,
-              params: nextRoute ? { next: "driver-onboarding" } : undefined,
+              params: isDriverIntent ? { next: "driver-onboarding", intent: "driver" } : undefined,
             })
           }
           disabled={isLoading}
@@ -484,7 +548,12 @@ export default function LoginScreen() {
         style={{ alignItems: "center", marginTop: spacing.lg, gap: spacing.sm }}
       >
         <TouchableOpacity
-          onPress={() => router.push("/(auth)/driver-register")}
+          onPress={() =>
+            router.push({
+              pathname: "/(auth)/register" as any,
+              params: { next: "driver-onboarding", intent: "driver" },
+            })
+          }
           disabled={isLoading || googleLoading}
         >
           <Text

@@ -512,7 +512,13 @@ export default function DriverBlog() {
             {!!post.caption && <Text style={{ color: colors.text, lineHeight: 22, marginBottom: spacing.md }}>{post.caption}</Text>}
             {post.mediaUrls.length > 0 && (
               <View style={{ marginBottom: spacing.md }}>
-                <BlogMediaGrid urls={post.mediaUrls} types={post.mediaTypes} height={230} />
+                <BlogMediaGrid
+                  urls={post.mediaUrls.slice(0, 4)}
+                  types={post.mediaTypes.slice(0, 4)}
+                  height={230}
+                  active={false}
+                  preload={false}
+                />
               </View>
             )}
           </TouchableOpacity>

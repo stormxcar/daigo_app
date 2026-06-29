@@ -238,8 +238,8 @@ export default function BlogScreen() {
         {post.mediaUrls.length > 0 && (
           <View style={{ marginBottom: spacing.md }}>
             <BlogMediaGrid
-              urls={post.mediaUrls}
-              types={post.mediaTypes}
+              urls={post.mediaUrls.slice(0, 4)}
+              types={post.mediaTypes.slice(0, 4)}
               height={230}
               active={videoPlayback.isVideoActive(post.id)}
               preload={videoPlayback.shouldPreloadVideo(post.id)}

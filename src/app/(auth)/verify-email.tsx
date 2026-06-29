@@ -13,7 +13,8 @@ import { showError, showSuccess } from '@/utils/toast';
 
 export default function VerifyEmailScreen() {
   const { colors } = useTheme();
-  const params = useLocalSearchParams<{ email?: string; next?: string }>();
+  const params = useLocalSearchParams<{ email?: string; next?: string; intent?: string }>();
+  const isDriverIntent = params.next === 'driver-onboarding' || params.intent === 'driver';
   const { verifySignupOtp, resendSignupOtp, isLoading, error } = useAuth();
   const [email, setEmail] = useState(params.email ?? '');
   const [otp, setOtp] = useState('');
@@ -43,7 +44,14 @@ export default function VerifyEmailScreen() {
     try {
       const response = await verifySignupOtp(normalizedEmail, otp);
       showSuccess('Xác thực thành công', 'Tài khoản đã được kích hoạt.');
-      router.replace((params.next === 'driver-onboarding' ? '/(auth)/driver-register' : response.user.role === 'customer' ? '/(customer)/home' : '/(driver)/dashboard') as any);
+      router.replace(
+        isDriverIntent
+          ? {
+              pathname: '/(auth)/driver-register' as any,
+              params: { intent: 'driver' },
+            }
+          : (response.user.role === 'customer' ? '/(customer)/home' : '/(driver)/dashboard') as any,
+      );
     } catch (err: any) {
       const message = toVietnameseAuthError(err.message);
       setLocalError(message);
@@ -139,7 +147,7 @@ export default function VerifyEmailScreen() {
         onPress={() =>
           router.replace({
             pathname: '/(auth)/login' as any,
-            params: params.next === 'driver-onboarding' ? { next: 'driver-onboarding' } : undefined,
+            params: isDriverIntent ? { next: 'driver-onboarding', intent: 'driver' } : undefined,
           })
         }
         variant="outline"
