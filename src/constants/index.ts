@@ -97,6 +97,16 @@ export const NOTIFICATION_TYPES = {
   PAYMENT_UPDATE: 'payment_update',
   BLOG_INTERACTION: 'blog_interaction',
   INCOMING_CALL: 'incoming_call',
+  MISSED_CALL: 'missed_call',
+  CHAT_MESSAGE: 'chat_message',
+  BOOKING_CREATED: 'booking_created',
+  BOOKING_ACCEPTED: 'booking_accepted',
+  BOOKING_CANCELLED: 'booking_cancelled',
+  SCHEDULED_REMINDER: 'scheduled_reminder',
+  PAYMENT_SUBMITTED: 'payment_submitted',
+  PAYMENT_VERIFIED: 'payment_verified',
+  BLOG_LIKED: 'blog_liked',
+  BLOG_COMMENTED: 'blog_commented',
   SYSTEM: 'system',
 } as const;
 

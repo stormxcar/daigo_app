@@ -229,6 +229,16 @@ export type NotificationType =
   | 'payment_update'
   | 'blog_interaction'
   | 'incoming_call'
+  | 'missed_call'
+  | 'chat_message'
+  | 'booking_created'
+  | 'booking_accepted'
+  | 'booking_cancelled'
+  | 'scheduled_reminder'
+  | 'payment_submitted'
+  | 'payment_verified'
+  | 'blog_liked'
+  | 'blog_commented'
   | 'system';
 
 export interface NotificationItem {
@@ -241,6 +251,8 @@ export interface NotificationItem {
   read: boolean;
   relatedBookingId?: string;
   relatedPostId?: string;
+  conversationId?: string;
+  callSessionId?: string;
   createdAt: string;
 }
 

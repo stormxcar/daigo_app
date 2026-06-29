@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 import { router, Stack } from "expo-router";
 import { AppState, AppStateStatus, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -24,6 +25,7 @@ import { ForceUpdateGate } from "@/components/ForceUpdateGate";
 import { IncomingCallModal } from "@/components/IncomingCallModal";
 import { useIncomingCall } from "@/hooks/useIncomingCall";
 import { registerPushNotifications } from "@/services/pushNotifications";
+import { resolveNotificationTarget } from "@/utils/notificationRouter";
 import {
   cleanupBookingStatusSubscriptions,
   cleanupRealtimeDriverLocationSubscriptions,
@@ -54,7 +56,24 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
   );
 }
 
+/**
+ * Navigate to the correct screen when user taps a push notification.
+ * `data` is the payload sent from the edge function / DB trigger.
+ */
+
+function handleNotificationNavigation(data: Record<string, any>) {
+  const user = useAuthStore.getState().user;
+
+  try {
+    const target = resolveNotificationTarget(data, user?.role ?? 'customer');
+    router.push({ pathname: target.pathname as any, params: target.params });
+  } catch {
+    // Router may not be ready on cold-start; safe to ignore
+  }
+}
+
 export default function RootLayout() {
+
   const currentUser = useAuthStore((state) => state.user);
   const { incomingCall, clearIncomingCall } = useIncomingCall(currentUser);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -202,6 +221,28 @@ export default function RootLayout() {
       linkingSubscription.remove();
     };
   }, []);
+
+  // ── Push notification tap → navigate to correct screen ──────────────────────
+  useEffect(() => {
+    // Handle tap when app is already open (foreground / background)
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data as Record<string, any>;
+        handleNotificationNavigation(data);
+      }
+    );
+
+    // Handle tap that cold-launched the app
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      const data = response.notification.request.content.data as Record<string, any>;
+      // Slight delay so the router is ready
+      setTimeout(() => handleNotificationNavigation(data), 500);
+    });
+
+    return () => subscription.remove();
+  }, []);
+
 
   // ── AppState: refresh session when app comes back to foreground ──
   useEffect(() => {

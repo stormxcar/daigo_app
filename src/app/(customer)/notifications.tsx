@@ -10,6 +10,7 @@ import { SearchFilterBar } from '@/components/SearchFilterBar';
 import { AuthRequired } from '@/components/AuthRequired';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotifications } from '@/hooks/useNotifications';
+import { resolveNotificationTarget } from '@/utils/notificationRouter';
 
 const NOTIF_FILTERS = [
   { key: 'all', label: 'Tất cả' },
@@ -107,10 +108,8 @@ export default function NotificationsScreen() {
               activeOpacity={0.7}
               onPress={() => {
                 if (!notification.read) markAsRead(notification.id);
-                router.push({
-                  pathname: '/(customer)/notification-detail' as any,
-                  params: { id: notification.id },
-                });
+                const target = resolveNotificationTarget(notification, 'customer');
+                router.push({ pathname: target.pathname as any, params: target.params });
               }}
               style={{
                 flexDirection: 'row',

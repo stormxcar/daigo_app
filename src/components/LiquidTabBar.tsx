@@ -78,19 +78,46 @@ export function LiquidTabBar({
 
   const getRouteNotifications = (routeName: string, items: NotificationItem[]) => {
     if (routeName === 'blog') {
-      return items.filter((notification) => notification.type === 'blog_interaction' || !!notification.relatedPostId);
+      return items.filter((notification) =>
+        ['blog_interaction', 'blog_liked', 'blog_commented'].includes(notification.type) ||
+        !!notification.relatedPostId
+      );
     }
     if (routeName === 'booking' || routeName === 'bookings') {
       return items.filter((notification) =>
-        notification.type !== 'incoming_call' &&
+        !['incoming_call', 'missed_call', 'chat_message'].includes(notification.type) &&
         (
           !!notification.relatedBookingId ||
-          ['booking_success', 'driver_confirm', 'driver_cancel', 'trip_done', 'booking_update', 'payment_update'].includes(notification.type)
+          [
+            'booking_success',
+            'driver_confirm',
+            'driver_cancel',
+            'trip_done',
+            'booking_update',
+            'booking_created',
+            'booking_accepted',
+            'booking_cancelled',
+            'scheduled_reminder',
+            'payment_update',
+            'payment_submitted',
+            'payment_verified',
+          ].includes(notification.type)
         )
       );
     }
     if (routeName === 'dashboard') {
-      return items.filter((notification) => notification.type === 'booking_update' || notification.type === 'payment_update');
+      return items.filter((notification) =>
+        [
+          'booking_update',
+          'booking_created',
+          'booking_accepted',
+          'booking_cancelled',
+          'scheduled_reminder',
+          'payment_update',
+          'payment_submitted',
+          'payment_verified',
+        ].includes(notification.type)
+      );
     }
     return [];
   };

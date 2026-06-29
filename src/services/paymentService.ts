@@ -81,12 +81,13 @@ async function createPaymentNotification(data: {
   bookingId: string;
   title: string;
   content: string;
+  type?: 'payment_update' | 'payment_submitted' | 'payment_verified';
 }) {
   const { error } = await supabase.from('notifications').insert({
     user_id: data.userId,
     title: data.title,
     content: data.content,
-    type: 'payment_update',
+    type: data.type ?? 'payment_update',
     read: false,
     related_booking_id: data.bookingId,
   });
@@ -226,7 +227,8 @@ class PaymentService {
       userId: payment.driverId,
       bookingId: payment.bookingId,
       title: 'Khách đã báo đã chuyển khoản',
-      content: `Vui lòng kiểm tra giao dịch cho chuyến ${payment.transferContent}.`,
+      content: `Khách đã báo chuyển khoản ${payment.amount.toLocaleString('vi-VN')}đ cho chuyến ${payment.transferContent}. Vui lòng kiểm tra tài khoản và xác nhận.`,
+      type: 'payment_submitted',
     });
 
     return mapPayment(data as PaymentRow);
@@ -269,7 +271,8 @@ class PaymentService {
       userId: payment.customerId,
       bookingId: payment.bookingId,
       title: 'Tài xế đã xác nhận thanh toán',
-      content: 'Thanh toán của bạn đã được tài xế xác nhận.',
+      content: `Thanh toán ${payment.amount.toLocaleString('vi-VN')}đ cho chuyến ${payment.transferContent} đã được tài xế xác nhận.`,
+      type: 'payment_verified',
     });
 
     return mapPayment(data as PaymentRow);

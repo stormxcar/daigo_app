@@ -11,6 +11,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useNotifications } from '@/hooks/useNotifications';
 import { NotificationItem } from '@/types';
 import { showInfo } from '@/utils/toast';
+import { resolveNotificationTarget } from '@/utils/notificationRouter';
 
 const NOTIF_FILTERS = [
   { key: 'all', label: 'Tất cả' },
@@ -65,17 +66,8 @@ export default function DriverNotifications() {
       showInfo('Cuộc gọi đến', 'Nếu cuộc gọi vẫn đang chờ, app sẽ hiện popup nhận cuộc gọi. Thông báo này chỉ là lịch sử cuộc gọi.');
       return;
     }
-    if (notification.type === 'payment_update' && notification.relatedBookingId) {
-      router.push({ pathname: '/(driver)/payment-review' as any, params: { bookingId: notification.relatedBookingId } });
-      return;
-    }
-    if (notification.relatedBookingId) {
-      router.push({ pathname: '/(driver)/booking-detail' as any, params: { id: notification.relatedBookingId } });
-      return;
-    }
-    if (notification.relatedPostId) {
-      router.push({ pathname: '/(driver)/blog-detail' as any, params: { id: notification.relatedPostId } });
-    }
+    const target = resolveNotificationTarget(notification, 'driver');
+    router.push({ pathname: target.pathname as any, params: target.params });
   };
 
   return (

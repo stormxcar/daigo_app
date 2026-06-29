@@ -48,6 +48,7 @@ async function createCallNotification(data: {
   userId: string;
   callerName: string;
   callSessionId: string;
+  chatId?: string;
   bookingId?: string;
 }) {
   try {
@@ -58,6 +59,8 @@ async function createCallNotification(data: {
       type: 'incoming_call',
       read: false,
       related_booking_id: data.bookingId ?? null,
+      conversation_id: data.chatId ?? null,
+      call_session_id: data.callSessionId,
     });
   } catch {
     // Realtime call still works even if auxiliary notification insert is denied.
@@ -130,6 +133,7 @@ class CallService {
       userId: data.receiverId,
       callerName: data.callerName,
       callSessionId: inserted.id,
+      chatId: data.chatId,
       bookingId: data.bookingId,
     });
 

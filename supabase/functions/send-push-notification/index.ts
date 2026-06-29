@@ -20,6 +20,8 @@ type PushRequestBody = {
     id?: string;
     related_booking_id?: string | null;
     related_post_id?: string | null;
+    conversation_id?: string | null;
+    call_session_id?: string | null;
   };
 };
 
@@ -49,6 +51,8 @@ serve(async (req: Request) => {
       type: record?.type,
       relatedBookingId: record?.related_booking_id,
       relatedPostId: record?.related_post_id,
+      conversationId: record?.conversation_id,
+      callSessionId: record?.call_session_id,
       ...(body.data ?? {}),
     };
 
@@ -76,6 +80,7 @@ serve(async (req: Request) => {
     // Build Expo push messages
     const isIncomingCall =
       payload.type === 'incoming_call' ||
+      payload.notificationKind === 'incoming_call' ||
       String(title).toLowerCase().includes('cuộc gọi') ||
       String(message).toLowerCase().includes('đang gọi cho bạn');
     const channelId = isIncomingCall ? 'calls' : 'default';

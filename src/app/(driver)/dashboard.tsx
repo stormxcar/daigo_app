@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
-import { BarChart3, Briefcase, LocateFixed, Newspaper, Percent, Route, Star, TrendingUp, Wallet } from 'lucide-react-native';
+import { BarChart3, Briefcase, CalendarClock, LocateFixed, Newspaper, Percent, Route, Star, TrendingUp, Wallet } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, CardSkeleton } from '@/components/BaseComponents';
@@ -266,6 +266,35 @@ export default function DriverDashboard() {
   }, [bookings, ratings, user?.id]);
   const activeTrip = bookings.find((booking) => VISIBLE_ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
 
+  // Chuyến đặt trước hôm nay (chưa bắt đầu)
+  const todayScheduledBooking = useMemo(() => {
+    const now = new Date();
+    return [...bookings]
+      .filter((booking) => {
+        if (!booking.scheduledStartAt) return false;
+        if (
+          ![
+            BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED,
+            BOOKING_STATUS.SCHEDULED_UPCOMING,
+          ].includes(booking.status as any)
+        ) {
+          return false;
+        }
+        const tripDate = new Date(booking.scheduledStartAt);
+        return (
+          tripDate.getFullYear() === now.getFullYear() &&
+          tripDate.getMonth() === now.getMonth() &&
+          tripDate.getDate() === now.getDate() &&
+          tripDate.getTime() > now.getTime()
+        );
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.scheduledStartAt!).getTime() -
+          new Date(b.scheduledStartAt!).getTime(),
+      )[0] ?? null;
+  }, [bookings]);
+
   const chart = useMemo(() => {
     const buckets = buildBuckets(mode);
     bookings.forEach((booking) => {
@@ -323,6 +352,37 @@ export default function DriverDashboard() {
         role="driver"
         onOpenDetail={(id) => router.push({ pathname: '/(driver)/booking-detail' as any, params: { id } })}
       />
+
+      {/* Banner nhắc nhở chuyến đặt trước hôm nay */}
+      {!!todayScheduledBooking && (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => router.push({ pathname: '/(driver)/booking-detail' as any, params: { id: todayScheduledBooking.id } })}
+          style={{
+            backgroundColor: colors.warning + '18',
+            borderTopWidth: 1,
+            borderBottomWidth: 1,
+            borderColor: colors.warning,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.md,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.md,
+            marginBottom: spacing.lg,
+          }}
+        >
+          <CalendarClock size={26} color={colors.warning} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.warning, fontWeight: '900', fontSize: 14 }}>
+              Bạn có chuyến đặt trước hôm nay!
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+              {new Date(todayScheduledBooking.scheduledStartAt!).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • Đi đón khách tại {todayScheduledBooking.pickupLocation?.split(',')[0] ?? '...'}
+            </Text>
+          </View>
+          <Text style={{ color: colors.warning, fontWeight: '700', fontSize: 13 }}>Xem ›</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={{ paddingHorizontal: spacing.lg }}>
         <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: spacing.xs, marginTop: spacing.md }}>

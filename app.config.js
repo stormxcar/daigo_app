@@ -38,7 +38,7 @@ module.exports = {
     versionCode: 1,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#1d4ed8',
+      backgroundColor: '#ffffff',
     },
     package: 'com.daigo.booking',
   },
@@ -80,6 +80,7 @@ module.exports = {
     ],
     'expo-screen-orientation',
     'expo-font',
+    'expo-asset',
     'expo-audio',
     'expo-video',
     '@react-native-community/datetimepicker',

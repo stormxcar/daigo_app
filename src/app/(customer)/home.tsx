@@ -51,7 +51,7 @@ import {
   DeviceLocation,
   getCurrentDeviceLocation,
 } from "@/services/deviceLocation";
-import { VISIBLE_ACTIVE_BOOKING_STATUSES } from "@/constants";
+import { BOOKING_STATUS, VISIBLE_ACTIVE_BOOKING_STATUSES } from "@/constants";
 
 import { BlogPost, Vehicle } from "@/types";
 import { DAIGO_LOGO_URL } from "@/constants/branding";
@@ -647,6 +647,34 @@ export default function HomeScreen() {
         VISIBLE_ACTIVE_BOOKING_STATUSES.includes(booking.status as any),
       )
     : null;
+  const todayScheduledBooking = useMemo(() => {
+    if (!isLoggedIn) return null;
+    const now = new Date();
+    return [...bookings]
+      .filter((booking) => {
+        if (!booking.scheduledStartAt) return false;
+        if (
+          ![
+            BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED,
+            BOOKING_STATUS.SCHEDULED_UPCOMING,
+          ].includes(booking.status as any)
+        ) {
+          return false;
+        }
+        const tripDate = new Date(booking.scheduledStartAt);
+        return (
+          tripDate.getFullYear() === now.getFullYear() &&
+          tripDate.getMonth() === now.getMonth() &&
+          tripDate.getDate() === now.getDate() &&
+          tripDate.getTime() > now.getTime()
+        );
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.scheduledStartAt!).getTime() -
+          new Date(b.scheduledStartAt!).getTime(),
+      )[0] ?? null;
+  }, [bookings, isLoggedIn]);
 
   if (locationAccessBlocked && !currentLocation) {
     return (
@@ -669,6 +697,46 @@ export default function HomeScreen() {
           })
         }
       />
+      {!!todayScheduledBooking && (
+        <TouchableOpacity
+          activeOpacity={0.86}
+          onPress={() =>
+            router.push({
+              pathname: "/(customer)/booking-detail" as any,
+              params: { id: todayScheduledBooking.id },
+            })
+          }
+          style={{
+            backgroundColor: colors.warning + "18",
+            borderTopWidth: 1,
+            borderBottomWidth: 1,
+            borderColor: colors.warning,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.md,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.md,
+            marginBottom: spacing.lg,
+          }}
+        >
+          <CalendarClock size={26} color={colors.warning} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.warning, fontWeight: "900", fontSize: 14 }}>
+              Bạn có chuyến đặt trước hôm nay!
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }} numberOfLines={2}>
+              {new Date(todayScheduledBooking.scheduledStartAt!).toLocaleTimeString("vi-VN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}{" "}
+              • Đón tại {todayScheduledBooking.pickupLocation?.split(",")[0] ?? "..."}
+            </Text>
+          </View>
+          <Text style={{ color: colors.warning, fontWeight: "800", fontSize: 13 }}>
+            Xem ›
+          </Text>
+        </TouchableOpacity>
+      )}
       <Modal
         visible={tourPromptVisible}
         transparent

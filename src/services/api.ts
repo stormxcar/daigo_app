@@ -1151,8 +1151,8 @@ class ApiClient {
       userId: data.customerId ?? '',
       title: data.bookingMode === 'scheduled' ? 'Đã tạo chuyến đặt trước' : 'Đã tạo chuyến, đang tìm tài xế',
       content: data.bookingMode === 'scheduled'
-        ? 'Đã tạo chuyến đặt trước. Tài xế phù hợp sẽ phản hồi lịch của bạn.'
-        : 'Đã tạo chuyến. Hệ thống đang tìm tài xế phù hợp.',
+        ? `Tuyến ${data.pickupLocation} → ${data.dropoffLocation}, lúc ${data.time} ngày ${data.date}. Tài xế phù hợp sẽ phản hồi lịch của bạn.`
+        : `Tuyến ${data.pickupLocation} → ${data.dropoffLocation}. Hệ thống đang tìm tài xế phù hợp cho ${data.passengers} khách.`,
       type: 'booking_success',
       read: false,
       relatedBookingId: inserted.id,
@@ -1512,6 +1512,8 @@ class ApiClient {
       read: row.read,
       relatedBookingId: row.related_booking_id ?? undefined,
       relatedPostId: row.related_post_id ?? undefined,
+      conversationId: row.conversation_id ?? undefined,
+      callSessionId: row.call_session_id ?? undefined,
       createdAt: row.created_at,
     };
   }
@@ -1568,6 +1570,8 @@ class ApiClient {
       p_type: data.type,
       p_related_booking_id: data.relatedBookingId ?? null,
       p_related_post_id: data.relatedPostId ?? null,
+      p_conversation_id: data.conversationId ?? null,
+      p_call_session_id: data.callSessionId ?? null,
     });
     if (!rpcError && rpcInserted) {
       return this.mapNotification(Array.isArray(rpcInserted) ? rpcInserted[0] : rpcInserted);
@@ -1583,6 +1587,8 @@ class ApiClient {
         read: data.read,
         related_booking_id: data.relatedBookingId,
         related_post_id: data.relatedPostId,
+        conversation_id: data.conversationId,
+        call_session_id: data.callSessionId,
       })
       .select('*')
       .single();
@@ -1736,18 +1742,7 @@ class ApiClient {
         supabase.from('blog_posts').select('driver_id, caption').eq('id', postId).maybeSingle(),
         supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle(),
       ]);
-      if (post?.driver_id && post.driver_id !== userId) {
-        await this.createNotificationSafely({
-          userId: post.driver_id,
-          title: 'Bài viết có lượt thích mới',
-          content: `${actor?.full_name ?? 'Một người dùng'} đã thích bài viết của bạn.`,
-          type: 'blog_interaction',
-          read: false,
-          relatedPostId: postId,
-          createdAt: new Date().toISOString(),
-          time: 'Vừa xong',
-        });
-      }
+      // DB trigger `trg_notify_blog_like_owner` handles push for this action
     }
 
     this.invalidateCache('blog:');
@@ -1788,28 +1783,8 @@ class ApiClient {
         ? supabase.from('blog_comments').select('author_id').eq('id', parentCommentId).maybeSingle()
         : Promise.resolve({ data: null } as { data: null }),
     ]);
-    const authorName = data.profiles?.full_name ?? 'Một người dùng';
-    const receiverIds = Array.from(
-      new Set(
-        [post?.driver_id, parentComment?.author_id]
-          .filter((id): id is string => Boolean(id))
-          .filter((id) => id !== authorId)
-      )
-    );
-    await Promise.all(
-      receiverIds.map((receiverId) =>
-        this.createNotificationSafely({
-          userId: receiverId,
-          title: parentCommentId ? 'Có phản hồi bình luận mới' : 'Bài viết có bình luận mới',
-          content: `${authorName}: ${text.trim()}`,
-          type: 'blog_interaction',
-          read: false,
-          relatedPostId: postId,
-          createdAt: new Date().toISOString(),
-          time: 'Vừa xong',
-        })
-      )
-    );
+    // DB trigger `trg_notify_blog_comment_owner` handles push for post owner & parent commenter.
+    // No manual createNotificationSafely needed here to avoid duplicates.
 
     return {
       id: data.id,
@@ -2040,10 +2015,11 @@ class ApiClient {
       await this.createNotificationSafely({
         userId: receiverId,
         title: `Tin nhắn mới từ ${senderName}`,
-        content: messagePreview,
-        type: 'system',
+        content: `${senderName}: ${messagePreview}`,
+        type: 'chat_message',
         read: false,
         relatedBookingId: conversation?.booking_id ?? undefined,
+        conversationId,
         createdAt: new Date().toISOString(),
         time: 'Vừa xong',
       });

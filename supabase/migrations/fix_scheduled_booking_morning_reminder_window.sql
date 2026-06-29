@@ -1,21 +1,7 @@
--- Scheduled booking reminder notifications. Notifications trigger Expo push via existing notification trigger.
--- Updated: 4 reminder tiers + auto-expire for missed bookings
+-- Fix Tier 2 scheduled booking reminders:
+-- send once during 6-9 AM Vietnam time on the travel day, regardless of pickup hour.
+-- Also use scheduled_start_at as the pickup anchor for reminder/expiry timing.
 
-create extension if not exists pg_cron with schema extensions;
-
-alter table public.bookings
-  add column if not exists reminder_1day_sent_at timestamptz,
-  add column if not exists reminder_morning_sent_at timestamptz,
-  add column if not exists reminder_30_sent_at timestamptz,
-  add column if not exists reminder_10_sent_at timestamptz;
-
--- ============================================================================
--- Function: 4-tier reminder system
--- Tier 1: 24h trước giờ đón
--- Tier 2: Buổi sáng ngày đi (6-9h)
--- Tier 3: 30 phút trước
--- Tier 4: 10 phút trước → chuyển SCHEDULED_UPCOMING
--- ============================================================================
 create or replace function app_private.send_scheduled_booking_reminders()
 returns void
 language plpgsql
@@ -35,10 +21,8 @@ begin
       and scheduled_start_at is not null
       and driver_id is not null
   loop
-    v_pickup_at := v_booking.scheduled_start_at
-                   + make_interval(mins => coalesce(v_booking.buffer_before_minutes, 15));
+    v_pickup_at := v_booking.scheduled_start_at;
 
-    -- Tier 1: Nhắc trước 1 ngày
     if v_booking.reminder_1day_sent_at is null
        and v_now >= v_pickup_at - interval '24 hours'
        and v_now <  v_pickup_at - interval '23 hours'
@@ -47,31 +31,29 @@ begin
       values
         (v_booking.customer_id, 'Nhắc nhở: Chuyến xe ngày mai',
          'Bạn có chuyến xe đặt trước vào ngày mai. Hãy chuẩn bị sẵn sàng!',
-         'booking_update', false, v_booking.id),
+         'scheduled_reminder', false, v_booking.id),
         (v_booking.driver_id, 'Nhắc nhở: Chuyến đặt trước ngày mai',
          'Bạn có chuyến đặt trước vào ngày mai. Đảm bảo xe sẵn sàng trước giờ đón.',
-         'booking_update', false, v_booking.id);
+         'scheduled_reminder', false, v_booking.id);
       update public.bookings set reminder_1day_sent_at = v_now, updated_at = v_now where id = v_booking.id;
     end if;
 
-    -- Tier 2: Nhắc buổi sáng ngày đi (6h-9h VN)
     if v_booking.reminder_morning_sent_at is null
-       and v_now >= v_pickup_at - interval '6 hours'
-       and v_now <  v_pickup_at - interval '30 minutes'
+       and (v_now at time zone 'Asia/Ho_Chi_Minh')::date = (v_pickup_at at time zone 'Asia/Ho_Chi_Minh')::date
        and extract(hour from v_now at time zone 'Asia/Ho_Chi_Minh') between 6 and 9
+       and v_now < v_pickup_at
     then
       insert into public.notifications (user_id, title, content, type, read, related_booking_id)
       values
         (v_booking.customer_id, 'Hôm nay bạn có chuyến đặt trước',
          'Chuyến xe của bạn sẽ diễn ra hôm nay. Tài xế đã sẵn sàng đón bạn.',
-         'booking_update', false, v_booking.id),
+         'scheduled_reminder', false, v_booking.id),
         (v_booking.driver_id, 'Hôm nay bạn có chuyến đặt trước',
          'Đừng quên chuyến xe được đặt trước hôm nay. Hãy kiểm tra lộ trình và chuẩn bị.',
-         'booking_update', false, v_booking.id);
+         'scheduled_reminder', false, v_booking.id);
       update public.bookings set reminder_morning_sent_at = v_now, updated_at = v_now where id = v_booking.id;
     end if;
 
-    -- Tier 3: 30 phút trước
     if v_booking.reminder_30_sent_at is null
        and v_now >= v_pickup_at - interval '30 minutes'
        and v_now <  v_pickup_at - interval '10 minutes'
@@ -80,14 +62,13 @@ begin
       values
         (v_booking.customer_id, 'Chuyến đặt trước sắp diễn ra',
          'Chuyến xe của bạn sẽ bắt đầu sau khoảng 30 phút.',
-         'booking_update', false, v_booking.id),
+         'scheduled_reminder', false, v_booking.id),
         (v_booking.driver_id, 'Chuẩn bị chuyến đặt trước',
          'Bạn có chuyến đặt trước cần chuẩn bị sau khoảng 30 phút.',
-         'booking_update', false, v_booking.id);
+         'scheduled_reminder', false, v_booking.id);
       update public.bookings set reminder_30_sent_at = v_now, updated_at = v_now where id = v_booking.id;
     end if;
 
-    -- Tier 4: 10 phút trước + chuyển SCHEDULED_UPCOMING
     if v_booking.reminder_10_sent_at is null
        and v_now >= v_pickup_at - interval '10 minutes'
        and v_now <  v_pickup_at
@@ -96,10 +77,10 @@ begin
       values
         (v_booking.customer_id, 'Tài xế sắp đến giờ đón',
          'Chuyến xe đặt trước sẽ bắt đầu sau khoảng 10 phút.',
-         'booking_update', false, v_booking.id),
+         'scheduled_reminder', false, v_booking.id),
         (v_booking.driver_id, 'Đến giờ chuẩn bị đón khách',
          'Chuyến đặt trước sẽ bắt đầu sau khoảng 10 phút. Hãy mở lộ trình và di chuyển tới điểm đón.',
-         'booking_update', false, v_booking.id);
+         'scheduled_reminder', false, v_booking.id);
       update public.bookings
       set reminder_10_sent_at = v_now,
           status = case when status = 'SCHEDULED_DRIVER_ACCEPTED' then 'SCHEDULED_UPCOMING' else status end,
@@ -107,14 +88,10 @@ begin
           updated_at = v_now
       where id = v_booking.id;
     end if;
-
   end loop;
 end;
 $$;
 
--- ============================================================================
--- Function: Tự động expire booking đặt trước bị bỏ lỡ (quá 60 phút)
--- ============================================================================
 create or replace function app_private.expire_missed_scheduled_bookings()
 returns void
 language plpgsql
@@ -133,9 +110,7 @@ begin
       and scheduled_start_at is not null
       and driver_id is not null
   loop
-    v_pickup_deadline := v_booking.scheduled_start_at
-                         + make_interval(mins => coalesce(v_booking.buffer_before_minutes, 15))
-                         + interval '60 minutes';
+    v_pickup_deadline := v_booking.scheduled_start_at + interval '60 minutes';
 
     if now() > v_pickup_deadline then
       update public.bookings
@@ -149,43 +124,11 @@ begin
       values
         (v_booking.customer_id, 'Chuyến đặt trước đã hết hạn',
          'Chuyến xe của bạn đã quá giờ và được hủy tự động. Vui lòng đặt chuyến mới nếu cần.',
-         'booking_update', false, v_booking.id),
+         'booking_cancelled', false, v_booking.id),
         (v_booking.driver_id, 'Chuyến đặt trước đã hết hạn',
          'Chuyến đặt trước đã quá giờ và bị hủy tự động vì không có thông báo bắt đầu chuyến.',
-         'booking_update', false, v_booking.id);
+         'booking_cancelled', false, v_booking.id);
     end if;
   end loop;
 end;
 $$;
-
--- ============================================================================
--- Cron jobs
--- ============================================================================
-do $$
-begin
-  if exists (select 1 from cron.job where jobname = 'daigo_scheduled_booking_reminders') then
-    perform cron.unschedule('daigo_scheduled_booking_reminders');
-  end if;
-  perform cron.schedule(
-    'daigo_scheduled_booking_reminders',
-    '* * * * *',
-    'select app_private.send_scheduled_booking_reminders();'
-  );
-exception
-  when undefined_table or undefined_function then null;
-end $$;
-
-do $$
-begin
-  if exists (select 1 from cron.job where jobname = 'daigo_expire_missed_scheduled_bookings') then
-    perform cron.unschedule('daigo_expire_missed_scheduled_bookings');
-  end if;
-  perform cron.schedule(
-    'daigo_expire_missed_scheduled_bookings',
-    '*/5 * * * *',
-    'select app_private.expire_missed_scheduled_bookings();'
-  );
-exception
-  when undefined_table or undefined_function then null;
-end $$;
-
