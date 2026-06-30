@@ -112,6 +112,27 @@ class CallService {
     chatId?: string;
     bookingId?: string;
   }): Promise<CallSession> {
+    const { data: activeCalls, error: activeError } = await supabase
+      .from('call_sessions')
+      .select('*')
+      .eq('call_type', 'agora')
+      .in('status', ['ringing', 'accepted'])
+      .or(
+        `and(caller_id.eq.${data.callerId},receiver_id.eq.${data.receiverId}),and(caller_id.eq.${data.receiverId},receiver_id.eq.${data.callerId})`
+      )
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (activeError) throw activeError;
+
+    const activeCall = (activeCalls as CallSessionRow[] | null)?.find((call) => {
+      if (data.chatId) return call.chat_id === data.chatId;
+      if (data.bookingId) return call.booking_id === data.bookingId;
+      return !call.chat_id && !call.booking_id;
+    });
+    if (activeCall) {
+      throw new Error('Đang có một cuộc gọi chưa kết thúc giữa hai người dùng này.');
+    }
+
     const channel = `daigo_${data.chatId ?? data.bookingId ?? Date.now()}`.replace(/[^A-Za-z0-9_]/g, '_');
     const { data: inserted, error } = await supabase
       .from('call_sessions')
@@ -127,7 +148,12 @@ class CallService {
       })
       .select('*')
       .single();
-    if (error) throw error;
+    if (error) {
+      if (error.code === 'P0001') {
+        throw new Error(error.message || 'Đang có một cuộc gọi chưa kết thúc giữa hai người dùng này.');
+      }
+      throw error;
+    }
 
     await createCallNotification({
       userId: data.receiverId,

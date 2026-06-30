@@ -7,6 +7,7 @@ import { PaymentStatusBadge } from '@/components/PaymentStatusBadge';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Screen } from '@/components/ScreenComponents';
 import { VietQRCard } from '@/components/VietQRCard';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { usePayment } from '@/hooks/usePayment';
 import { apiClient } from '@/services/api';
 import { paymentService } from '@/services/paymentService';
@@ -184,6 +185,11 @@ export default function CustomerPaymentScreen() {
 
   return (
     <Screen scroll>
+      <SubmitOverlay
+        visible={submitting}
+        message="Đang cập nhật thanh toán..."
+        description="Vui lòng chờ trong giây lát để tránh ghi nhận thanh toán bị lệch trạng thái."
+      />
       <PaymentSection>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md }}>
           <View style={{ flex: 1 }}>

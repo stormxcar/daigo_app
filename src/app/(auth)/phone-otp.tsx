@@ -6,7 +6,9 @@ import { Button, TextInput } from '@/components/BaseComponents';
 import { AuthRequired } from '@/components/AuthRequired';
 import { OtpCodeInput } from '@/components/OtpCodeInput';
 import { Screen } from '@/components/ScreenComponents';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { useAuth } from '@/hooks/useAuth';
+import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { isFirebasePhoneAuthEnabled, isTestPhoneOtpEnabled, isValidVietnamPhone, normalizeVietnamPhone, TEST_PHONE_OTP } from '@/services/phoneAuthConfig';
@@ -31,6 +33,11 @@ export default function PhoneOtpScreen() {
   const continueLater = () => {
     router.replace((redirectTo as any) || fallbackHref);
   };
+
+  useSubmitLeaveGuard(
+    isLoading,
+    'Daigo đang gửi hoặc xác minh OTP số điện thoại. Thoát lúc này có thể khiến trạng thái xác minh chưa được lưu.',
+  );
 
   useEffect(() => {
     if (countdown <= 0) return undefined;
@@ -97,6 +104,11 @@ export default function PhoneOtpScreen() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <SubmitOverlay
+        visible={isLoading}
+        message={step === 'phone' ? 'Đang gửi OTP...' : 'Đang xác minh OTP...'}
+        description="Vui lòng chờ trong giây lát để Daigo cập nhật trạng thái xác minh."
+      />
       <Screen scroll padding>
         <View
           style={{

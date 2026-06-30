@@ -5,7 +5,9 @@ import { Eye, EyeOff, Lock } from 'lucide-react-native';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { PasswordRequirementCard } from '@/components/PasswordRequirementCard';
 import { Screen } from '@/components/ScreenComponents';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { useAuth } from '@/hooks/useAuth';
+import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme';
 import { toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
@@ -27,6 +29,11 @@ export default function ResetPasswordScreen() {
     setLocalError(message);
     showErrorToast('Không thể cập nhật mật khẩu', message);
   };
+
+  useSubmitLeaveGuard(
+    isLoading,
+    'Daigo đang cập nhật mật khẩu mới. Thoát lúc này có thể khiến bạn chưa biết thao tác đã hoàn tất hay chưa.',
+  );
 
   const handleUpdatePassword = async () => {
     if (!password || !confirmPassword) {
@@ -67,6 +74,11 @@ export default function ResetPasswordScreen() {
 
   return (
     <Screen scroll padding>
+      <SubmitOverlay
+        visible={isLoading}
+        message="Đang cập nhật mật khẩu..."
+        description="Vui lòng chờ trong giây lát trước khi rời màn hình."
+      />
       {(error || localError) && (
         <View
           style={{

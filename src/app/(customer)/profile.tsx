@@ -38,6 +38,7 @@ import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Avatar, Button, TextInput } from '@/components/BaseComponents';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Screen } from '@/components/ScreenComponents';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { BookingCard } from '@/components/FeatureCards';
 import {
   BookingListControls,
@@ -48,6 +49,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
 import { useBooking } from '@/hooks/useBooking';
+import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { apiClient } from '@/services/api';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
 import { DAIGO_LOGO_URL, APP_NAME, APP_TAGLINE } from '@/constants/branding';
@@ -416,6 +418,12 @@ export default function ProfileScreen() {
   const [address, setAddress] = useState(user?.address ?? '');
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const profileSubmitting = saving || uploadingAvatar;
+
+  useSubmitLeaveGuard(
+    profileSubmitting,
+    'Daigo đang lưu hồ sơ hoặc upload avatar. Thoát lúc này có thể khiến thông tin chưa được cập nhật.',
+  );
 
   const [pushEnabled, setPushEnabled] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(true);
@@ -599,6 +607,11 @@ export default function ProfileScreen() {
 
   return (
     <Screen scroll onRefresh={() => { if (user?.id) fetchBookings({ customerId: user.id }); }}>
+      <SubmitOverlay
+        visible={profileSubmitting}
+        message={uploadingAvatar ? 'Đang upload avatar...' : 'Đang lưu hồ sơ...'}
+        description="Vui lòng chờ để Daigo cập nhật thông tin tài khoản."
+      />
 
       {/* ── AVATAR HEADER ─────────────────────────────────────────────── */}
       <View

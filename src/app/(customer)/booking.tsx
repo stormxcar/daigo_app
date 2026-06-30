@@ -66,6 +66,7 @@ import {
   toTimeInput,
   toVietnamDateInput,
 } from "@/utils/bookingFormUtils";
+import { createIdempotencyKey } from "@/utils/idempotency";
 import { showError, showSuccess, showWarning } from "@/utils/toast";
 
 type SortMode =
@@ -980,6 +981,7 @@ export default function BookingScreen() {
     router.push({
       pathname: "/(customer)/booking-detail" as any,
       params: {
+        idempotencyKey: createIdempotencyKey("booking"),
         vehicleId: vehicle.id,
         pickupLocation,
         dropoffLocation,

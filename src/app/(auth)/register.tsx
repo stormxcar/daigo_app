@@ -6,7 +6,9 @@ import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { PasswordRequirementCard } from '@/components/PasswordRequirementCard';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { useAuth } from '@/hooks/useAuth';
+import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { Eye, EyeOff, User, Mail, Phone, Lock } from 'lucide-react-native';
 import { getEmailValidationError, isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
 import { DAIGO_LOGO_URL } from '@/constants/branding';
@@ -43,6 +45,11 @@ export default function RegisterScreen() {
     setLocalError(message);
     showErrorToast('Không thể đăng ký', message);
   };
+
+  useSubmitLeaveGuard(
+    isLoading,
+    'Daigo đang tạo tài khoản và gửi OTP email. Thoát lúc này có thể khiến bạn chưa thấy bước xác thực tiếp theo.',
+  );
 
   const validateRegister = () => {
     const nextErrors: typeof fieldErrors = {};
@@ -98,6 +105,11 @@ export default function RegisterScreen() {
 
   return (
     <Screen scroll padding>
+      <SubmitOverlay
+        visible={isLoading}
+        message={isDriverIntent ? 'Đang tạo tài khoản tài xế...' : 'Đang tạo tài khoản...'}
+        description="Daigo đang lưu tài khoản và chuẩn bị bước xác thực email."
+      />
       {/* ─── LOGO COMPACT HEADER ─── */}
       <View
         style={{

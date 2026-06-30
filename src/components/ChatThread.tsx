@@ -10,6 +10,8 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { Download, Image as ImageIcon, PhoneCall, Play, Reply, RotateCcw, Send, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/BaseComponents';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
+import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { apiClient } from '@/services/api';
@@ -32,6 +34,7 @@ type ChatThreadProps = {
 };
 
 const MAX_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
+const CHAT_SEND_COOLDOWN_MS = 1500;
 
 const formatMessageTime = (timestamp: string) =>
   new Date(timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
@@ -127,6 +130,12 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const callOptionsRef = useRef<BottomSheetModal>(null);
   const listRef = useRef<FlatList<Message>>(null);
+  const lastSendAtRef = useRef(0);
+
+  useSubmitLeaveGuard(
+    uploadingImage,
+    'Ảnh đang được upload và gửi vào cuộc trò chuyện. Thoát lúc này có thể khiến tin nhắn ảnh chưa gửi xong.',
+  );
 
   const messages = useMemo(() => [...conversation.messages].reverse(), [conversation.messages]);
   const lastOwnMessageId = useMemo(
@@ -171,8 +180,13 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
 
   const sendText = async () => {
     if (!text.trim() || sending) return;
+    if (Date.now() - lastSendAtRef.current < CHAT_SEND_COOLDOWN_MS) {
+      showWarning('Bạn gửi hơi nhanh', 'Vui lòng chờ một chút trước khi gửi tin nhắn tiếp theo.');
+      return;
+    }
     try {
       setSending(true);
+      lastSendAtRef.current = Date.now();
       broadcastTyping(false);
       const currentReply = replyTo;
       const message = await apiClient.sendMessage(conversation.id, text.trim(), user.id, undefined, currentReply?.id);
@@ -199,6 +213,10 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
 
   const sendImage = async () => {
     if (uploadingImage || sending) return;
+    if (Date.now() - lastSendAtRef.current < CHAT_SEND_COOLDOWN_MS) {
+      showWarning('Bạn gửi hơi nhanh', 'Vui lòng chờ một chút trước khi gửi ảnh tiếp theo.');
+      return;
+    }
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       showWarning('Cần quyền thư viện ảnh', 'Vui lòng cho phép ứng dụng chọn ảnh để gửi trong chat.');
@@ -214,6 +232,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
 
     try {
       setUploadingImage(true);
+      lastSendAtRef.current = Date.now();
       const asset = result.assets[0];
       const fileSize =
         asset.fileSize ??
@@ -564,6 +583,11 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 8}
     >
+      <SubmitOverlay
+        visible={uploadingImage}
+        message="Đang gửi ảnh..."
+        description="Daigo đang upload ảnh và tạo tin nhắn trong cuộc trò chuyện."
+      />
       <ChatHeader
         conversation={conversation}
         roleLabel={roleLabel}

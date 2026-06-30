@@ -97,6 +97,7 @@ export type BookingPaymentStatus = 'unpaid' | 'pending' | 'submitted' | 'paid' |
 export interface Booking {
   id: string;
   bookingCode?: string;
+  idempotencyKey?: string;
   customerId: string;
   customerName: string;
   customerPhone: string;

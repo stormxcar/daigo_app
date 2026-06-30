@@ -15,6 +15,7 @@ import { RealtimeTripMap } from '@/components/RealtimeTripMap';
 import { BookingTimeline } from '@/components/BookingTimeline';
 import { LazyMount } from '@/components/LazyMount';
 import { PaymentStatusBadge, getPaymentStatusLabel } from '@/components/PaymentStatusBadge';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { getDistanceMeters, getDriverLocation, subscribeDriverLocation } from '@/services/driverLocation';
 import { subscribeBookingStatus } from '@/services/bookingRealtimeService';
 import { getDrivingRoute, LatLng } from '@/services/mapRouteService';
@@ -92,6 +93,7 @@ export default function BookingDetailScreen() {
     bufferBeforeMinutes?: string;
     bufferAfterMinutes?: string;
     note?: string;
+    idempotencyKey?: string;
   }>();
 
   const insets = useSafeAreaInsets();
@@ -124,6 +126,7 @@ export default function BookingDetailScreen() {
     booking &&
     [booking.pickupLat, booking.pickupLng, booking.dropoffLat, booking.dropoffLng].every((value) => typeof value === 'number');
   const isNonPayableBooking = !!booking && NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any);
+  const isCreatingBooking = !params.id && (loading || submitted);
 
   useEffect(() => {
     if (params.id) return;
@@ -299,6 +302,7 @@ export default function BookingDetailScreen() {
         bufferAfterMinutes: Number(params.bufferAfterMinutes) || undefined,
         passengers,
         note: params.note,
+        idempotencyKey: params.idempotencyKey,
         estimatedPrice,
         distance,
       });
@@ -730,6 +734,11 @@ export default function BookingDetailScreen() {
 
   return (
     <Screen scroll>
+      <SubmitOverlay
+        visible={isCreatingBooking}
+        message="Đang tạo chuyến, vui lòng chờ..."
+        description="Daigo đang lưu yêu cầu đặt xe và gửi thông báo đến tài xế phù hợp."
+      />
       <DetailSection>
         <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700', marginBottom: spacing.md }}>
           Tóm tắt chuyến đi

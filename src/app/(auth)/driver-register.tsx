@@ -6,7 +6,9 @@ import { BadgeCheck, Camera, Car, FileText, Image as ImageIcon, Smartphone, Tras
 import { Button, TextInput } from '@/components/BaseComponents';
 import { OtpCodeInput } from '@/components/OtpCodeInput';
 import { Screen } from '@/components/ScreenComponents';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { useAuth } from '@/hooks/useAuth';
+import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { isFirebasePhoneAuthEnabled, isTestPhoneOtpEnabled, isValidVietnamPhone, normalizeVietnamPhone, TEST_PHONE_OTP } from '@/services/phoneAuthConfig';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
@@ -52,6 +54,12 @@ export default function DriverRegisterScreen() {
   const normalizedPhone = useMemo(() => normalizeVietnamPhone(phone), [phone]);
   const firebasePhoneAuthEnabled = isFirebasePhoneAuthEnabled();
   const testOtpEnabled = isTestPhoneOtpEnabled();
+  const isCriticalSubmit = avatarUploading || documentsUploading || (isLoading && step === 'docs');
+
+  useSubmitLeaveGuard(
+    isCriticalSubmit,
+    'Hồ sơ tài xế hoặc tệp giấy tờ đang được xử lý. Thoát lúc này có thể khiến dữ liệu chưa được lưu đầy đủ.',
+  );
 
   useEffect(() => {
     if (countdown <= 0) return undefined;
@@ -306,6 +314,17 @@ export default function DriverRegisterScreen() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <SubmitOverlay
+        visible={isCriticalSubmit}
+        message={
+          documentsUploading
+            ? 'Đang upload giấy tờ...'
+            : avatarUploading
+            ? 'Đang upload avatar...'
+            : 'Đang hoàn tất hồ sơ tài xế...'
+        }
+        description="Vui lòng giữ màn hình này cho đến khi Daigo lưu xong thông tin."
+      />
       <Screen scroll padding>
         <View style={{ paddingTop: spacing.lg, paddingBottom: spacing.lg }}>
           <View

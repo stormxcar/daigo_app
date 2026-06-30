@@ -13,7 +13,9 @@ import { useTheme } from "@/theme";
 import { spacing, borderRadius, fontSize } from "@/theme/tokens";
 import { Screen } from "@/components/ScreenComponents";
 import { Button, TextInput } from "@/components/BaseComponents";
+import { SubmitOverlay } from "@/components/SubmitOverlay";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubmitLeaveGuard } from "@/hooks/useSubmitLeaveGuard";
 import {
   AlertCircle,
   Check,
@@ -73,6 +75,12 @@ export default function LoginScreen() {
     Math.ceil((loginCooldownUntil - now) / 1000),
   );
   const isLoginBlocked = loginCooldownSeconds > 0;
+  const isAuthenticating = isLoading || googleLoading;
+
+  useSubmitLeaveGuard(
+    isAuthenticating,
+    "Daigo đang xác thực tài khoản. Thoát lúc này có thể khiến trạng thái đăng nhập chưa cập nhật kịp.",
+  );
 
   useEffect(() => {
     const loadRememberedLogin = async () => {
@@ -186,6 +194,11 @@ export default function LoginScreen() {
 
   return (
     <Screen scroll padding>
+      <SubmitOverlay
+        visible={isAuthenticating}
+        message={googleLoading ? "Đang đăng nhập Google..." : "Đang đăng nhập..."}
+        description="Vui lòng chờ trong giây lát để Daigo hoàn tất xác thực."
+      />
       <View
         style={{
           alignItems: "center",

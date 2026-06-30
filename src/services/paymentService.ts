@@ -263,9 +263,15 @@ class PaymentService {
         driver_note: null,
       })
       .eq('id', payment.id)
+      .in('payment_status', ['pending', 'submitted'])
       .select('*')
-      .single();
+      .maybeSingle();
     if (error) throw error;
+    if (!data) {
+      const fresh = await this.getPaymentById(payment.id);
+      if (fresh.paymentStatus === 'driver_verified') return fresh;
+      throw new Error('Thanh toán này vừa được xử lý ở thiết bị khác. Vui lòng tải lại.');
+    }
 
     await createPaymentNotification({
       userId: payment.customerId,
@@ -294,9 +300,15 @@ class PaymentService {
         driver_note: note.trim(),
       })
       .eq('id', payment.id)
+      .in('payment_status', ['pending', 'submitted'])
       .select('*')
-      .single();
+      .maybeSingle();
     if (error) throw error;
+    if (!data) {
+      const fresh = await this.getPaymentById(payment.id);
+      if (fresh.paymentStatus === 'rejected') return fresh;
+      throw new Error('Thanh toán này vừa được xử lý ở thiết bị khác. Vui lòng tải lại.');
+    }
 
     await createPaymentNotification({
       userId: payment.customerId,

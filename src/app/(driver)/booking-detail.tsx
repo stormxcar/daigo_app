@@ -10,6 +10,8 @@ import { RealtimeTripMap } from '@/components/RealtimeTripMap';
 import { BookingTimeline } from '@/components/BookingTimeline';
 import { LazyMount } from '@/components/LazyMount';
 import { PaymentStatusBadge, getPaymentStatusLabel } from '@/components/PaymentStatusBadge';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
+import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { apiClient } from '@/services/api';
 import {
   getDistanceMeters,
@@ -60,6 +62,11 @@ export default function DriverBookingDetail() {
   const [mapExpanded, setMapExpanded] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const watchRef = useRef<{ remove: () => void } | null>(null);
+
+  useSubmitLeaveGuard(
+    loading,
+    'Daigo đang cập nhật trạng thái chuyến đi. Thoát lúc này có thể khiến bạn chưa thấy kết quả thao tác.',
+  );
 
   const getScheduledActionGate = (targetBooking: Booking) => {
     if (targetBooking.bookingMode !== 'scheduled') return { allowed: true, message: '' };
@@ -347,6 +354,11 @@ export default function DriverBookingDetail() {
 
   return (
     <Screen scroll>
+      <SubmitOverlay
+        visible={loading}
+        message="Đang cập nhật chuyến đi..."
+        description="Vui lòng chờ để Daigo lưu trạng thái và thông báo cho khách hàng."
+      />
       <DetailSection>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.md }}>
           <View style={{ flex: 1 }}>

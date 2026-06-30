@@ -14,6 +14,8 @@ import {
 } from "@/components/BaseComponents";
 import { EmptyState, Screen } from "@/components/ScreenComponents";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
+import { SubmitOverlay } from "@/components/SubmitOverlay";
+import { useSubmitLeaveGuard } from "@/hooks/useSubmitLeaveGuard";
 import { apiClient } from "@/services/api";
 import { uploadMediaToCloudinary } from "@/services/cloudinary";
 import { useAuthStore } from "@/stores/authStore";
@@ -72,6 +74,11 @@ export default function DriverVehicles() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [activeSort, setActiveSort] = useState("newest");
   const [formErrors, setFormErrors] = useState<VehicleFormErrors>({});
+
+  useSubmitLeaveGuard(
+    saving,
+    "Daigo đang lưu xe hoặc upload ảnh xe. Thoát lúc này có thể khiến dữ liệu xe chưa được cập nhật đầy đủ.",
+  );
 
   const loadVehicles = useCallback(async () => {
     if (!user) return;
@@ -323,6 +330,11 @@ export default function DriverVehicles() {
 
   return (
     <Screen scroll refreshing={loading} onRefresh={loadVehicles}>
+      <SubmitOverlay
+        visible={saving}
+        message="Đang xử lý xe..."
+        description="Daigo đang upload ảnh hoặc lưu thông tin xe vào hệ thống."
+      />
       <View
         style={{
           flexDirection: "row",

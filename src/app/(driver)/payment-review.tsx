@@ -5,6 +5,8 @@ import { CheckCircle2, XCircle } from 'lucide-react-native';
 import { Button, Card, TextInput } from '@/components/BaseComponents';
 import { PaymentStatusBadge } from '@/components/PaymentStatusBadge';
 import { Screen } from '@/components/ScreenComponents';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
+import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { apiClient } from '@/services/api';
 import { paymentService } from '@/services/paymentService';
 import { useTheme } from '@/theme';
@@ -38,6 +40,11 @@ export default function DriverPaymentReviewScreen() {
   const [driverNote, setDriverNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  useSubmitLeaveGuard(
+    actionLoading,
+    'Daigo đang lưu kết quả xác nhận thanh toán. Thoát lúc này có thể khiến trạng thái thanh toán chưa cập nhật kịp.',
+  );
 
   const load = useCallback(async () => {
     try {
@@ -143,6 +150,11 @@ export default function DriverPaymentReviewScreen() {
 
   return (
     <Screen scroll>
+      <SubmitOverlay
+        visible={actionLoading}
+        message="Đang cập nhật thanh toán..."
+        description="Daigo đang lưu xác nhận và gửi thông báo cho khách hàng."
+      />
       <PaymentReviewSection>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md }}>
           <View style={{ flex: 1 }}>

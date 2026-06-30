@@ -149,6 +149,7 @@ const mapBooking = (row: any): Booking => {
   return {
     id: row.id,
     bookingCode: row.booking_code ?? undefined,
+    idempotencyKey: row.idempotency_key ?? undefined,
     customerId: row.customer_id,
     customerName: customer?.full_name ?? '',
     customerPhone: customer?.phone ?? '',
@@ -1103,43 +1104,69 @@ class ApiClient {
       throw new Error('Bạn cần đăng nhập để đặt xe.');
     }
 
+    if (data.idempotencyKey) {
+      const { data: existing, error: existingError } = await supabase
+        .from('bookings')
+        .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
+        .eq('customer_id', data.customerId)
+        .eq('idempotency_key', data.idempotencyKey)
+        .maybeSingle();
+      if (existingError) throw existingError;
+      if (existing) return mapBooking(existing);
+    }
+
     const activeBooking = await this.getActiveBooking(data.customerId, 'customer');
     if (activeBooking) {
       throw new Error('Bạn đang có một chuyến xe đang hoạt động. Vui lòng hoàn thành hoặc hủy chuyến hiện tại trước khi đặt chuyến mới.');
     }
 
+    const bookingPayload = {
+      customer_id: data.customerId,
+      vehicle_id: data.vehicleId,
+      driver_id: null,
+      status: data.bookingMode === 'scheduled' ? BOOKING_STATUS.SCHEDULED_PENDING_DRIVER : BOOKING_STATUS.SEARCHING_DRIVER,
+      booking_mode: data.bookingMode ?? 'instant',
+      scheduled_start_at: data.scheduledStartAt,
+      scheduled_end_at: data.scheduledEndAt,
+      scheduled_status: data.bookingMode === 'scheduled' ? 'pending_driver' : null,
+      estimated_duration_minutes: data.estimatedDurationMinutes ?? 90,
+      buffer_before_minutes: data.bufferBeforeMinutes ?? 15,
+      buffer_after_minutes: data.bufferAfterMinutes ?? 15,
+      scheduled_response_deadline_at: data.scheduledResponseDeadlineAt,
+      vehicle_type: data.vehicle?.name,
+      pickup_location: data.pickupLocation,
+      pickup_lat: data.pickupLat,
+      pickup_lng: data.pickupLng,
+      dropoff_location: data.dropoffLocation,
+      dropoff_lat: data.dropoffLat,
+      dropoff_lng: data.dropoffLng,
+      booking_date: data.date,
+      booking_time: data.time,
+      passengers: data.passengers,
+      note: data.note,
+      estimated_price: data.estimatedPrice,
+      distance: data.distance,
+      idempotency_key: data.idempotencyKey || null,
+    };
+
     const { data: inserted, error } = await supabase
       .from('bookings')
-      .insert({
-        customer_id: data.customerId,
-        vehicle_id: data.vehicleId,
-        driver_id: null,
-        status: data.bookingMode === 'scheduled' ? BOOKING_STATUS.SCHEDULED_PENDING_DRIVER : BOOKING_STATUS.SEARCHING_DRIVER,
-        booking_mode: data.bookingMode ?? 'instant',
-        scheduled_start_at: data.scheduledStartAt,
-        scheduled_end_at: data.scheduledEndAt,
-        scheduled_status: data.bookingMode === 'scheduled' ? 'pending_driver' : null,
-        estimated_duration_minutes: data.estimatedDurationMinutes ?? 90,
-        buffer_before_minutes: data.bufferBeforeMinutes ?? 15,
-        buffer_after_minutes: data.bufferAfterMinutes ?? 15,
-        scheduled_response_deadline_at: data.scheduledResponseDeadlineAt,
-        vehicle_type: data.vehicle?.name,
-        pickup_location: data.pickupLocation,
-        pickup_lat: data.pickupLat,
-        pickup_lng: data.pickupLng,
-        dropoff_location: data.dropoffLocation,
-        dropoff_lat: data.dropoffLat,
-        dropoff_lng: data.dropoffLng,
-        booking_date: data.date,
-        booking_time: data.time,
-        passengers: data.passengers,
-        note: data.note,
-        estimated_price: data.estimatedPrice,
-        distance: data.distance,
-      })
+      .insert(bookingPayload)
       .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
       .single();
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23505' && data.idempotencyKey) {
+        const { data: existing, error: existingError } = await supabase
+          .from('bookings')
+          .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
+          .eq('customer_id', data.customerId)
+          .eq('idempotency_key', data.idempotencyKey)
+          .maybeSingle();
+        if (existingError) throw existingError;
+        if (existing) return mapBooking(existing);
+      }
+      throw error;
+    }
 
     await supabase
       .from('conversations')
@@ -1239,87 +1266,43 @@ class ApiClient {
   }
 
   async completeBooking(id: string): Promise<Booking> {
-    const booking = await this.updateBooking(id, {
-      status: BOOKING_STATUS.TRIP_COMPLETED,
-      completedAt: new Date().toISOString(),
+    const { data, error } = await supabase.rpc('driver_transition_booking', {
+      p_booking_id: id,
+      p_action: 'complete_trip',
+      p_reason: null,
     });
-    const { error: historyError } = await supabase.from('trip_history').insert({
-      booking_id: booking.id,
-      customer_id: booking.customerId,
-      driver_id: booking.driverId || null,
-      pickup_address: booking.pickupLocation,
-      dropoff_address: booking.dropoffLocation,
-      started_at: booking.startedAt,
-      completed_at: booking.completedAt ?? new Date().toISOString(),
-    });
-    if (historyError && __DEV__) {
-      console.warn('trip_history insert failed', historyError);
-    }
-    await this.createNotificationSafely({
-      userId: booking.customerId,
-      title: 'Chuyến đi đã hoàn thành',
-      content: `Chuyến đi ${booking.bookingCode ?? ''} đã hoàn thành. Cảm ơn bạn đã sử dụng dịch vụ.`,
-      type: 'trip_done',
-      read: false,
-      relatedBookingId: booking.id,
-      createdAt: new Date().toISOString(),
-      time: 'Vừa xong',
-    });
-    return booking;
+    if (error) throw error;
+    return this.getBookingById(data.id);
   }
 
   async markDriverArriving(id: string): Promise<Booking> {
-    const booking = await this.updateBooking(id, {
-      status: BOOKING_STATUS.DRIVER_ARRIVING,
-      arrivingAt: new Date().toISOString(),
+    const { data, error } = await supabase.rpc('driver_transition_booking', {
+      p_booking_id: id,
+      p_action: 'mark_arriving',
+      p_reason: null,
     });
-    await this.createNotificationSafely({
-      userId: booking.customerId,
-      title: 'Tài xế đang tới',
-      content: 'Tài xế đang di chuyển đến điểm đón.',
-      type: 'booking_update',
-      read: false,
-      relatedBookingId: booking.id,
-      createdAt: new Date().toISOString(),
-      time: 'Vừa xong',
-    });
-    return booking;
+    if (error) throw error;
+    return this.getBookingById(data.id);
   }
 
   async markDriverArrived(id: string): Promise<Booking> {
-    const booking = await this.updateBooking(id, {
-      status: BOOKING_STATUS.DRIVER_ARRIVED,
-      arrivedAt: new Date().toISOString(),
+    const { data, error } = await supabase.rpc('driver_transition_booking', {
+      p_booking_id: id,
+      p_action: 'mark_arrived',
+      p_reason: null,
     });
-    await this.createNotificationSafely({
-      userId: booking.customerId,
-      title: 'Tài xế đã đến điểm đón',
-      content: 'Tài xế đã đến điểm đón. Vui lòng ra xe.',
-      type: 'booking_update',
-      read: false,
-      relatedBookingId: booking.id,
-      createdAt: new Date().toISOString(),
-      time: 'Vừa xong',
-    });
-    return booking;
+    if (error) throw error;
+    return this.getBookingById(data.id);
   }
 
   async startTrip(id: string): Promise<Booking> {
-    const booking = await this.updateBooking(id, {
-      status: BOOKING_STATUS.TRIP_STARTED,
-      startedAt: new Date().toISOString(),
+    const { data, error } = await supabase.rpc('driver_transition_booking', {
+      p_booking_id: id,
+      p_action: 'start_trip',
+      p_reason: null,
     });
-    await this.createNotificationSafely({
-      userId: booking.customerId,
-      title: 'Chuyến đi đã bắt đầu',
-      content: 'Chuyến đi của bạn đã bắt đầu.',
-      type: 'booking_update',
-      read: false,
-      relatedBookingId: booking.id,
-      createdAt: new Date().toISOString(),
-      time: 'Vừa xong',
-    });
-    return booking;
+    if (error) throw error;
+    return this.getBookingById(data.id);
   }
 
   async cancelBookingByDriver(id: string, reason?: string): Promise<Booking> {
@@ -1335,23 +1318,13 @@ class ApiClient {
       throw new Error('Chuyến đặt trước đã đến giờ thao tác. Vui lòng cập nhật trạng thái chuyến thay vì hủy.');
     }
 
-    const booking = await this.updateBooking(id, {
-      status: BOOKING_STATUS.DRIVER_CANCELLED,
-      cancelledBy: 'DRIVER',
-      cancelReason: reason,
-      cancelledAt: new Date().toISOString(),
+    const { data, error } = await supabase.rpc('driver_transition_booking', {
+      p_booking_id: id,
+      p_action: 'cancel_by_driver',
+      p_reason: reason ?? null,
     });
-    await this.createNotificationSafely({
-      userId: booking.customerId,
-      title: 'Tài xế đã hủy chuyến',
-      content: 'Tài xế đã hủy chuyến. Bạn có thể đặt lại chuyến mới.',
-      type: 'driver_cancel',
-      read: false,
-      relatedBookingId: booking.id,
-      createdAt: new Date().toISOString(),
-      time: 'Vừa xong',
-    });
-    return booking;
+    if (error) throw error;
+    return this.getBookingById(data.id);
   }
 
   async acceptBooking(id: string, driverId: string): Promise<Booking> {

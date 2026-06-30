@@ -27,6 +27,8 @@ import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Avatar, Badge, Button, Card, TextInput } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
+import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { apiClient } from '@/services/api';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
 import { generateVietQRUrl } from '@/services/vietqrService';
@@ -331,6 +333,11 @@ export default function DriverProfile() {
     setDocumentUrlsText(documentUrls.filter((item) => item !== url).join('\n'));
   };
 
+  useSubmitLeaveGuard(
+    saving,
+    'Daigo đang lưu hồ sơ tài xế hoặc upload giấy tờ. Thoát lúc này có thể khiến hồ sơ chưa được cập nhật đầy đủ.',
+  );
+
   const saveProfile = async () => {
     if (!user) return;
     if (!fullName.trim()) {
@@ -378,6 +385,11 @@ export default function DriverProfile() {
 
   return (
     <Screen scroll>
+      <SubmitOverlay
+        visible={saving}
+        message="Đang xử lý hồ sơ tài xế..."
+        description="Daigo đang upload tệp hoặc lưu thông tin hồ sơ vào hệ thống."
+      />
       <ProfileSection
         title="Tài khoản tài xế"
         subtitle={user?.email || 'Hồ sơ cá nhân'}

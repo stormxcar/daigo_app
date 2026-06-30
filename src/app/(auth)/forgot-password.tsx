@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
@@ -8,6 +8,8 @@ import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { PasswordRequirementCard } from '@/components/PasswordRequirementCard';
 import { OtpCodeInput } from '@/components/OtpCodeInput';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
+import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { getEmailValidationError, isValidEmail, toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
@@ -27,10 +29,22 @@ export default function ForgotPasswordScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [resendCountdown, setResendCountdown] = useState(0);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; confirmPassword?: string }>({});
   const emailRef = useRef<RNTextInput>(null);
   const passwordRef = useRef<RNTextInput>(null);
   const confirmPasswordRef = useRef<RNTextInput>(null);
+
+  useSubmitLeaveGuard(
+    isSubmitting,
+    'Daigo đang xử lý OTP hoặc mật khẩu mới. Thoát lúc này có thể khiến bạn phải thực hiện lại bước hiện tại.',
+  );
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return undefined;
+    const timer = setInterval(() => setResendCountdown((value) => Math.max(0, value - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [resendCountdown]);
 
   const showLocalError = (title: string, message: string) => {
     setLocalError(message);
@@ -38,6 +52,10 @@ export default function ForgotPasswordScreen() {
   };
 
   const handleSendOtp = async () => {
+    if (step !== 'email' && resendCountdown > 0) {
+      showLocalError('Vui lòng chờ', `Bạn có thể gửi lại OTP sau ${resendCountdown} giây.`);
+      return;
+    }
     const normalizedEmail = email.trim().toLowerCase();
     const emailError = getEmailValidationError(normalizedEmail);
     if (emailError) {
@@ -54,6 +72,7 @@ export default function ForgotPasswordScreen() {
       await apiClient.resetPassword(normalizedEmail);
       setEmail(normalizedEmail);
       setStep('otp');
+      setResendCountdown(60);
       showSuccess(
         'Kiểm tra email',
         'Nếu email đã được đăng ký, mã OTP sẽ được gửi đến hộp thư đến hoặc thư rác.',
@@ -158,6 +177,17 @@ export default function ForgotPasswordScreen() {
 
   return (
     <Screen scroll padding>
+      <SubmitOverlay
+        visible={isSubmitting}
+        message={
+          step === 'email'
+            ? 'Đang gửi OTP...'
+            : step === 'otp'
+            ? 'Đang xác minh OTP...'
+            : 'Đang cập nhật mật khẩu...'
+        }
+        description="Vui lòng chờ trong giây lát để Daigo lưu trạng thái an toàn."
+      />
       <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900', marginBottom: spacing.xs }}>
         Quên mật khẩu
       </Text>
@@ -242,9 +272,9 @@ export default function ForgotPasswordScreen() {
             style={{ marginBottom: spacing.md }}
           />
           <Button
-            label="Gửi lại OTP"
+            label={resendCountdown > 0 ? `Gửi lại sau ${resendCountdown}s` : 'Gửi lại OTP'}
             onPress={handleSendOtp}
-            disabled={isSubmitting}
+            disabled={isSubmitting || resendCountdown > 0}
             variant="outline"
             style={{ marginBottom: spacing.md }}
           />

@@ -14,6 +14,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { BlogPost } from '@/types';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 import { BlogMediaGrid } from '@/components/BlogMediaGrid';
+import { SubmitOverlay } from '@/components/SubmitOverlay';
+import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 
 const BLOG_FILTERS = [
   { key: 'all', label: 'Tất cả' },
@@ -87,6 +89,12 @@ export default function DriverBlog() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [activeSort, setActiveSort] = useState('newest');
   const [formErrors, setFormErrors] = useState<BlogFormErrors>({});
+  const isUploadingBlogMedia = uploadProgress.active || (saving && showForm);
+
+  useSubmitLeaveGuard(
+    isUploadingBlogMedia,
+    'Bài viết hoặc media đang được upload. Thoát lúc này có thể khiến tệp đã upload nhưng bài viết chưa được lưu.',
+  );
 
   const loadPosts = useCallback(async () => {
     if (!user) return;
@@ -350,6 +358,11 @@ export default function DriverBlog() {
 
   return (
     <Screen scroll refreshing={loading} onRefresh={loadPosts}>
+      <SubmitOverlay
+        visible={isUploadingBlogMedia}
+        message={uploadProgress.active ? uploadProgress.label || 'Đang upload media...' : 'Đang lưu bài viết...'}
+        description={uploadProgress.active ? `${uploadProgress.percent}% hoàn tất` : 'Daigo đang lưu nội dung bài viết vào hệ thống.'}
+      />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg, paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
         <View>
           <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800' }}>Tin tức của tôi</Text>
