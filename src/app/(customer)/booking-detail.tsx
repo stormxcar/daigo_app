@@ -15,11 +15,12 @@ import { RealtimeTripMap } from '@/components/RealtimeTripMap';
 import { BookingTimeline } from '@/components/BookingTimeline';
 import { LazyMount } from '@/components/LazyMount';
 import { PaymentStatusBadge, getPaymentStatusLabel } from '@/components/PaymentStatusBadge';
+import { PriceBreakdown } from '@/components/PriceBreakdown';
 import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { getDistanceMeters, getDriverLocation, subscribeDriverLocation } from '@/services/driverLocation';
 import { subscribeBookingStatus } from '@/services/bookingRealtimeService';
 import { getDrivingRoute, LatLng } from '@/services/mapRouteService';
-import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
+import { calculateBookingPrice, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { BOOKING_STATUS, CUSTOMER_CANCEL_REASONS } from '@/constants';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 
@@ -94,6 +95,7 @@ export default function BookingDetailScreen() {
     bufferAfterMinutes?: string;
     note?: string;
     idempotencyKey?: string;
+    readOnly?: string;
   }>();
 
   const insets = useSafeAreaInsets();
@@ -105,6 +107,8 @@ export default function BookingDetailScreen() {
   const [rating, setRating] = useState(5);
   const [ratingComment, setRatingComment] = useState('');
   const [cancelReason, setCancelReason] = useState('');
+  const [editingRoute, setEditingRoute] = useState(false);
+  const [routeDraft, setRouteDraft] = useState({ pickupLocation: '', dropoffLocation: '', note: '' });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [waitingSeconds, setWaitingSeconds] = useState(0);
@@ -117,6 +121,9 @@ export default function BookingDetailScreen() {
   const passengers = Number(params.passengers) || 1;
   const distance = Number(params.distance) || 1;
   const estimatedPrice = Number(params.estimatedPrice) || distance * (vehicle?.pricePerKm ?? 0);
+  const previewPriceQuote = vehicle
+    ? calculateBookingPrice(distance, vehicle.pricePerKm, passengers, params.time)
+    : null;
   const pickupLat = Number(params.pickupLat);
   const pickupLng = Number(params.pickupLng);
   const dropoffLat = Number(params.dropoffLat);
@@ -126,7 +133,12 @@ export default function BookingDetailScreen() {
     booking &&
     [booking.pickupLat, booking.pickupLng, booking.dropoffLat, booking.dropoffLng].every((value) => typeof value === 'number');
   const isNonPayableBooking = !!booking && NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any);
+  const isReadOnlyHistory = params.readOnly === 'true';
   const isCreatingBooking = !params.id && (loading || submitted);
+  const canEditRouteBeforeAccepted = !!booking && !isReadOnlyHistory && !booking.driverId && [
+    BOOKING_STATUS.SEARCHING_DRIVER,
+    BOOKING_STATUS.SCHEDULED_PENDING_DRIVER,
+  ].includes(booking.status as any);
 
   useEffect(() => {
     if (params.id) return;
@@ -159,6 +171,15 @@ export default function BookingDetailScreen() {
       unsubscribeLocation();
     };
   }, [params.id]);
+
+  useEffect(() => {
+    if (!booking) return;
+    setRouteDraft({
+      pickupLocation: booking.pickupLocation,
+      dropoffLocation: booking.dropoffLocation,
+      note: booking.note ?? '',
+    });
+  }, [booking?.id, booking?.pickupLocation, booking?.dropoffLocation, booking?.note]);
 
   useEffect(() => {
     if (booking?.status !== BOOKING_STATUS.SEARCHING_DRIVER) {
@@ -350,6 +371,34 @@ export default function BookingDetailScreen() {
       showSuccess('Đã gửi đánh giá', 'Cảm ơn bạn đã đánh giá tài xế sau chuyến đi.');
     } catch (error: any) {
       showError('Không thể gửi đánh giá', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveRouteBeforeAccepted = async () => {
+    if (!booking) return;
+    if (!routeDraft.pickupLocation.trim() || !routeDraft.dropoffLocation.trim()) {
+      showError('Thiếu địa điểm', 'Vui lòng nhập đủ điểm đón và điểm đến.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const updated = await apiClient.updateBookingRouteBeforeAccepted(booking.id, {
+        pickupLocation: routeDraft.pickupLocation,
+        dropoffLocation: routeDraft.dropoffLocation,
+        pickupLat: booking.pickupLat,
+        pickupLng: booking.pickupLng,
+        dropoffLat: booking.dropoffLat,
+        dropoffLng: booking.dropoffLng,
+        note: routeDraft.note,
+      });
+      setBooking(updated);
+      setEditingRoute(false);
+      showSuccess('Đã cập nhật chuyến', 'Điểm đón/điểm đến đã được cập nhật trước khi tài xế nhận.');
+    } catch (error: any) {
+      showError('Không thể cập nhật chuyến', error.message);
     } finally {
       setLoading(false);
     }
@@ -574,6 +623,52 @@ export default function BookingDetailScreen() {
           ))}
         </DetailSection>
 
+        {canEditRouteBeforeAccepted && (
+          <DetailSection>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>
+                  Đổi điểm trước khi tài xế nhận
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs }}>
+                  Chỉ chỉnh được khi chuyến chưa có tài xế nhận.
+                </Text>
+              </View>
+              <Button
+                label={editingRoute ? 'Đóng' : 'Sửa'}
+                size="sm"
+                variant="outline"
+                onPress={() => setEditingRoute((value) => !value)}
+              />
+            </View>
+            {editingRoute && (
+              <>
+                <TextInput
+                  label="Điểm đón"
+                  value={routeDraft.pickupLocation}
+                  onChangeText={(pickupLocation) => setRouteDraft((current) => ({ ...current, pickupLocation }))}
+                  style={{ marginBottom: spacing.md }}
+                />
+                <TextInput
+                  label="Điểm đến"
+                  value={routeDraft.dropoffLocation}
+                  onChangeText={(dropoffLocation) => setRouteDraft((current) => ({ ...current, dropoffLocation }))}
+                  style={{ marginBottom: spacing.md }}
+                />
+                <TextInput
+                  label="Ghi chú cho tài xế"
+                  value={routeDraft.note}
+                  onChangeText={(note) => setRouteDraft((current) => ({ ...current, note }))}
+                  multiline
+                  numberOfLines={3}
+                  style={{ marginBottom: spacing.md }}
+                />
+                <Button label="Lưu thay đổi" onPress={saveRouteBeforeAccepted} loading={loading} disabled={loading} />
+              </>
+            )}
+          </DetailSection>
+        )}
+
         <DetailSection>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.md }}>
             <View style={{ flex: 1 }}>
@@ -591,7 +686,18 @@ export default function BookingDetailScreen() {
               ? `Trạng thái hiện tại: ${getPaymentStatusLabel(booking.paymentStatus)}. Bạn có thể chọn tiền mặt hoặc VietQR/chuyển khoản.`
               : 'Chuyến đi chưa có tài xế nhận nên chưa thể chọn thanh toán.'}
           </Text>
-          {!isNonPayableBooking && (
+          {!!booking.vehicle?.pricePerKm && !!booking.distance && (
+            <View style={{ marginBottom: spacing.md }}>
+              <PriceBreakdown
+                distance={booking.distance}
+                pricePerKm={booking.vehicle.pricePerKm}
+                passengers={booking.passengers}
+                time={booking.time}
+                compact
+              />
+            </View>
+          )}
+          {!isReadOnlyHistory && !isNonPayableBooking && (
             <Button
               label={booking.paymentStatus === 'paid' ? 'Xem thanh toán' : 'Thanh toán'}
               onPress={() => router.push({ pathname: '/(customer)/payment' as any, params: { bookingId: booking.id } })}
@@ -612,7 +718,7 @@ export default function BookingDetailScreen() {
           </DetailSection>
         )}
 
-        {[
+        {!isReadOnlyHistory && [
           BOOKING_STATUS.SEARCHING_DRIVER,
           BOOKING_STATUS.SCHEDULED_PENDING_DRIVER,
           BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED,
@@ -677,7 +783,7 @@ export default function BookingDetailScreen() {
           </DetailSection>
         )}
 
-        {booking.status === BOOKING_STATUS.TRIP_COMPLETED && !!booking.driverId && (
+        {!isReadOnlyHistory && booking.status === BOOKING_STATUS.TRIP_COMPLETED && !!booking.driverId && (
           <DetailSection>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
               Đánh giá tài xế
@@ -831,11 +937,16 @@ export default function BookingDetailScreen() {
           <CheckCircle2 size={22} color={colors.success} />
         </View>
         <Text style={{ color: colors.primary, fontSize: 24, fontWeight: '800' }}>
-          {estimatedPrice.toLocaleString('vi-VN')} VND
+          {(previewPriceQuote?.totalPrice ?? estimatedPrice).toLocaleString('vi-VN')} VND
         </Text>
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs }}>
           Giá đã bao gồm phí nền tảng và phụ phí giờ cao điểm nếu có. Khoảng cách lấy theo lộ trình Goong thực tế.
         </Text>
+        {vehicle && (
+          <View style={{ marginTop: spacing.md }}>
+            <PriceBreakdown distance={distance} pricePerKm={vehicle.pricePerKm} passengers={passengers} time={params.time} />
+          </View>
+        )}
       </DetailSection>
 
       {!!params.note && (

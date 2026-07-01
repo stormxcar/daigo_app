@@ -6,13 +6,14 @@ import * as Sharing from 'expo-sharing';
 import { Banknote, CalendarClock, Car, Download, FileText, MapPin, Navigation, Share2, User } from 'lucide-react-native';
 import { Button, Card } from '@/components/BaseComponents';
 import { PaymentStatusBadge, getPaymentStatusLabel } from '@/components/PaymentStatusBadge';
+import { PriceBreakdown } from '@/components/PriceBreakdown';
 import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { paymentService } from '@/services/paymentService';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Booking, Payment } from '@/types';
-import { formatCurrency, formatVietnamDate } from '@/utils/helpers';
+import { calculateBookingPrice, formatCurrency, formatVietnamDate } from '@/utils/helpers';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 const paymentMethodLabel = {
@@ -53,6 +54,9 @@ const escapeHtml = (value?: string | number | null) =>
 const buildReceiptHtml = (booking: Booking, payment: Payment | null) => {
   const total = booking.actualPrice ?? booking.estimatedPrice;
   const pricePerKm = booking.distance ? Math.round(total / Math.max(booking.distance, 1)) : booking.vehicle?.pricePerKm;
+  const quote = booking.distance && booking.vehicle?.pricePerKm
+    ? calculateBookingPrice(booking.distance, booking.vehicle.pricePerKm, booking.passengers, booking.time)
+    : null;
   const paymentStatus = payment?.paymentStatus ?? booking.paymentStatus;
   const paymentMethod = payment?.paymentMethod ?? booking.paymentMethod;
   const receiptCode = booking.bookingCode ?? booking.id.slice(0, 8);
@@ -77,6 +81,17 @@ const buildReceiptHtml = (booking: Booking, payment: Payment | null) => {
     ['Trạng thái thanh toán', getPaymentStatusLabel(paymentStatus)],
     ['Ghi chú', booking.note || 'Không có'],
   ];
+  const priceRows = quote
+    ? [
+        ['Cước lộ trình', formatCurrency(quote.basePrice)],
+        ['Phí nền tảng', formatCurrency(quote.platformFee)],
+        ['Phụ phí cao điểm', quote.peakFee > 0 ? formatCurrency(quote.peakFee) : 'Không áp dụng'],
+        ['Phí đêm', quote.nightFee > 0 ? formatCurrency(quote.nightFee) : 'Không áp dụng'],
+        ['Phí chờ', quote.waitingFee > 0 ? formatCurrency(quote.waitingFee) : 'Chưa phát sinh'],
+        ['Tạm tính theo công thức', formatCurrency(quote.totalPrice)],
+        ['Tổng ghi nhận', formatCurrency(total)],
+      ]
+    : [['Tổng ghi nhận', formatCurrency(total)]];
 
   return `
     <!doctype html>
@@ -126,6 +141,15 @@ const buildReceiptHtml = (booking: Booking, payment: Payment | null) => {
           <section class="section">
             <h2 class="section-title">Thông tin chuyến đi</h2>
             ${rows.map(([label, value]) => `
+              <div class="row">
+                <div class="label">${escapeHtml(label)}</div>
+                <div class="value">${escapeHtml(value)}</div>
+              </div>
+            `).join('')}
+          </section>
+          <section class="section">
+            <h2 class="section-title">Chi tiết giá</h2>
+            ${priceRows.map(([label, value]) => `
               <div class="row">
                 <div class="label">${escapeHtml(label)}</div>
                 <div class="value">${escapeHtml(value)}</div>
@@ -326,6 +350,17 @@ export default function CustomerReceiptScreen() {
         </View>
         <InfoRow label="Phương thức" value={paymentMethod ? paymentMethodLabel[paymentMethod] : 'Chưa chọn'} />
         <InfoRow label="Giá/km" value={pricePerKm ? `${pricePerKm.toLocaleString('vi-VN')} VND/km` : undefined} />
+        {!!booking.distance && !!booking.vehicle?.pricePerKm && (
+          <View style={{ marginTop: spacing.md, marginBottom: spacing.sm }}>
+            <PriceBreakdown
+              distance={booking.distance}
+              pricePerKm={booking.vehicle.pricePerKm}
+              passengers={booking.passengers}
+              time={booking.time}
+              compact
+            />
+          </View>
+        )}
         <InfoRow label="Tổng tiền" value={formatCurrency(total)} />
       </ReceiptSection>
 

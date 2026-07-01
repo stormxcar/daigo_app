@@ -21,6 +21,7 @@ export default function CustomerLayout() {
   const detailRoutes = [
     'notifications',
     'booking-detail',
+    'history',
     'map-picker',
     'payment',
     'receipt',
@@ -31,6 +32,7 @@ export default function CustomerLayout() {
   const backHrefByRoute: Partial<Record<string, Href>> = {
     notifications: '/(customer)/home',
     'booking-detail': '/(customer)/booking',
+    history: '/(customer)/home',
     'map-picker': '/(customer)/booking',
     'blog-detail': '/(customer)/blog',
     'chat-detail': '/(customer)/chat',
@@ -75,7 +77,7 @@ export default function CustomerLayout() {
       }}
       tabBar={(props: any) => {
         const currentRouteName = props.state.routes[props.state.index]?.name;
-        if (currentRouteName === 'map-picker') return null;
+        if (detailRoutes.includes(currentRouteName)) return null;
         return <LiquidTabBar {...props} />;
       }}
     >
@@ -137,6 +139,13 @@ export default function CustomerLayout() {
         options={{
           href: null,
           title: 'Chi tiết chuyến đi',
+        }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{
+          href: null,
+          title: 'Lịch sử chuyến đi',
         }}
       />
       <Tabs.Screen

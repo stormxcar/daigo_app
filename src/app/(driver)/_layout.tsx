@@ -21,7 +21,7 @@ export default function DriverLayout() {
   const missingVerificationCount = user
     ? [!user.emailVerified, !user.phoneVerified].filter(Boolean).length
     : 0;
-  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'payment-review', 'blog-detail', 'revenue', 'vehicle-detail', 'schedule'];
+  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'payment-review', 'receipt', 'blog-detail', 'revenue', 'vehicle-detail', 'schedule'];
   const backHrefByRoute: Partial<Record<string, Href>> = {
     notifications: '/(driver)/dashboard',
     'chat-detail': '/(driver)/chat',
@@ -33,6 +33,12 @@ export default function DriverLayout() {
   };
   const getBackHref = (route: { name: string; params?: Record<string, any> }): Href | undefined => {
     if (route.name === 'payment-review' && route.params?.bookingId) {
+      return {
+        pathname: '/(driver)/booking-detail' as any,
+        params: { id: String(route.params.bookingId) },
+      };
+    }
+    if (route.name === 'receipt' && route.params?.bookingId) {
       return {
         pathname: '/(driver)/booking-detail' as any,
         params: { id: String(route.params.bookingId) },
@@ -211,6 +217,13 @@ export default function DriverLayout() {
         options={{
           href: null,
           title: 'Xác nhận thanh toán',
+        }}
+      />
+      <Tabs.Screen
+        name="receipt"
+        options={{
+          href: null,
+          title: 'Biên nhận',
         }}
       />
       <Tabs.Screen

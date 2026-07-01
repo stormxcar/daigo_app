@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Image,
@@ -38,6 +38,7 @@ import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Avatar, Button, TextInput } from '@/components/BaseComponents';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Screen } from '@/components/ScreenComponents';
+import { ProfileCompletionCard } from '@/components/ProfileCompletionCard';
 import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { BookingCard } from '@/components/FeatureCards';
 import {
@@ -612,6 +613,7 @@ export default function ProfileScreen() {
         message={uploadingAvatar ? 'Đang upload avatar...' : 'Đang lưu hồ sơ...'}
         description="Vui lòng chờ để Daigo cập nhật thông tin tài khoản."
       />
+      <ProfileCompletionCard user={user} variant="customer" />
 
       {/* ── AVATAR HEADER ─────────────────────────────────────────────── */}
       <View
@@ -771,6 +773,28 @@ export default function ProfileScreen() {
       />
       {historyExpanded && (
         <View style={{ backgroundColor: colors.background, borderBottomWidth: 8, borderBottomColor: colors.surfaceAlt }}>
+          <TouchableOpacity
+            onPress={() => router.push('/(customer)/history')}
+            activeOpacity={0.84}
+            style={{
+              paddingHorizontal: spacing.lg,
+              paddingVertical: spacing.md,
+              backgroundColor: colors.surface,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <View>
+              <Text style={{ color: colors.text, fontWeight: '900' }}>Chi tiết hơn</Text>
+              <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, fontSize: fontSize.xs }}>
+                Thao tác nhiều hơn với thời gian, thanh toán, đặt ngay/đặt trước
+              </Text>
+            </View>
+            <ChevronRight size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
           {/* Controls bar */}
           <View
             style={{

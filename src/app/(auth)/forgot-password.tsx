@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, Text, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
+import { Check, Eye, EyeOff, KeyRound, Lock, Mail, ShieldCheck } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
@@ -146,31 +146,159 @@ export default function ForgotPasswordScreen() {
     }
   };
 
+  // ── Animated refs ──
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  const stepIndex = step === 'email' ? 0 : step === 'otp' ? 1 : 2;
+
+  useEffect(() => {
+    // Pulse animation cho step active
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.18, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [step, pulseAnim]);
+
+  useEffect(() => {
+    // Progress line animation
+    Animated.timing(progressAnim, {
+      toValue: stepIndex,
+      duration: 450,
+      useNativeDriver: false,
+    }).start();
+  }, [stepIndex, progressAnim]);
+
   const renderStepIndicator = () => {
     const steps: ResetStep[] = ['email', 'otp', 'password'];
-    const labels = ['Email', 'OTP', 'Mật khẩu'];
+    const labels = ['Email', 'Xác minh', 'Mật khẩu'];
+    const icons = [
+      <Mail size={18} color="white" />,
+      <ShieldCheck size={18} color="white" />,
+      <KeyRound size={18} color="white" />,
+    ];
+
     return (
-      <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg }}>
-        {steps.map((item, index) => {
-          const active = step === item;
-          const done = steps.indexOf(step) > index;
-          return (
-            <View
-              key={item}
-              style={{
-                flex: 1,
-                paddingVertical: spacing.sm,
-                borderRadius: borderRadius.full,
-                alignItems: 'center',
-                backgroundColor: active || done ? colors.primary : colors.surfaceAlt,
-              }}
-            >
-              <Text style={{ color: active || done ? 'white' : colors.textSecondary, fontWeight: '800', fontSize: fontSize.xs }}>
-                {labels[index]}
-              </Text>
-            </View>
-          );
-        })}
+      <View style={{ marginBottom: spacing.xl }}>
+        {/* ── Connector + circles row ── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
+          {steps.map((item, index) => {
+            const active = step === item;
+            const done = stepIndex > index;
+            const isLast = index === steps.length - 1;
+
+            return (
+              <React.Fragment key={item}>
+                {/* Circle */}
+                <View style={{ alignItems: 'center' }}>
+                  {active ? (
+                    <Animated.View
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: colors.primary,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        shadowColor: colors.primary,
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.45,
+                        shadowRadius: 8,
+                        elevation: 8,
+                        transform: [{ scale: pulseAnim }],
+                      }}
+                    >
+                      {icons[index]}
+                    </Animated.View>
+                  ) : done ? (
+                    <View
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: colors.success,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        shadowColor: colors.success,
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.35,
+                        shadowRadius: 6,
+                        elevation: 4,
+                      }}
+                    >
+                      <Check size={20} color="white" strokeWidth={3} />
+                    </View>
+                  ) : (
+                    <View
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: colors.surfaceAlt,
+                        borderWidth: 2,
+                        borderColor: colors.border,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text style={{ color: colors.textTertiary, fontWeight: '800', fontSize: 15 }}>
+                        {index + 1}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Connector line */}
+                {!isLast && (
+                  <View style={{ flex: 1, height: 3, backgroundColor: colors.surfaceAlt, marginHorizontal: 4, borderRadius: 2, overflow: 'hidden' }}>
+                    <Animated.View
+                      style={{
+                        height: '100%',
+                        backgroundColor: done ? colors.success : colors.primary,
+                        borderRadius: 2,
+                        width: progressAnim.interpolate({
+                          inputRange: [index, index + 1],
+                          outputRange: ['0%', '100%'],
+                          extrapolate: 'clamp',
+                        }),
+                      }}
+                    />
+                  </View>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </View>
+
+        {/* ── Labels row ── */}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          {steps.map((item, index) => {
+            const active = step === item;
+            const done = stepIndex > index;
+            const isLast = index === steps.length - 1;
+            return (
+              <React.Fragment key={item + '_label'}>
+                <View style={{ alignItems: 'center', width: 44 }}>
+                  <Text
+                    style={{
+                      fontSize: fontSize.xs,
+                      fontWeight: active ? '900' : '600',
+                      color: active ? colors.primary : done ? colors.success : colors.textTertiary,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {labels[index]}
+                  </Text>
+                </View>
+                {!isLast && <View style={{ flex: 1 }} />}
+              </React.Fragment>
+            );
+          })}
+        </View>
       </View>
     );
   };

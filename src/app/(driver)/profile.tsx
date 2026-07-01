@@ -27,6 +27,7 @@ import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Avatar, Badge, Button, Card, TextInput } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
+import { ProfileCompletionCard } from '@/components/ProfileCompletionCard';
 import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { apiClient } from '@/services/api';
@@ -389,6 +390,12 @@ export default function DriverProfile() {
         visible={saving}
         message="Đang xử lý hồ sơ tài xế..."
         description="Daigo đang upload tệp hoặc lưu thông tin hồ sơ vào hệ thống."
+      />
+      <ProfileCompletionCard
+        user={user}
+        variant="driver"
+        vehicleCount={vehicleCount}
+        documentCount={documentUrls.length}
       />
       <ProfileSection
         title="Tài khoản tài xế"

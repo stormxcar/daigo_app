@@ -1230,6 +1230,39 @@ class ApiClient {
     return mapBooking(updated);
   }
 
+  async updateBookingRouteBeforeAccepted(
+    id: string,
+    data: {
+      pickupLocation: string;
+      dropoffLocation: string;
+      pickupLat?: number;
+      pickupLng?: number;
+      dropoffLat?: number;
+      dropoffLng?: number;
+      note?: string;
+    },
+  ): Promise<Booking> {
+    const { data: updated, error } = await supabase
+      .from('bookings')
+      .update({
+        pickup_location: data.pickupLocation.trim(),
+        dropoff_location: data.dropoffLocation.trim(),
+        pickup_lat: data.pickupLat,
+        pickup_lng: data.pickupLng,
+        dropoff_lat: data.dropoffLat,
+        dropoff_lng: data.dropoffLng,
+        note: data.note,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .is('driver_id', null)
+      .in('status', [BOOKING_STATUS.SEARCHING_DRIVER, BOOKING_STATUS.SCHEDULED_PENDING_DRIVER])
+      .select('*, vehicles(*), customer:profiles!bookings_customer_id_fkey(*), driver:profiles!bookings_driver_id_fkey(*)')
+      .single();
+    if (error) throw error;
+    return mapBooking(updated);
+  }
+
   async cancelBooking(id: string, reason?: string): Promise<Booking> {
     const bookingBefore = await this.getBookingById(id);
     if (!CUSTOMER_CANCELLABLE_STATUSES.includes(bookingBefore.status as any)) {
@@ -1367,6 +1400,54 @@ class ApiClient {
       driverId: row.driver_id,
       vehicleId: row.vehicle_id,
     }));
+  }
+
+  async getDriverScheduleBlocks(driverId: string, month: Date): Promise<Array<{ id: string; startAt: string; endAt: string }>> {
+    const start = new Date(month.getFullYear(), month.getMonth(), 1);
+    const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+    const { data, error } = await supabase
+      .from('driver_schedules')
+      .select('id, start_at, end_at')
+      .eq('driver_id', driverId)
+      .eq('status', 'blocked')
+      .gte('start_at', start.toISOString())
+      .lt('start_at', end.toISOString())
+      .order('start_at', { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      startAt: row.start_at,
+      endAt: row.end_at,
+    }));
+  }
+
+  async createDriverScheduleBlock(input: {
+    driverId: string;
+    startAt: string;
+    endAt: string;
+  }): Promise<{ id: string; startAt: string; endAt: string }> {
+    const { data, error } = await supabase
+      .from('driver_schedules')
+      .insert({
+        driver_id: input.driverId,
+        booking_id: null,
+        start_at: input.startAt,
+        end_at: input.endAt,
+        status: 'blocked',
+      })
+      .select('id, start_at, end_at')
+      .single();
+    if (error) throw error;
+    return { id: data.id, startAt: data.start_at, endAt: data.end_at };
+  }
+
+  async deleteDriverScheduleBlock(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('driver_schedules')
+      .delete()
+      .eq('id', id)
+      .eq('status', 'blocked');
+    if (error) throw error;
   }
 
   async acceptBookingDispatch(dispatch: BookingDispatch): Promise<Booking> {

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Banknote, Car, Clock, Mail, MapPin, Navigation, Phone, Route, User, Users } from 'lucide-react-native';
+import { Banknote, Car, Clock, FileText, Mail, MapPin, Navigation, Phone, Route, User, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Badge, Button } from '@/components/BaseComponents';
@@ -10,6 +10,7 @@ import { RealtimeTripMap } from '@/components/RealtimeTripMap';
 import { BookingTimeline } from '@/components/BookingTimeline';
 import { LazyMount } from '@/components/LazyMount';
 import { PaymentStatusBadge, getPaymentStatusLabel } from '@/components/PaymentStatusBadge';
+import { PriceBreakdown } from '@/components/PriceBreakdown';
 import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { apiClient } from '@/services/api';
@@ -478,6 +479,17 @@ export default function DriverBookingDetail() {
             {(booking.actualPrice ?? booking.estimatedPrice).toLocaleString('vi-VN')} VND
           </Text>
         </View>
+        {!!booking.vehicle?.pricePerKm && !!booking.distance && (
+          <View style={{ marginTop: spacing.md }}>
+            <PriceBreakdown
+              distance={booking.distance}
+              pricePerKm={booking.vehicle.pricePerKm}
+              passengers={booking.passengers}
+              time={booking.time}
+              compact
+            />
+          </View>
+        )}
         <View style={{ marginTop: spacing.md, padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.sm }}>
             <View style={{ flex: 1 }}>
@@ -493,12 +505,21 @@ export default function DriverBookingDetail() {
               Chuyến đã hủy hoặc hết hạn nên không phát sinh xác nhận thanh toán.
             </Text>
           ) : (
-            <Button
-              label="Xem / xác nhận thanh toán"
-              onPress={() => router.push({ pathname: '/(driver)/payment-review' as any, params: { bookingId: booking.id } })}
-              variant="outline"
-              size="sm"
-            />
+            <View style={{ gap: spacing.sm }}>
+              <Button
+                label="Xem / xác nhận thanh toán"
+                onPress={() => router.push({ pathname: '/(driver)/payment-review' as any, params: { bookingId: booking.id } })}
+                variant="outline"
+                size="sm"
+              />
+              <Button
+                label="Xem biên nhận"
+                onPress={() => router.push({ pathname: '/(driver)/receipt' as any, params: { bookingId: booking.id } })}
+                variant="secondary"
+                size="sm"
+                icon={<FileText size={16} color={colors.primary} />}
+              />
+            </View>
           )}
         </View>
       </DetailSection>

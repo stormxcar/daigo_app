@@ -23,6 +23,8 @@ import {
   Calendar,
   Car,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Clock,
   Heart,
@@ -80,6 +82,7 @@ type SavedLocationTarget = "pickup" | "dropoff";
 type BookingMode = "instant" | "scheduled";
 
 const quickTimes = ["07:00", "09:00", "12:00", "15:00", "18:00", "20:00"];
+const weekdayLabels = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const sortOptions: { label: string; value: SortMode }[] = [
   { label: "Giá thấp", value: "price_asc" },
   { label: "Giá cao", value: "price_desc" },
@@ -88,6 +91,29 @@ const sortOptions: { label: string; value: SortMode }[] = [
   { label: "Hãng A-Z", value: "brand_asc" },
   { label: "Tên A-Z", value: "name_asc" },
 ];
+
+const toLocalIsoDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const buildMonthGrid = (monthDate: Date) => {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+  const leadingEmpty = (firstDay + 6) % 7;
+  const cells: Array<{ date: string; day: number } | null> = [];
+
+  for (let index = 0; index < leadingEmpty; index += 1) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push({ date: toLocalIsoDate(new Date(year, month, day)), day });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+};
 
 export default function BookingScreen() {
   const { colors } = useTheme();
@@ -102,6 +128,7 @@ export default function BookingScreen() {
   const [dropoffLocation, setDropoffLocation] = useState("");
   const [bookingMode, setBookingMode] = useState<BookingMode>("instant");
   const [scheduleDate, setScheduleDate] = useState(getInitialSchedule);
+  const [scheduleMonth, setScheduleMonth] = useState(() => getInitialSchedule());
   const [dateInput, setDateInput] = useState(() =>
     toVietnamDateInput(getInitialSchedule()),
   );
@@ -163,6 +190,7 @@ export default function BookingScreen() {
 
   const passengerCount = Math.max(Number(passengers) || 1, 1);
   const bookingDate = vietnamDateToIsoDate(dateInput);
+  const scheduleMonthCells = useMemo(() => buildMonthGrid(scheduleMonth), [scheduleMonth]);
   const fallbackDistance = getDistanceKm(pickupPoint, dropoffPoint);
   const routeDistance = route?.distanceMeters
     ? Number((route.distanceMeters / 1000).toFixed(1))
@@ -613,6 +641,7 @@ export default function BookingScreen() {
     }
 
     setScheduleDate(normalized);
+    setScheduleMonth(new Date(normalized.getFullYear(), normalized.getMonth(), 1));
     setDateInput(toVietnamDateInput(normalized));
     setTime(toTimeInput(normalized));
     setRoute(null);
@@ -802,6 +831,7 @@ export default function BookingScreen() {
     setSelectedVehicleId(null);
     setSearched(false);
     setVisibleVehicleCount(8);
+    setScheduleMonth(new Date(nextSchedule.getFullYear(), nextSchedule.getMonth(), 1));
     autoPickupAttemptedRef.current = false;
     pickupEditedByUserRef.current = false;
     vehicleResultsSheetRef.current?.dismiss();
@@ -1420,6 +1450,123 @@ export default function BookingScreen() {
             >
               Bạn đang đặt chuyến lúc {time}, ngày {dateInput}
             </Text>
+            <View
+              style={{
+                backgroundColor: colors.surface,
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: colors.border,
+                paddingVertical: spacing.md,
+                marginBottom: spacing.md,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingHorizontal: spacing.md,
+                  marginBottom: spacing.sm,
+                }}
+              >
+                <TouchableOpacity
+                  activeOpacity={0.84}
+                  onPress={() =>
+                    setScheduleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))
+                  }
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 17,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.surfaceAlt,
+                  }}
+                >
+                  <ChevronLeft size={17} color={colors.text} />
+                </TouchableOpacity>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ color: colors.text, fontWeight: "900" }}>
+                    Lịch tháng {scheduleMonth.getMonth() + 1}/{scheduleMonth.getFullYear()}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
+                    Chạm ngày để đặt trước nhanh
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  activeOpacity={0.84}
+                  onPress={() =>
+                    setScheduleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))
+                  }
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 17,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.surfaceAlt,
+                  }}
+                >
+                  <ChevronRight size={17} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ flexDirection: "row", paddingHorizontal: spacing.md }}>
+                {weekdayLabels.map((label) => (
+                  <Text
+                    key={label}
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      color: colors.textSecondary,
+                      fontSize: 10,
+                      fontWeight: "900",
+                      paddingBottom: spacing.xs,
+                    }}
+                  >
+                    {label}
+                  </Text>
+                ))}
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: spacing.md }}>
+                {scheduleMonthCells.map((cell, index) => {
+                  if (!cell) return <View key={`empty-${index}`} style={{ width: `${100 / 7}%`, aspectRatio: 1 }} />;
+                  const selected = bookingDate === cell.date;
+                  const today = toLocalIsoDate(new Date()) === cell.date;
+                  const disabled = new Date(`${cell.date}T23:59:59`).getTime() < Date.now();
+                  return (
+                    <TouchableOpacity
+                      key={cell.date}
+                      activeOpacity={0.84}
+                      disabled={disabled}
+                      onPress={() => {
+                        const [year, monthValue, day] = cell.date.split("-").map(Number);
+                        const next = new Date(scheduleDate);
+                        next.setFullYear(year, monthValue - 1, day);
+                        applySchedule(next);
+                      }}
+                      style={{ width: `${100 / 7}%`, aspectRatio: 1, padding: 3, opacity: disabled ? 0.34 : 1 }}
+                    >
+                      <View
+                        style={{
+                          flex: 1,
+                          borderRadius: borderRadius.md,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: selected ? colors.primary : today ? colors.primary + "14" : colors.surfaceAlt,
+                          borderWidth: selected || today ? 1 : 0,
+                          borderColor: selected ? colors.primary : colors.border,
+                        }}
+                      >
+                        <Text style={{ color: selected ? "white" : colors.text, fontWeight: today || selected ? "900" : "700" }}>
+                          {cell.day}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
           </>
         )}
         {bookingMode === "scheduled" && pickerMode && (
@@ -2066,6 +2213,19 @@ export default function BookingScreen() {
                       {formatCurrency(priceQuote.totalPrice)}
                     </Text>
                   </View>
+                  <Text
+                    style={{
+                      color: colors.textTertiary,
+                      fontSize: 10,
+                      fontWeight: "700",
+                      marginTop: spacing.xs,
+                      textAlign: "right",
+                    }}
+                  >
+                    Gồm nền tảng {formatCurrency(priceQuote.platformFee)}
+                    {priceQuote.peakFee > 0 ? `, cao điểm ${formatCurrency(priceQuote.peakFee)}` : ""}
+                    {priceQuote.nightFee > 0 ? `, phí đêm ${formatCurrency(priceQuote.nightFee)}` : ""}
+                  </Text>
                 </TouchableOpacity>
               );
             })

@@ -998,7 +998,7 @@ export default function HomeScreen() {
 
         {isLoggedIn && (
           <TouchableOpacity
-            onPress={() => router.push("/(customer)/profile")}
+            onPress={() => router.push("/(customer)/history")}
             style={{
               padding: spacing.lg,
               backgroundColor: colors.surface,

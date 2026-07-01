@@ -3,6 +3,7 @@ import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import {
   Banknote,
+  Ban,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
@@ -11,6 +12,7 @@ import {
   MapPin,
   Search,
   SlidersHorizontal,
+  Trash2,
   User,
 } from 'lucide-react-native';
 import { TextInput } from '@/components/BaseComponents';
@@ -32,6 +34,7 @@ const WEEKDAY_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 type ScheduleScope = 'day' | 'month';
 type ScheduleStatusFilter = 'all' | 'pending' | 'accepted' | 'completed' | 'cancelled';
 type ScheduleSortMode = 'time_asc' | 'time_desc' | 'price_desc' | 'price_asc' | 'newest';
+type DriverScheduleBlock = { id: string; startAt: string; endAt: string };
 
 const toLocalIsoDate = (date: Date) => {
   const year = date.getFullYear();
@@ -245,8 +248,10 @@ export default function DriverScheduleScreen() {
   const { colors } = useTheme();
   const { user } = useAuthStore();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [scheduleBlocks, setScheduleBlocks] = useState<DriverScheduleBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [blocking, setBlocking] = useState(false);
   const [month, setMonth] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(() => toLocalIsoDate(new Date()));
   const [scope, setScope] = useState<ScheduleScope>('day');
@@ -264,8 +269,12 @@ export default function DriverScheduleScreen() {
 
     try {
       setLoading(true);
-      const data = await apiClient.getDriverScheduledBookingsByMonth(user.id, month);
+      const [data, blocks] = await Promise.all([
+        apiClient.getDriverScheduledBookingsByMonth(user.id, month),
+        apiClient.getDriverScheduleBlocks(user.id, month),
+      ]);
       setBookings(data);
+      setScheduleBlocks(blocks);
     } catch (error: any) {
       showError('Không thể tải lịch đặt trước', error.message);
     } finally {
@@ -306,6 +315,20 @@ export default function DriverScheduleScreen() {
     });
     return counts;
   }, [bookings]);
+
+  const blockCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    scheduleBlocks.forEach((block) => {
+      const date = toLocalIsoDate(new Date(block.startAt));
+      counts.set(date, (counts.get(date) ?? 0) + 1);
+    });
+    return counts;
+  }, [scheduleBlocks]);
+
+  const selectedBlocks = useMemo(
+    () => scheduleBlocks.filter((block) => toLocalIsoDate(new Date(block.startAt)) === selectedDate),
+    [scheduleBlocks, selectedDate],
+  );
 
   const stats = useMemo(() => {
     const pending = bookings.filter((booking) => booking.status === BOOKING_STATUS.SCHEDULED_PENDING_DRIVER).length;
@@ -388,6 +411,48 @@ export default function DriverScheduleScreen() {
     ]);
   };
 
+  const createBlockForSelectedDay = async (mode: 'all_day' | 'midday') => {
+    if (!user?.id) return;
+    const [year, monthValue, day] = selectedDate.split('-').map(Number);
+    const startAt = mode === 'all_day'
+      ? new Date(year, monthValue - 1, day, 0, 0, 0, 0)
+      : new Date(year, monthValue - 1, day, 11, 0, 0, 0);
+    const endAt = mode === 'all_day'
+      ? new Date(year, monthValue - 1, day, 23, 59, 59, 999)
+      : new Date(year, monthValue - 1, day, 14, 0, 0, 0);
+
+    try {
+      setBlocking(true);
+      await apiClient.createDriverScheduleBlock({
+        driverId: user.id,
+        startAt: startAt.toISOString(),
+        endAt: endAt.toISOString(),
+      });
+      await fetchSchedule();
+      showSuccess(
+        'Đã khóa lịch',
+        mode === 'all_day' ? 'Ngày này sẽ không nhận chuyến đặt trước.' : 'Khung nghỉ đã được thêm vào lịch.',
+      );
+    } catch (error: any) {
+      showError('Không thể khóa lịch', error.message);
+    } finally {
+      setBlocking(false);
+    }
+  };
+
+  const deleteScheduleBlock = async (block: DriverScheduleBlock) => {
+    try {
+      setBlocking(true);
+      await apiClient.deleteDriverScheduleBlock(block.id);
+      await fetchSchedule();
+      showSuccess('Đã mở lại lịch', 'Khung nghỉ đã được xóa.');
+    } catch (error: any) {
+      showError('Không thể xóa khung nghỉ', error.message);
+    } finally {
+      setBlocking(false);
+    }
+  };
+
   return (
     <Screen scroll refreshing={loading} onRefresh={fetchSchedule}>
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md }}>
@@ -452,6 +517,8 @@ export default function DriverScheduleScreen() {
             const selected = selectedDate === cell.date;
             const today = toLocalIsoDate(new Date()) === cell.date;
             const count = dayCounts.get(cell.date) ?? 0;
+            const blocked = (blockCounts.get(cell.date) ?? 0) > 0;
+            const isFull = blocked || count >= 3;
             return (
               <TouchableOpacity
                 key={cell.date}
@@ -468,9 +535,9 @@ export default function DriverScheduleScreen() {
                     borderRadius: borderRadius.md,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: selected ? colors.primary : count > 0 ? colors.primary + '14' : colors.surfaceAlt,
-                    borderWidth: today || count > 0 ? 1 : 0,
-                    borderColor: selected ? colors.primary : today ? colors.primary : colors.border,
+                    backgroundColor: selected ? colors.primary : isFull ? colors.error + '18' : count > 0 ? colors.primary + '14' : colors.surfaceAlt,
+                    borderWidth: today || count > 0 || isFull ? 1 : 0,
+                    borderColor: selected ? colors.primary : isFull ? colors.error : today ? colors.primary : colors.border,
                   }}
                 >
                   <Text style={{ color: selected ? 'white' : colors.text, fontWeight: today || count > 0 ? '900' : '700' }}>
@@ -492,6 +559,11 @@ export default function DriverScheduleScreen() {
                       <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>{count}</Text>
                     </View>
                   ) : null}
+                  {isFull ? (
+                    <Text style={{ color: selected ? 'white' : colors.error, fontSize: 8, fontWeight: '900', marginTop: 1 }}>
+                      {blocked ? 'NGHỈ' : 'KÍN'}
+                    </Text>
+                  ) : null}
                 </View>
               </TouchableOpacity>
             );
@@ -510,6 +582,89 @@ export default function DriverScheduleScreen() {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md }}>
           <Pill label="Ngày đang chọn" active={scope === 'day'} onPress={() => setScope('day')} />
           <Pill label="Cả tháng" active={scope === 'month'} onPress={() => setScope('month')} />
+        </View>
+
+        <View
+          style={{
+            marginTop: spacing.md,
+            backgroundColor: colors.surface,
+            borderTopWidth: 1,
+            borderBottomWidth: 1,
+            borderColor: colors.border,
+            paddingVertical: spacing.md,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md }}>
+            <Ban size={17} color={colors.warning} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontWeight: '900' }}>Block thời gian nghỉ</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
+                Khóa ngày hoặc khung nghỉ để khách không đặt trước trùng lịch.
+              </Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingHorizontal: spacing.md, marginTop: spacing.md }}>
+            <TouchableOpacity
+              activeOpacity={0.84}
+              disabled={blocking}
+              onPress={() => createBlockForSelectedDay('all_day')}
+              style={{
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+                borderRadius: borderRadius.full,
+                backgroundColor: colors.error + '14',
+                borderWidth: 1,
+                borderColor: colors.error + '45',
+                opacity: blocking ? 0.6 : 1,
+              }}
+            >
+              <Text style={{ color: colors.error, fontWeight: '900', fontSize: fontSize.xs }}>Nghỉ cả ngày</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.84}
+              disabled={blocking}
+              onPress={() => createBlockForSelectedDay('midday')}
+              style={{
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+                borderRadius: borderRadius.full,
+                backgroundColor: colors.warning + '14',
+                borderWidth: 1,
+                borderColor: colors.warning + '45',
+                opacity: blocking ? 0.6 : 1,
+              }}
+            >
+              <Text style={{ color: colors.warning, fontWeight: '900', fontSize: fontSize.xs }}>Nghỉ 11:00-14:00</Text>
+            </TouchableOpacity>
+          </View>
+          {selectedBlocks.length > 0 && (
+            <View style={{ marginTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}>
+              {selectedBlocks.map((block) => (
+                <View
+                  key={block.id}
+                  style={{
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: spacing.md,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                  }}
+                >
+                  <Text style={{ color: colors.textSecondary, flex: 1, fontSize: fontSize.xs, fontWeight: '800' }}>
+                    {new Date(block.startAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                    {' - '}
+                    {new Date(block.endAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                  <TouchableOpacity activeOpacity={0.84} disabled={blocking} onPress={() => deleteScheduleBlock(block)}>
+                    <Trash2 size={17} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.md, marginBottom: spacing.sm }}>

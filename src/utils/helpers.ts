@@ -93,21 +93,41 @@ export const calculateBookingPrice = (
   pricePerKm: number,
   _passengerCount: number = 1,
   time?: string
-): { basePrice: number; platformFee: number; peakFee: number; totalPrice: number; peakMultiplier: number } => {
-  const basePrice = Math.max(Math.round(distance * pricePerKm), PRICE_CONFIG.MINIMUM_BOOKING_PRICE);
+): {
+  basePrice: number;
+  distanceFare: number;
+  platformFee: number;
+  peakFee: number;
+  nightFee: number;
+  waitingFee: number;
+  totalPrice: number;
+  peakMultiplier: number;
+  isPeakHour: boolean;
+  isNightTrip: boolean;
+} => {
+  const distanceFare = Math.round(distance * pricePerKm);
+  const basePrice = Math.max(distanceFare, PRICE_CONFIG.MINIMUM_BOOKING_PRICE);
   const platformFee = Math.floor(basePrice * (PRICE_CONFIG.PLATFORM_FEE_PERCENT / 100));
   const hour = Number((time ?? '').split(':')[0]);
   const isPeakHour = Number.isFinite(hour) && ((hour >= 7 && hour < 9) || (hour >= 17 && hour < 20));
+  const isNightTrip = Number.isFinite(hour) && (hour >= 22 || hour < 5);
   const peakMultiplier = isPeakHour ? PRICE_CONFIG.SURGE_MULTIPLIER_PEAK : 1;
   const peakFee = Math.floor((basePrice + platformFee) * (peakMultiplier - 1));
-  const totalPrice = basePrice + platformFee + peakFee;
+  const nightFee = isNightTrip ? Math.floor(basePrice * 0.12) : 0;
+  const waitingFee = 0;
+  const totalPrice = basePrice + platformFee + peakFee + nightFee + waitingFee;
 
   return {
     basePrice,
+    distanceFare,
     platformFee,
     peakFee,
+    nightFee,
+    waitingFee,
     totalPrice,
     peakMultiplier,
+    isPeakHour,
+    isNightTrip,
   };
 };
 
