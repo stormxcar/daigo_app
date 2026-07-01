@@ -24,7 +24,7 @@ import { apiClient } from '@/services/api';
 import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Booking } from '@/types';
 import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { showError, showSuccess } from '@/utils/toast';
@@ -109,7 +109,7 @@ function Pill({
         borderColor: active ? colors.primary : colors.border,
       }}
     >
-      <Text style={{ color: active ? 'white' : colors.textSecondary, fontSize: fontSize.xs, fontWeight: '900' }}>
+      <Text style={{ color: active ? 'white' : colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('900')}}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -148,7 +148,7 @@ function ScheduleBookingRow({
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md }}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '900' }}>
+          <Text numberOfLines={1} style={{ color: colors.text, ...fontForWeight('900')}}>
             {booking.bookingCode ?? 'Chuyến đặt trước'}
           </Text>
           <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
@@ -164,7 +164,7 @@ function ScheduleBookingRow({
             backgroundColor: statusInfo.color + '20',
           }}
         >
-          <Text style={{ color: statusInfo.color, fontSize: 10, fontWeight: '900' }}>{statusInfo.label}</Text>
+          <Text style={{ color: statusInfo.color, fontSize: 10, ...fontForWeight('900')}}>{statusInfo.label}</Text>
         </View>
       </View>
 
@@ -190,12 +190,12 @@ function ScheduleBookingRow({
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Banknote size={13} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: '900' }}>
+          <Text style={{ color: colors.primary, fontSize: fontSize.xs, ...fontForWeight('900')}}>
             {booking.estimatedPrice.toLocaleString('vi-VN')}đ
           </Text>
         </View>
         <PaymentStatusBadge status={booking.paymentStatus} />
-        <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, fontWeight: '700' }}>
+        <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, ...fontForWeight('700')}}>
           {getPaymentMethodLabel(booking.paymentMethod)}
         </Text>
       </View>
@@ -221,7 +221,7 @@ function ScheduleBookingRow({
               opacity: loading ? 0.6 : 1,
             }}
           >
-            <Text style={{ color: 'white', fontSize: fontSize.sm, fontWeight: '900' }}>Nhận lịch</Text>
+            <Text style={{ color: 'white', fontSize: fontSize.sm, ...fontForWeight('900')}}>Nhận lịch</Text>
           </TouchableOpacity>
           <TouchableOpacity
             disabled={loading}
@@ -236,7 +236,7 @@ function ScheduleBookingRow({
               opacity: loading ? 0.6 : 1,
             }}
           >
-            <Text style={{ color: colors.error, fontSize: fontSize.sm, fontWeight: '900' }}>Từ chối</Text>
+            <Text style={{ color: colors.error, fontSize: fontSize.sm, ...fontForWeight('900')}}>Từ chối</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -456,7 +456,7 @@ export default function DriverScheduleScreen() {
   return (
     <Screen scroll refreshing={loading} onRefresh={fetchSchedule}>
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md }}>
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>Quản lý lịch</Text>
+        <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('900')}}>Quản lý lịch</Text>
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 3 }}>
           Theo dõi chuyến đặt trước theo ngày, tháng và trạng thái xử lý.
         </Text>
@@ -464,16 +464,16 @@ export default function DriverScheduleScreen() {
 
       <View style={{ flexDirection: 'row', paddingHorizontal: spacing.lg, gap: spacing.sm, marginBottom: spacing.md }}>
         <View style={{ flex: 1, backgroundColor: colors.surface, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border, padding: spacing.md }}>
-          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '800' }}>Tổng lịch</Text>
-          <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900', marginTop: 2 }}>{stats.total}</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('800')}}>Tổng lịch</Text>
+          <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('900'), marginTop: 2 }}>{stats.total}</Text>
         </View>
         <View style={{ flex: 1, backgroundColor: colors.surface, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border, padding: spacing.md }}>
-          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '800' }}>Chờ nhận</Text>
-          <Text style={{ color: colors.warning, fontSize: 20, fontWeight: '900', marginTop: 2 }}>{stats.pending}</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('800')}}>Chờ nhận</Text>
+          <Text style={{ color: colors.warning, fontSize: 20, ...fontForWeight('900'), marginTop: 2 }}>{stats.pending}</Text>
         </View>
         <View style={{ flex: 1, backgroundColor: colors.surface, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border, padding: spacing.md }}>
-          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '800' }}>Doanh thu</Text>
-          <Text style={{ color: colors.primary, fontSize: 15, fontWeight: '900', marginTop: 5 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('800')}}>Doanh thu</Text>
+          <Text style={{ color: colors.primary, fontSize: 15, ...fontForWeight('900'), marginTop: 5 }}>
             {stats.revenue.toLocaleString('vi-VN')}đ
           </Text>
         </View>
@@ -489,7 +489,7 @@ export default function DriverScheduleScreen() {
             <ChevronLeft size={18} color={colors.text} />
           </TouchableOpacity>
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ color: colors.text, fontSize: fontSize.lg, fontWeight: '900' }}>{getMonthLabel(month)}</Text>
+            <Text style={{ color: colors.text, fontSize: fontSize.lg, ...fontForWeight('900')}}>{getMonthLabel(month)}</Text>
             <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
               Ngày đang chọn: {formatVietnamDate(selectedDate)}
             </Text>
@@ -505,7 +505,7 @@ export default function DriverScheduleScreen() {
 
         <View style={{ flexDirection: 'row', paddingHorizontal: spacing.lg }}>
           {WEEKDAY_LABELS.map((label) => (
-            <Text key={label} style={{ flex: 1, textAlign: 'center', color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '900', paddingBottom: spacing.xs }}>
+            <Text key={label} style={{ flex: 1, textAlign: 'center', color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('900'), paddingBottom: spacing.xs }}>
               {label}
             </Text>
           ))}
@@ -540,7 +540,7 @@ export default function DriverScheduleScreen() {
                     borderColor: selected ? colors.primary : isFull ? colors.error : today ? colors.primary : colors.border,
                   }}
                 >
-                  <Text style={{ color: selected ? 'white' : colors.text, fontWeight: today || count > 0 ? '900' : '700' }}>
+                  <Text style={{ color: selected ? 'white' : colors.text, ...fontForWeight(today || count > 0 ? '900' : '700')}}>
                     {cell.day}
                   </Text>
                   {count > 0 ? (
@@ -556,11 +556,11 @@ export default function DriverScheduleScreen() {
                         backgroundColor: selected ? 'rgba(255,255,255,0.24)' : colors.primary,
                       }}
                     >
-                      <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>{count}</Text>
+                      <Text style={{ color: 'white', fontSize: 10, ...fontForWeight('900')}}>{count}</Text>
                     </View>
                   ) : null}
                   {isFull ? (
-                    <Text style={{ color: selected ? 'white' : colors.error, fontSize: 8, fontWeight: '900', marginTop: 1 }}>
+                    <Text style={{ color: selected ? 'white' : colors.error, fontSize: 8, ...fontForWeight('900'), marginTop: 1 }}>
                       {blocked ? 'NGHỈ' : 'KÍN'}
                     </Text>
                   ) : null}
@@ -597,7 +597,7 @@ export default function DriverScheduleScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md }}>
             <Ban size={17} color={colors.warning} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontWeight: '900' }}>Block thời gian nghỉ</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900')}}>Block thời gian nghỉ</Text>
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
                 Khóa ngày hoặc khung nghỉ để khách không đặt trước trùng lịch.
               </Text>
@@ -618,7 +618,7 @@ export default function DriverScheduleScreen() {
                 opacity: blocking ? 0.6 : 1,
               }}
             >
-              <Text style={{ color: colors.error, fontWeight: '900', fontSize: fontSize.xs }}>Nghỉ cả ngày</Text>
+              <Text style={{ color: colors.error, ...fontForWeight('900'), fontSize: fontSize.xs }}>Nghỉ cả ngày</Text>
             </TouchableOpacity>
             <TouchableOpacity
               activeOpacity={0.84}
@@ -634,7 +634,7 @@ export default function DriverScheduleScreen() {
                 opacity: blocking ? 0.6 : 1,
               }}
             >
-              <Text style={{ color: colors.warning, fontWeight: '900', fontSize: fontSize.xs }}>Nghỉ 11:00-14:00</Text>
+              <Text style={{ color: colors.warning, ...fontForWeight('900'), fontSize: fontSize.xs }}>Nghỉ 11:00-14:00</Text>
             </TouchableOpacity>
           </View>
           {selectedBlocks.length > 0 && (
@@ -653,7 +653,7 @@ export default function DriverScheduleScreen() {
                     borderBottomColor: colors.border,
                   }}
                 >
-                  <Text style={{ color: colors.textSecondary, flex: 1, fontSize: fontSize.xs, fontWeight: '800' }}>
+                  <Text style={{ color: colors.textSecondary, flex: 1, fontSize: fontSize.xs, ...fontForWeight('800')}}>
                     {new Date(block.startAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                     {' - '}
                     {new Date(block.endAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
@@ -669,7 +669,7 @@ export default function DriverScheduleScreen() {
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.md, marginBottom: spacing.sm }}>
           <Filter size={16} color={colors.textSecondary} />
-          <Text style={{ color: colors.text, fontWeight: '900' }}>Trạng thái</Text>
+          <Text style={{ color: colors.text, ...fontForWeight('900')}}>Trạng thái</Text>
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           <Pill label="Tất cả" active={statusFilter === 'all'} onPress={() => setStatusFilter('all')} />
@@ -681,7 +681,7 @@ export default function DriverScheduleScreen() {
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.md, marginBottom: spacing.sm }}>
           <SlidersHorizontal size={16} color={colors.textSecondary} />
-          <Text style={{ color: colors.text, fontWeight: '900' }}>Sắp xếp</Text>
+          <Text style={{ color: colors.text, ...fontForWeight('900')}}>Sắp xếp</Text>
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           <Pill label="Giờ sớm nhất" active={sortMode === 'time_asc'} onPress={() => setSortMode('time_asc')} />
@@ -695,7 +695,7 @@ export default function DriverScheduleScreen() {
       <View style={{ paddingTop: spacing.lg }}>
         <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.sm, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View>
-            <Text style={{ color: colors.text, fontWeight: '900' }}>
+            <Text style={{ color: colors.text, ...fontForWeight('900')}}>
               {scope === 'day' ? `Chuyến ngày ${formatVietnamDate(selectedDate)}` : `Chuyến ${getMonthLabel(month).toLowerCase()}`}
             </Text>
             <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>

@@ -3,7 +3,7 @@ import { Alert, Modal, Text, TouchableOpacity, useWindowDimensions, View } from 
 import { router, useLocalSearchParams } from 'expo-router';
 import { Banknote, Car, Clock, FileText, Mail, MapPin, Navigation, Phone, Route, User, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Badge, Button } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { RealtimeTripMap } from '@/components/RealtimeTripMap';
@@ -363,7 +363,7 @@ export default function DriverBookingDetail() {
       <DetailSection>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.md }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800' }}>
+            <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('800')}}>
               {booking.bookingCode ?? 'Chi tiết chuyến đi'}
             </Text>
             <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
@@ -383,20 +383,20 @@ export default function DriverBookingDetail() {
             {item.icon}
             <View style={{ flex: 1 }}>
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{item.label}</Text>
-              <Text style={{ color: colors.text, fontWeight: '700', marginTop: spacing.xs }}>{item.value}</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('700'), marginTop: spacing.xs }}>{item.value}</Text>
             </View>
           </View>
         ))}
       </DetailSection>
 
       <DetailSection>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Tiến trình chuyến đi</Text>
+        <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800'), marginBottom: spacing.md }}>Tiến trình chuyến đi</Text>
         <BookingTimeline status={booking.status} />
       </DetailSection>
 
       {hasMap && (
         <DetailSection>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>Bản đồ realtime</Text>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800'), marginBottom: spacing.sm }}>Bản đồ realtime</Text>
           <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
             {tripPhase === 'pickup'
               ? 'Bản đồ Goong hiển thị lộ trình trong app đến điểm đón. Bật GPS realtime để marker tài xế di chuyển theo vị trí thật.'
@@ -436,7 +436,7 @@ export default function DriverBookingDetail() {
       )}
 
       <DetailSection>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Thông tin khách hàng</Text>
+        <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800'), marginBottom: spacing.md }}>Thông tin khách hàng</Text>
         {[
           { icon: <User size={18} color={colors.primary} />, label: booking.customerName || 'Chưa có tên' },
           { icon: <Phone size={18} color={colors.primary} />, label: booking.customerPhone || 'Chưa có số điện thoại' },
@@ -449,7 +449,7 @@ export default function DriverBookingDetail() {
         ))}
         {!!booking.note && (
           <View style={{ padding: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt }}>
-            <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.xs }}>Ghi chú của khách</Text>
+            <Text style={{ color: colors.text, ...fontForWeight('800'), marginBottom: spacing.xs }}>Ghi chú của khách</Text>
             <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>{booking.note}</Text>
           </View>
         )}
@@ -457,17 +457,17 @@ export default function DriverBookingDetail() {
 
       {!!booking.cancelReason && (
         <DetailSection style={{ backgroundColor: colors.surfaceAlt }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>Lý do hủy chuyến</Text>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800'), marginBottom: spacing.sm }}>Lý do hủy chuyến</Text>
           <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>{booking.cancelReason}</Text>
         </DetailSection>
       )}
 
       <DetailSection>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Xe và thanh toán</Text>
+        <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800'), marginBottom: spacing.md }}>Xe và thanh toán</Text>
         <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}>
           <Car size={22} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontWeight: '800' }}>{booking.vehicle?.name}</Text>
+            <Text style={{ color: colors.text, ...fontForWeight('800')}}>{booking.vehicle?.name}</Text>
             <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
               {booking.vehicle?.licensePlate} - {booking.vehicle?.color} - {booking.vehicle?.seats} chỗ
             </Text>
@@ -475,7 +475,7 @@ export default function DriverBookingDetail() {
         </View>
         <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
           <Banknote size={22} color={colors.success} />
-          <Text style={{ color: colors.primary, fontSize: 22, fontWeight: '900' }}>
+          <Text style={{ color: colors.primary, fontSize: 22, ...fontForWeight('900')}}>
             {(booking.actualPrice ?? booking.estimatedPrice).toLocaleString('vi-VN')} VND
           </Text>
         </View>
@@ -493,7 +493,7 @@ export default function DriverBookingDetail() {
         <View style={{ marginTop: spacing.md, padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.sm }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontWeight: '900' }}>Trạng thái thanh toán</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900')}}>Trạng thái thanh toán</Text>
               <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
                 {getPaymentStatusLabel(booking.paymentStatus)}
               </Text>
@@ -526,7 +526,7 @@ export default function DriverBookingDetail() {
 
       {[BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED, BOOKING_STATUS.SCHEDULED_UPCOMING, BOOKING_STATUS.DRIVER_ACCEPTED, BOOKING_STATUS.DRIVER_ARRIVING, BOOKING_STATUS.DRIVER_ARRIVED].includes(booking.status as any) && (
         <DetailSection>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.sm }}>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800'), marginBottom: spacing.sm }}>
             Lý do hủy nếu không thể nhận chuyến
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
@@ -541,7 +541,7 @@ export default function DriverBookingDetail() {
                   backgroundColor: cancelReason === reason ? colors.error : colors.surfaceAlt,
                 }}
               >
-                <Text style={{ color: cancelReason === reason ? 'white' : colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
+                <Text style={{ color: cancelReason === reason ? 'white' : colors.text, ...fontForWeight('700'), fontSize: fontSize.sm }}>
                   {reason}
                 </Text>
               </TouchableOpacity>
@@ -552,7 +552,7 @@ export default function DriverBookingDetail() {
 
       {!scheduledActionGate.allowed && (
         <View style={{ marginBottom: spacing.sm, padding: spacing.md, backgroundColor: colors.surfaceAlt, borderRadius: borderRadius.md }}>
-          <Text style={{ color: colors.warning, fontWeight: '800' }}>Chưa đến giờ thao tác</Text>
+          <Text style={{ color: colors.warning, ...fontForWeight('800')}}>Chưa đến giờ thao tác</Text>
           <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 }}>
             {scheduledActionGate.message}
           </Text>

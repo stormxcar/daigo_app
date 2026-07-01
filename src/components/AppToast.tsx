@@ -2,7 +2,7 @@ import React from 'react';
 import { Animated, Text, View } from 'react-native';
 import Toast, { BaseToastProps, ToastConfig } from 'react-native-toast-message';
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react-native';
-import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { borderRadius, fontForWeight, fontSize, shadows, spacing } from '@/theme/tokens';
 
 const toastMeta = {
   success: {
@@ -51,7 +51,7 @@ function RichToast({ text1, text2, type = 'info' }: BaseToastProps & { type?: ke
         {!!text1 && (
           <Text
             numberOfLines={0}
-            style={{ color: '#0f172a', fontSize: fontSize.base, fontWeight: '900', lineHeight: 22, flexShrink: 1 }}
+            style={{ color: '#0f172a', fontSize: fontSize.base, ...fontForWeight('900'), lineHeight: 22, flexShrink: 1 }}
           >
             {text1}
           </Text>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Linking, View, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/theme';
-import { spacing, fontSize, borderRadius } from '@/theme/tokens';
+import { fontForWeight, spacing, fontSize, borderRadius } from '@/theme/tokens';
 import { Card } from '@/components/BaseComponents';
 import { HelpCircle, MessageSquare, Phone } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -31,7 +31,7 @@ export const HelpSupportRow: React.FC = () => {
       <Text
         style={{
           fontSize: fontSize.base,
-          fontWeight: '800',
+          ...fontForWeight('800'),
           color: colors.text,
           marginBottom: spacing.sm,
         }}
@@ -57,7 +57,7 @@ export const HelpSupportRow: React.FC = () => {
                 marginTop: spacing.xs,
                 fontSize: fontSize.sm,
                 color: colors.text,
-                fontWeight: '700',
+                ...fontForWeight('700'),
               }}
             >
               {item.label}

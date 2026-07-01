@@ -1,7 +1,7 @@
 import React from 'react';
 import { NativeModules, Text, View } from 'react-native';
 import Constants from 'expo-constants';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 
 type MapLibreModule = {
   Camera: any;
@@ -57,7 +57,7 @@ export function NativeMapUnavailable({ height = 340 }: { height?: number | strin
         justifyContent: 'center',
       }}
     >
-      <Text style={{ color: '#1e293b', fontSize: fontSize.base, fontWeight: '900', marginBottom: spacing.sm }}>
+      <Text style={{ color: '#1e293b', fontSize: fontSize.base, ...fontForWeight('900'), marginBottom: spacing.sm }}>
         Bản đồ native chưa có trong bản app hiện tại
       </Text>
       <Text style={{ color: '#475569', fontSize: fontSize.sm, lineHeight: 20 }}>

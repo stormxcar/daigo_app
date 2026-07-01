@@ -10,7 +10,7 @@ import { getCurrentDeviceLocation } from '@/services/deviceLocation';
 import { LocationSuggestion, reverseVietnamLocation } from '@/services/locations';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 const DEFAULT_CENTER = {
@@ -237,7 +237,7 @@ export default function CustomerMapPickerScreen() {
           },
         ]}
       >
-        <Text style={{ color: colors.text, fontSize: fontSize.lg, fontWeight: '900' }}>{mapTitle}</Text>
+        <Text style={{ color: colors.text, fontSize: fontSize.lg, ...fontForWeight('900')}}>{mapTitle}</Text>
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs }}>{mapSubtitle}</Text>
       </View>
 
@@ -264,7 +264,7 @@ export default function CustomerMapPickerScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
           <Crosshair size={20} color={target === 'pickup' ? colors.primary : colors.error} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: '800' }} numberOfLines={3}>
+            <Text style={{ color: colors.text, fontSize: fontSize.base, ...fontForWeight('800')}} numberOfLines={3}>
               {point.label}
             </Text>
             {resolvingAddress && (

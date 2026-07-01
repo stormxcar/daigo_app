@@ -8,7 +8,7 @@ import { Screen } from '@/components/ScreenComponents';
 import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme';
 import { getEmailValidationError, isValidEmail, toVietnameseAuthError } from '@/utils/authValidation';
 import { showError, showSuccess } from '@/utils/toast';
@@ -124,7 +124,7 @@ export default function VerifyEmailScreen() {
         </View>
       )}
 
-      <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800', marginBottom: spacing.sm }}>
+      <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('800'), marginBottom: spacing.sm }}>
         Xác thực email
       </Text>
       <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.lg }}>

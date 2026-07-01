@@ -14,7 +14,7 @@ import {
   Wallet,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { Button, CardSkeleton } from '@/components/BaseComponents';
 import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { BookingCard } from '@/components/FeatureCards';
@@ -99,7 +99,7 @@ function BookingListRow({
       {/* Main info */}
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-          <Text style={{ color: colors.text, fontWeight: '700', fontSize: fontSize.sm }} numberOfLines={1}>
+          <Text style={{ color: colors.text, ...fontForWeight('700'), fontSize: fontSize.sm }} numberOfLines={1}>
             {booking.bookingCode ?? 'Chuyến đi'}
           </Text>
           <View
@@ -111,14 +111,14 @@ function BookingListRow({
               marginLeft: spacing.xs,
             }}
           >
-            <Text style={{ color: 'white', fontSize: 10, fontWeight: '700' }}>
+            <Text style={{ color: 'white', fontSize: 10, ...fontForWeight('700')}}>
               {statusInfo.label}
             </Text>
           </View>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs }}>
           <PaymentStatusBadge status={booking.paymentStatus} />
-          <Text style={{ color: colors.textTertiary, fontSize: 10, fontWeight: '700' }}>
+          <Text style={{ color: colors.textTertiary, fontSize: 10, ...fontForWeight('700')}}>
             {getPaymentMethodLabel(booking.paymentMethod)}
           </Text>
         </View>
@@ -148,7 +148,7 @@ function BookingListRow({
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
             
-            <Text style={{ color: colors.primary, fontSize: 10, fontWeight: '700' }}>
+            <Text style={{ color: colors.primary, fontSize: 10, ...fontForWeight('700')}}>
               {booking.estimatedPrice.toLocaleString('vi-VN')}đ
             </Text>
           </View>
@@ -169,7 +169,7 @@ function BookingListRow({
               alignItems: 'center',
             }}
           >
-            <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>Nhận</Text>
+            <Text style={{ color: 'white', fontSize: 10, ...fontForWeight('800')}}>Nhận</Text>
           </TouchableOpacity>
         )}
         {canCancel && (
@@ -184,7 +184,7 @@ function BookingListRow({
               alignItems: 'center',
             }}
           >
-            <Text style={{ color: colors.error, fontSize: 10, fontWeight: '800' }}>Hủy</Text>
+            <Text style={{ color: colors.error, fontSize: 10, ...fontForWeight('800')}}>Hủy</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -559,7 +559,7 @@ export default function DriverBookings() {
         }}
       >
         <View>
-          <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800' }}>
+          <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('800')}}>
             Chuyến đi
           </Text>
           <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
@@ -601,13 +601,13 @@ export default function DriverBookings() {
               <CalendarDays size={20} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontWeight: '900' }}>Quản lý lịch đặt trước</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900')}}>Quản lý lịch đặt trước</Text>
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
                 Xem lịch tháng, lọc trạng thái, sắp xếp và mở chi tiết từng chuyến.
               </Text>
             </View>
           </View>
-          <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: '900' }}>
+          <Text style={{ color: colors.primary, fontSize: fontSize.sm, ...fontForWeight('900')}}>
             Mở lịch
           </Text>
         </TouchableOpacity>
@@ -653,7 +653,7 @@ export default function DriverBookings() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md }}>
               <Wallet size={18} color={colors.primary} />
-              <Text style={{ color: colors.text, fontWeight: '900' }}>Thanh toán chuyến đi</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900')}}>Thanh toán chuyến đi</Text>
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               {[
@@ -664,7 +664,7 @@ export default function DriverBookings() {
               ].map((item) => (
                 <View key={item.label} style={{ width: '50%', paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}>
                   <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{item.label}</Text>
-                  <Text style={{ color: item.color, fontWeight: '900', fontSize: 20, marginTop: 2 }}>{item.value}</Text>
+                  <Text style={{ color: item.color, ...fontForWeight('900'), fontSize: 20, marginTop: 2 }}>{item.value}</Text>
                 </View>
               ))}
             </View>
@@ -727,7 +727,7 @@ export default function DriverBookings() {
                     backgroundColor: colors.surfaceAlt,
                   }}
                 >
-                  <Text style={{ color: colors.text, fontWeight: '700', marginBottom: spacing.xs }}>
+                  <Text style={{ color: colors.text, ...fontForWeight('700'), marginBottom: spacing.xs }}>
                     Ghi chú khách hàng
                   </Text>
                   <Text style={{ color: colors.textSecondary, lineHeight: 20 }}>{booking.note}</Text>
@@ -786,14 +786,14 @@ export default function DriverBookings() {
       >
         {pendingOffer && pendingDispatch && (
           <BottomSheetView style={{ padding: spacing.lg, gap: spacing.md }}>
-            <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>
+            <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('900')}}>
               Bạn có chuyến mới
             </Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md }}>
               <Text style={{ color: colors.textSecondary, flex: 1 }}>
                 {pendingOffer.bookingCode ?? 'Booking'} - {pendingOffer.passengers} khách
               </Text>
-              <Text style={{ color: dispatchCountdown <= 10 ? colors.error : colors.primary, fontWeight: '900' }}>
+              <Text style={{ color: dispatchCountdown <= 10 ? colors.error : colors.primary, ...fontForWeight('900')}}>
                 {dispatchCountdown}s
               </Text>
             </View>
@@ -805,15 +805,15 @@ export default function DriverBookings() {
                 gap: spacing.sm,
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: '800' }}>Điểm đón</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('800')}}>Điểm đón</Text>
               <Text style={{ color: colors.textSecondary }}>{pendingOffer.pickupLocation}</Text>
-              <Text style={{ color: colors.text, fontWeight: '800', marginTop: spacing.sm }}>
+              <Text style={{ color: colors.text, ...fontForWeight('800'), marginTop: spacing.sm }}>
                 Điểm đến
               </Text>
               <Text style={{ color: colors.textSecondary }}>{pendingOffer.dropoffLocation}</Text>
               {!!pendingOffer.note && (
                 <>
-                  <Text style={{ color: colors.text, fontWeight: '800', marginTop: spacing.sm }}>
+                  <Text style={{ color: colors.text, ...fontForWeight('800'), marginTop: spacing.sm }}>
                     Ghi chú
                   </Text>
                   <Text style={{ color: colors.textSecondary }}>{pendingOffer.note}</Text>

@@ -25,7 +25,7 @@ import {
   Star,
 } from "lucide-react-native";
 import { useTheme } from "@/theme";
-import { borderRadius, fontSize, spacing } from "@/theme/tokens";
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Badge, Button, Card, Skeleton } from "@/components/BaseComponents";
 import { Screen } from "@/components/ScreenComponents";
 import { useAuth } from "@/hooks/useAuth";
@@ -162,7 +162,7 @@ function DriverVehicleCard({ vehicle }: { vehicle: Vehicle }) {
         }}
       >
         <View style={{ flex: 1 }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight("900")}}>
             {vehicle.name}
           </Text>
           <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
@@ -196,7 +196,7 @@ function DriverVehicleCard({ vehicle }: { vehicle: Vehicle }) {
           }}
         />
         <View style={{ flex: 1 }}>
-          <Text style={{ color: colors.text, fontWeight: "900" }}>
+          <Text style={{ color: colors.text, ...fontForWeight("900")}}>
             {vehicle.driverName ?? "Tài xế"}
           </Text>
           <View
@@ -226,7 +226,7 @@ function DriverVehicleCard({ vehicle }: { vehicle: Vehicle }) {
         }}
       >
         <Text
-          style={{ color: colors.primary, fontSize: 18, fontWeight: "900" }}
+          style={{ color: colors.primary, fontSize: 18, ...fontForWeight("900")}}
         >
           {vehicle.pricePerKm.toLocaleString("vi-VN")}đ/km
         </Text>
@@ -280,7 +280,7 @@ function BookingServicesRail() {
           style={{
             color: colors.text,
             fontSize: 18,
-            fontWeight: "900",
+            ...fontForWeight("900"),
           }}
         >
           Dịch vụ đặt xe
@@ -370,7 +370,7 @@ function BookingServicesRail() {
                     numberOfLines={1}
                     style={{
                       color: "white",
-                      fontWeight: "900",
+                      ...fontForWeight("900"),
                       fontSize: fontSize.sm,
                     }}
                   >
@@ -723,7 +723,7 @@ export default function HomeScreen() {
         >
           <CalendarClock size={26} color={colors.warning} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.warning, fontWeight: "900", fontSize: 14 }}>
+            <Text style={{ color: colors.warning, ...fontForWeight("900"), fontSize: 14 }}>
               Bạn có chuyến đặt trước hôm nay!
             </Text>
             <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }} numberOfLines={2}>
@@ -734,7 +734,7 @@ export default function HomeScreen() {
               • Đón tại {todayScheduledBooking.pickupLocation?.split(",")[0] ?? "..."}
             </Text>
           </View>
-          <Text style={{ color: colors.warning, fontWeight: "800", fontSize: 13 }}>
+          <Text style={{ color: colors.warning, ...fontForWeight("800"), fontSize: 13 }}>
             Xem ›
           </Text>
         </TouchableOpacity>
@@ -758,7 +758,7 @@ export default function HomeScreen() {
               style={{
                 color: colors.text,
                 fontSize: 20,
-                fontWeight: "900",
+                ...fontForWeight("900"),
                 marginBottom: spacing.sm,
               }}
             >
@@ -800,12 +800,12 @@ export default function HomeScreen() {
         >
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 14, color: colors.textSecondary }}>
-              Xin chào 👋
+              Xin chào👋
             </Text>
             <Text
               style={{
                 fontSize: 22,
-                fontWeight: "900",
+                ...fontForWeight("900"),
                 color: colors.text,
                 marginTop: spacing.xs,
               }}
@@ -885,7 +885,7 @@ export default function HomeScreen() {
             <ShieldCheck size={24} color="white" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: "white", fontSize: 20, fontWeight: "900" }}>
+            <Text style={{ color: "white", fontSize: 20, ...fontForWeight("900")}}>
               Đặt xe với tài xế thật
             </Text>
             <Text
@@ -910,7 +910,7 @@ export default function HomeScreen() {
       <Text
         style={{
           fontSize: 18,
-          fontWeight: "900",
+          ...fontForWeight("900"),
           color: colors.text,
           marginBottom: spacing.md,
           paddingHorizontal: spacing.md,
@@ -935,7 +935,7 @@ export default function HomeScreen() {
           <Text
             style={{
               color: colors.text,
-              fontWeight: "800",
+              ...fontForWeight("800"),
               marginBottom: spacing.xs,
             }}
           >
@@ -952,7 +952,7 @@ export default function HomeScreen() {
         <Text
           style={{
             fontSize: 18,
-            fontWeight: "900",
+            ...fontForWeight("900"),
             color: colors.text,
             marginBottom: spacing.md,
             paddingHorizontal: spacing.md,
@@ -986,7 +986,7 @@ export default function HomeScreen() {
           </View>
           <View>
             <Text
-              style={{ fontWeight: "800", color: colors.text, marginBottom: 4 }}
+              style={{ ...fontForWeight("800"), color: colors.text, marginBottom: 4 }}
             >
               Đặt chuyến đi
             </Text>
@@ -1023,7 +1023,7 @@ export default function HomeScreen() {
             <View>
               <Text
                 style={{
-                  fontWeight: "800",
+                  ...fontForWeight("800"),
                   color: colors.text,
                   marginBottom: 4,
                 }}

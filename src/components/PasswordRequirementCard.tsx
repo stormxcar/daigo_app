@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { CheckCircle2, Circle } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 
 const getPasswordRules = (password: string) => [
   { label: 'Ít nhất 8 ký tự', valid: password.length >= 8 },
@@ -26,7 +26,7 @@ export function PasswordRequirementCard({ password }: { password: string }) {
         gap: spacing.xs,
       }}
     >
-      <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '900', marginBottom: spacing.xs }}>
+      <Text style={{ color: colors.text, fontSize: fontSize.sm, ...fontForWeight('900'), marginBottom: spacing.xs }}>
         Mật khẩu cần có
       </Text>
       {rules.map((rule) => (
@@ -40,7 +40,7 @@ export function PasswordRequirementCard({ password }: { password: string }) {
             style={{
               color: rule.valid ? colors.success : colors.textSecondary,
               fontSize: fontSize.xs,
-              fontWeight: rule.valid ? '800' : '600',
+              ...fontForWeight(rule.valid ? '800' : '600'),
             }}
           >
             {rule.label}

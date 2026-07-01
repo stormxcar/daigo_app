@@ -11,6 +11,7 @@ import { useTheme } from '@/theme';
 import { AppHeader } from '@/components/AppHeader';
 import { LiquidTabBar } from '@/components/LiquidTabBar';
 import { useAuthStore } from '@/stores/authStore';
+import { fontForWeight } from '@/theme/tokens';
 
 export default function CustomerLayout() {
   const { colors } = useTheme();
@@ -65,7 +66,7 @@ export default function CustomerLayout() {
         tabBarInactiveTintColor: colors.textTertiary,
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '500',
+          ...fontForWeight('500'),
           marginTop: 4,
         },
         tabBarStyle: {

@@ -3,7 +3,7 @@ import { Animated, Text, TextInput as RNTextInput, TouchableOpacity, View } from
 import { router } from 'expo-router';
 import { Check, Eye, EyeOff, KeyRound, Lock, Mail, ShieldCheck } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { spacing, borderRadius, fontSize } from '@/theme/tokens';
+import { fontForWeight, spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { PasswordRequirementCard } from '@/components/PasswordRequirementCard';
@@ -245,7 +245,7 @@ export default function ForgotPasswordScreen() {
                         justifyContent: 'center',
                       }}
                     >
-                      <Text style={{ color: colors.textTertiary, fontWeight: '800', fontSize: 15 }}>
+                      <Text style={{ color: colors.textTertiary, ...fontForWeight('800'), fontSize: 15 }}>
                         {index + 1}
                       </Text>
                     </View>
@@ -286,7 +286,7 @@ export default function ForgotPasswordScreen() {
                   <Text
                     style={{
                       fontSize: fontSize.xs,
-                      fontWeight: active ? '900' : '600',
+                      ...fontForWeight(active ? '900' : '600'),
                       color: active ? colors.primary : done ? colors.success : colors.textTertiary,
                       textAlign: 'center',
                     }}
@@ -316,7 +316,7 @@ export default function ForgotPasswordScreen() {
         }
         description="Vui lòng chờ trong giây lát để Daigo lưu trạng thái an toàn."
       />
-      <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900', marginBottom: spacing.xs }}>
+      <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('900'), marginBottom: spacing.xs }}>
         Quên mật khẩu
       </Text>
       <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.lg }}>

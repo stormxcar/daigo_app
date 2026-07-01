@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Modal, Text, View } from 'react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 
 type SubmitOverlayProps = {
   visible: boolean;
@@ -46,7 +46,7 @@ export function SubmitOverlay({ visible, message, description }: SubmitOverlayPr
             style={{
               color: colors.text,
               fontSize: fontSize.base,
-              fontWeight: '900',
+              ...fontForWeight('900'),
               textAlign: 'center',
               marginTop: spacing.md,
             }}

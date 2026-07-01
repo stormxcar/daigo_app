@@ -16,11 +16,13 @@ import {
 } from "lucide-react-native";
 import { Badge, Button } from "@/components/BaseComponents";
 import { EmptyState, Screen } from "@/components/ScreenComponents";
+import { PRICE_CONFIG } from "@/constants";
 import { apiClient } from "@/services/api";
 import { useTheme } from "@/theme";
-import { borderRadius, fontSize, spacing } from "@/theme/tokens";
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Vehicle } from "@/types";
 import { showError } from "@/utils/toast";
+import { calculateBookingPrice, formatCurrency } from "@/utils/helpers";
 
 function DetailSection({ children }: { children: React.ReactNode }) {
   const { colors } = useTheme();
@@ -75,8 +77,39 @@ function InfoRow({
       </View>
       <View style={{ flex: 1 }}>
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{label}</Text>
-        <Text style={{ color: colors.text, fontWeight: "900", marginTop: 3 }}>{value}</Text>
+        <Text style={{ color: colors.text, ...fontForWeight("900"), marginTop: 3 }}>{value}</Text>
       </View>
+    </View>
+  );
+}
+
+function FeeRow({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        paddingVertical: spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+      }}
+    >
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: spacing.md }}>
+        <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, flex: 1 }}>{label}</Text>
+        <Text style={{ color: colors.text, ...fontForWeight("900") }}>{value}</Text>
+      </View>
+      {!!note && (
+        <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 3, lineHeight: 18 }}>
+          {note}
+        </Text>
+      )}
     </View>
   );
 }
@@ -128,6 +161,9 @@ export default function DriverVehicleDetail() {
 
   const statusVariant =
     vehicle.status === "Sẵn sàng" ? "success" : vehicle.status === "Bảo trì" ? "warning" : "info";
+  const normalQuote = calculateBookingPrice(10, vehicle.pricePerKm, 1, "10:00");
+  const peakQuote = calculateBookingPrice(10, vehicle.pricePerKm, 1, "08:00");
+  const nightQuote = calculateBookingPrice(10, vehicle.pricePerKm, 1, "23:00");
 
   return (
     <Screen scroll>
@@ -153,7 +189,7 @@ export default function DriverVehicleDetail() {
         <View style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.md }}>
           <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.md }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontSize: 24, fontWeight: "900" }}>{vehicle.name}</Text>
+              <Text style={{ color: colors.text, fontSize: 24, ...fontForWeight("900")}}>{vehicle.name}</Text>
               <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
                 {vehicle.brand} · {vehicle.licensePlate}
               </Text>
@@ -165,7 +201,7 @@ export default function DriverVehicleDetail() {
 
       {gallery.length > 0 && (
         <DetailSection>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: spacing.md }}>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight("900"), marginBottom: spacing.md }}>
             Hình ảnh xe
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
@@ -195,7 +231,7 @@ export default function DriverVehicleDetail() {
       )}
 
       <DetailSection>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: spacing.sm }}>
+        <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight("900"), marginBottom: spacing.sm }}>
           Tổng quan xe
         </Text>
         <InfoRow icon={<Car size={18} color={colors.primary} />} label="Tên xe" value={vehicle.name} />
@@ -211,7 +247,7 @@ export default function DriverVehicleDetail() {
       </DetailSection>
 
       <DetailSection>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: spacing.sm }}>
+        <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight("900"), marginBottom: spacing.sm }}>
           Tài xế phụ trách
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm }}>
@@ -235,7 +271,7 @@ export default function DriverVehicleDetail() {
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontWeight: "900", fontSize: fontSize.base }}>
+            <Text style={{ color: colors.text, ...fontForWeight("900"), fontSize: fontSize.base }}>
               {vehicle.driverName || "Tài xế"}
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.xs }}>
@@ -247,7 +283,7 @@ export default function DriverVehicleDetail() {
       </DetailSection>
 
       <DetailSection>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: spacing.sm }}>
+        <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight("900"), marginBottom: spacing.sm }}>
           Vận hành
         </Text>
         <InfoRow icon={<ShieldCheck size={18} color={colors.success} />} label="Trạng thái khai thác" value={vehicle.status} />
@@ -255,9 +291,58 @@ export default function DriverVehicleDetail() {
         <InfoRow icon={<CalendarClock size={18} color={colors.primary} />} label="Ngày cập nhật" value={new Date(vehicle.updatedAt).toLocaleString("vi-VN")} />
       </DetailSection>
 
+      <DetailSection>
+        <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight("900"), marginBottom: spacing.xs }}>
+          Cách hệ thống tính giá chuyến
+        </Text>
+        <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, lineHeight: 21, marginBottom: spacing.md }}>
+          Tài xế thiết lập giá/km cho xe. Tổng tiền khách thấy sẽ cộng thêm các phí hệ thống theo thời điểm và chính sách nền tảng.
+        </Text>
+
+        <FeeRow
+          label="Giá xe của bạn"
+          value={`${vehicle.pricePerKm.toLocaleString("vi-VN")}đ/km`}
+          note="Đây là phần tài xế có thể chỉnh trong form xe, trong giới hạn hệ thống cho phép."
+        />
+        <FeeRow
+          label="Giá tối thiểu"
+          value={formatCurrency(PRICE_CONFIG.MINIMUM_BOOKING_PRICE)}
+          note="Nếu cước lộ trình thấp hơn mức tối thiểu, hệ thống dùng giá tối thiểu."
+        />
+        <FeeRow
+          label="Phí nền tảng"
+          value={`${PRICE_CONFIG.PLATFORM_FEE_PERCENT}%`}
+          note="Phí vận hành nền tảng, realtime, thông báo, bản đồ và xử lý giao dịch."
+        />
+        <FeeRow
+          label="Phụ phí cao điểm"
+          value={`x${PRICE_CONFIG.SURGE_MULTIPLIER_PEAK}`}
+          note="Áp dụng khung 07:00-09:00 và 17:00-20:00."
+        />
+        <FeeRow
+          label="Phí đêm"
+          value="12% cước xe"
+          note="Áp dụng khung 22:00-05:00."
+        />
+        <FeeRow
+          label="Phí chờ"
+          value="Chưa phát sinh"
+          note="Hiện hệ thống đang để 0đ; có thể bổ sung theo phút chờ trong phase sau."
+        />
+
+        <View style={{ marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}>
+          <Text style={{ color: colors.text, ...fontForWeight("900"), marginBottom: spacing.sm }}>
+            Ví dụ 10km với xe này
+          </Text>
+          <FeeRow label="Giờ thường 10:00" value={formatCurrency(normalQuote.totalPrice)} />
+          <FeeRow label="Cao điểm 08:00" value={formatCurrency(peakQuote.totalPrice)} />
+          <FeeRow label="Ban đêm 23:00" value={formatCurrency(nightQuote.totalPrice)} />
+        </View>
+      </DetailSection>
+
       {!!vehicle.description && (
         <DetailSection>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900", marginBottom: spacing.sm }}>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight("900"), marginBottom: spacing.sm }}>
             Mô tả xe
           </Text>
           <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>{vehicle.description}</Text>

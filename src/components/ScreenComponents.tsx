@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
-import { spacing } from '@/theme/tokens';
+import { fontForWeight, spacing } from '@/theme/tokens';
 
 interface ScreenProps {
   children: ReactNode;
@@ -108,7 +108,7 @@ export const ScreenHeader: FC<HeaderProps> = ({ title, subtitle, style }) => {
       <Text
         style={{
           fontSize: 28,
-          fontWeight: '700',
+          ...fontForWeight('700'),
           color: colors.text,
           marginBottom: subtitle ? spacing.xs : 0,
         }}
@@ -160,7 +160,7 @@ export const EmptyState: FC<EmptyStateProps> = ({ icon, title, description, acti
       <Text
         style={{
           fontSize: 18,
-          fontWeight: '600',
+          ...fontForWeight('600'),
           color: colors.text,
           marginBottom: spacing.sm,
           textAlign: 'center',

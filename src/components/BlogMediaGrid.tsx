@@ -29,7 +29,7 @@ import {
 } from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing, shadows } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing, shadows } from '@/theme/tokens';
 import { showError, showInfo, showSuccess } from '@/utils/toast';
 import { VideoLoadingOverlay } from '@/components/VideoLoadingOverlay';
 import { buildCloudinaryVideoPosterUrl, buildOptimizedCloudinaryImageUrl, buildOptimizedCloudinaryVideoUrl, shouldUseHlsVideo } from '@/services/videoOptimizationService';
@@ -539,7 +539,7 @@ const styles = StyleSheet.create({
   videoBadgeText: {
     color: 'white',
     fontSize: 9,
-    fontWeight: '800',
+    ...fontForWeight('800'),
     letterSpacing: 0.8,
   },
   videoTopActions: {
@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
   videoTime: {
     color: 'white',
     fontSize: 10,
-    fontWeight: '700',
+    ...fontForWeight('700'),
     minWidth: 32,
     textAlign: 'center',
   },
@@ -613,7 +613,7 @@ const styles = StyleSheet.create({
   moreText: {
     color: 'white',
     fontSize: 28,
-    fontWeight: '900',
+    ...fontForWeight('900'),
   },
   // ─ Fullscreen image modal ─
   modal: {
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
   },
   actionText: {
     color: 'white',
-    fontWeight: '800',
+    ...fontForWeight('800'),
     fontSize: fontSize.sm,
   },
 });

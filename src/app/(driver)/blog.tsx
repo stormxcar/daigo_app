@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { Camera, Edit3, Heart, MessageCircle, MoreVertical, Plus, Share2, Trash2, X } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, Skeleton, TextInput } from '@/components/BaseComponents';
 import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { SearchFilterBar } from '@/components/SearchFilterBar';
@@ -365,7 +365,7 @@ export default function DriverBlog() {
       />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg, paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
         <View>
-          <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800' }}>Tin tức của tôi</Text>
+          <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('800')}}>Tin tức của tôi</Text>
           <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>{posts.length} bài viết từ database</Text>
         </View>
         <TouchableOpacity
@@ -395,7 +395,7 @@ export default function DriverBlog() {
 
       {showForm && (
         <Card style={{ marginBottom: spacing.lg }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800'), marginBottom: spacing.md }}>
             {editingId ? 'Sửa bài viết' : 'Tạo bài viết'}
           </Text>
           <TextInput
@@ -418,7 +418,7 @@ export default function DriverBlog() {
           >
             <View style={{ alignItems: 'center', gap: spacing.sm, padding: spacing.lg }}>
               <Camera size={28} color={colors.primary} />
-              <Text style={{ color: colors.textSecondary, fontWeight: '700', textAlign: 'center' }}>
+              <Text style={{ color: colors.textSecondary, ...fontForWeight('700'), textAlign: 'center' }}>
                 {mediaUrls.length > 0 ? 'Thêm ảnh hoặc video khác' : 'Upload nhiều ảnh hoặc video'}
               </Text>
             </View>
@@ -452,7 +452,7 @@ export default function DriverBlog() {
                     onPress={() => removeMedia(index)}
                     style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: borderRadius.full, backgroundColor: colors.error }}
                   >
-                    <Text style={{ color: 'white', fontWeight: '800', fontSize: fontSize.xs }}>
+                    <Text style={{ color: 'white', ...fontForWeight('800'), fontSize: fontSize.xs }}>
                       Xóa tệp {index + 1}
                     </Text>
                   </TouchableOpacity>
@@ -484,7 +484,7 @@ export default function DriverBlog() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
             <Image source={{ uri: post.driverAvatar }} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceAlt }} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontWeight: '800' }}>{post.driverName}</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('800')}}>{post.driverName}</Text>
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
                 {new Date(post.createdAt).toLocaleString('vi-VN')}
               </Text>
@@ -513,11 +513,11 @@ export default function DriverBlog() {
             >
               <TouchableOpacity onPress={() => editPost(post)} disabled={saving} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm }}>
                 <Edit3 size={16} color={colors.text} />
-                <Text style={{ color: colors.text, fontWeight: '700' }}>Sửa bài viết</Text>
+                <Text style={{ color: colors.text, ...fontForWeight('700')}}>Sửa bài viết</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => deletePost(post)} disabled={saving} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm }}>
                 <Trash2 size={16} color={colors.error} />
-                <Text style={{ color: colors.error, fontWeight: '700' }}>Xóa bài viết</Text>
+                <Text style={{ color: colors.error, ...fontForWeight('700')}}>Xóa bài viết</Text>
               </TouchableOpacity>
             </View>
           )}

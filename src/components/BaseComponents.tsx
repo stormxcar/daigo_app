@@ -1,7 +1,7 @@
 import React, { FC, ReactNode, forwardRef } from 'react';
 import { ActivityIndicator, View, Text, TouchableOpacity, ViewStyle, TextInput as RNTextInput, Image as RNImage, DimensionValue, TextInputProps as RNTextInputProps } from 'react-native';
 import { useTheme } from '@/theme';
-import { spacing, borderRadius, shadows, fontSize } from '@/theme/tokens';
+import { spacing, borderRadius, shadows, fontForWeight, fontSize } from '@/theme/tokens';
 
 interface ButtonProps {
   label: string;
@@ -90,7 +90,7 @@ export const Button: FC<ButtonProps> = ({
       ) : (
         <>
           {icon && icon}
-          <Text style={{ color: textColor, fontWeight: '700', fontSize: size === 'lg' ? fontSize.base : fontSize.sm }}>
+          <Text style={{ color: textColor, ...fontForWeight('700'), fontSize: size === 'lg' ? fontSize.base : fontSize.sm }}>
             {label}
           </Text>
         </>
@@ -158,7 +158,7 @@ export const TextInput = forwardRef<RNTextInput, TextInputProps>(({
         <Text
           style={{
             fontSize: fontSize.sm,
-            fontWeight: '600',
+            ...fontForWeight('600'),
             color: colors.text,
             marginBottom: spacing.sm,
           }}
@@ -185,6 +185,7 @@ export const TextInput = forwardRef<RNTextInput, TextInputProps>(({
             flex: 1,
             paddingVertical: spacing.md,
             fontSize: fontSize.base,
+            ...fontForWeight('400'),
             color: colors.text,
             minHeight: multiline ? 96 : undefined,
             textAlignVertical: multiline ? 'top' : 'center',
@@ -219,9 +220,10 @@ export const TextInput = forwardRef<RNTextInput, TextInputProps>(({
       {error && (
         <Text
           style={{
-            color: colors.error,
-            fontSize: fontSize.xs,
-            marginTop: spacing.xs,
+          color: colors.error,
+          fontSize: fontSize.xs,
+          ...fontForWeight('400'),
+          marginTop: spacing.xs,
           }}
         >
           {error}
@@ -313,7 +315,7 @@ export const Badge: FC<BadgeProps> = ({ label, variant = 'primary', size = 'sm' 
       <Text
         style={{
           color: 'white',
-          fontWeight: '600',
+          ...fontForWeight('600'),
           fontSize: sizeStyles[size].fontSize,
         }}
       >
@@ -360,7 +362,7 @@ export const Avatar: FC<AvatarProps> = ({ source, initials, size = 'md', style }
         style,
       ]}
     >
-      <Text style={{ color: 'white', fontWeight: '700', fontSize: fontSize.base }}>
+      <Text style={{ color: 'white', ...fontForWeight('700'), fontSize: fontSize.base }}>
         {initials}
       </Text>
     </View>

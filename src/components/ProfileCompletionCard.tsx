@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { AlertCircle, CheckCircle2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { borderRadius, fontForWeight, fontSize, spacing } from '@/theme/tokens';
 import { User } from '@/types';
 
 type ProfileCompletionCardProps = {
@@ -52,12 +52,12 @@ export function ProfileCompletionCard({
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>Hoàn thiện hồ sơ</Text>
+          <Text style={{ color: colors.text, fontSize: 16, ...fontForWeight('900') }}>Hoàn thiện hồ sơ</Text>
           <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 3 }}>
             {completed}/{checks.length} mục đã hoàn tất
           </Text>
         </View>
-        <Text style={{ color: percent >= 80 ? colors.success : colors.warning, fontSize: 24, fontWeight: '900' }}>
+        <Text style={{ color: percent >= 80 ? colors.success : colors.warning, fontSize: 24, ...fontForWeight('900') }}>
           {percent}%
         </Text>
       </View>
@@ -87,7 +87,7 @@ export function ProfileCompletionCard({
           return (
             <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Icon size={14} color={item.done ? colors.success : colors.warning} />
-              <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '700' }}>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('700') }}>
                 {item.label}
               </Text>
             </View>

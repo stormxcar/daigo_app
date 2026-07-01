@@ -3,7 +3,7 @@ import { Image, Share, Text, TouchableOpacity, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Copy, Share2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Payment } from '@/types';
 import { showSuccess } from '@/utils/toast';
 
@@ -45,7 +45,7 @@ export function VietQRCard({ payment }: Props) {
         paddingVertical: spacing.md,
       }}
     >
-      <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
+      <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginBottom: spacing.md }}>
         Quét VietQR để chuyển khoản
       </Text>
       {!!payment.qrUrl && (
@@ -62,7 +62,7 @@ export function VietQRCard({ payment }: Props) {
           />
         </View>
       )}
-      <Text style={{ color: colors.primary, fontSize: 26, fontWeight: '900', marginBottom: spacing.md }}>
+      <Text style={{ color: colors.primary, fontSize: 26, ...fontForWeight('900'), marginBottom: spacing.md }}>
         {payment.amount.toLocaleString('vi-VN')} VND
       </Text>
       <View style={{ gap: spacing.sm }}>
@@ -80,7 +80,7 @@ export function VietQRCard({ payment }: Props) {
           >
             <View style={{ flex: 1 }}>
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{row.label}</Text>
-              <Text style={{ color: colors.text, fontWeight: '800', marginTop: spacing.xs }}>{row.value}</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('800'), marginTop: spacing.xs }}>{row.value}</Text>
             </View>
             {!!row.copyLabel && (
               <TouchableOpacity
@@ -116,7 +116,7 @@ export function VietQRCard({ payment }: Props) {
           }}
         >
           <Share2 size={18} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontWeight: '800' }}>Chia sẻ QR</Text>
+          <Text style={{ color: colors.primary, ...fontForWeight('800')}}>Chia sẻ QR</Text>
         </TouchableOpacity>
       )}
     </View>

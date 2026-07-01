@@ -15,7 +15,7 @@ import { BOOKING_STATUS, TERMINAL_BOOKING_STATUSES } from '@/constants';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Booking, BookingPaymentStatus } from '@/types';
 import { formatCurrency, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { showError } from '@/utils/toast';
@@ -64,7 +64,7 @@ function FilterChips<T extends string>({
   const { colors } = useTheme();
   return (
     <View style={{ marginBottom: spacing.md }}>
-      <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.sm }}>{label}</Text>
+      <Text style={{ color: colors.text, ...fontForWeight('900'), marginBottom: spacing.sm }}>{label}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
         {options.map((option) => (
           <TouchableOpacity
@@ -77,7 +77,7 @@ function FilterChips<T extends string>({
               backgroundColor: value === option.value ? colors.primary : colors.surfaceAlt,
             }}
           >
-            <Text style={{ color: value === option.value ? 'white' : colors.text, fontSize: fontSize.sm, fontWeight: '800' }}>
+            <Text style={{ color: value === option.value ? 'white' : colors.text, fontSize: fontSize.sm, ...fontForWeight('800')}}>
               {option.label}
             </Text>
           </TouchableOpacity>
@@ -119,12 +119,12 @@ function HistoryItem({ booking, mode, onPress }: { booking: Booking; mode: Layou
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs }}>
-            <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: fontSize.base, fontWeight: '900' }}>
+            <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: fontSize.base, ...fontForWeight('900')}}>
               {booking.bookingCode ?? 'Chuyến đi'}
             </Text>
             <Badge label={statusInfo.label} variant={booking.status === BOOKING_STATUS.TRIP_COMPLETED ? 'success' : TERMINAL_BOOKING_STATUSES.includes(booking.status as any) ? 'error' : 'info'} />
           </View>
-          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '800', marginBottom: spacing.sm }}>
+          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('800'), marginBottom: spacing.sm }}>
             {booking.time} - {formatVietnamDate(booking.date)} · {booking.bookingMode === 'scheduled' ? 'Đặt trước' : 'Đặt ngay'}
           </Text>
           <View style={{ gap: spacing.xs }}>
@@ -145,7 +145,7 @@ function HistoryItem({ booking, mode, onPress }: { booking: Booking; mode: Layou
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Receipt size={13} color={colors.primary} />
-                <Text style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: '900' }}>{formatCurrency(amount)}</Text>
+                <Text style={{ color: colors.primary, fontSize: fontSize.xs, ...fontForWeight('900')}}>{formatCurrency(amount)}</Text>
               </View>
             </View>
           )}
@@ -243,9 +243,9 @@ export default function CustomerHistoryScreen() {
             </View>
             <View style={{ padding: spacing.lg, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
-                <Text style={{ color: colors.textSecondary, fontWeight: '800' }}>{activeCount > 0 ? `${activeCount} bộ lọc đang bật` : 'Chưa bật bộ lọc'}</Text>
+                <Text style={{ color: colors.textSecondary, ...fontForWeight('800')}}>{activeCount > 0 ? `${activeCount} bộ lọc đang bật` : 'Chưa bật bộ lọc'}</Text>
                 <TouchableOpacity onPress={() => setLayoutMode((value) => value === 'card' ? 'list' : 'card')}>
-                  <Text style={{ color: colors.primary, fontWeight: '900' }}>{layoutMode === 'card' ? 'Dạng list' : 'Dạng card'}</Text>
+                  <Text style={{ color: colors.primary, ...fontForWeight('900')}}>{layoutMode === 'card' ? 'Dạng list' : 'Dạng card'}</Text>
                 </TouchableOpacity>
               </View>
               <BookingListControls

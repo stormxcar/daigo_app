@@ -1,7 +1,7 @@
 import React from 'react';
 import { FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '@/theme';
-import { spacing, borderRadius, fontSize } from '@/theme/tokens';
+import { fontForWeight, spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { BlogPost } from '@/types';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Newspaper, Play } from 'lucide-react-native';
@@ -23,7 +23,7 @@ export const NewsUpdatesList: React.FC<{
 
   return (
     <View style={{ marginBottom: spacing.xl }}>
-      <Text style={{ fontSize: fontSize.base, fontWeight: '800', color: colors.text, marginBottom: spacing.md, paddingHorizontal: spacing.md }}>
+      <Text style={{ fontSize: fontSize.base, ...fontForWeight('800'), color: colors.text, marginBottom: spacing.md, paddingHorizontal: spacing.md }}>
         Tin tức & khuyến mãi
       </Text>
       <FlatList
@@ -94,7 +94,7 @@ export const NewsUpdatesList: React.FC<{
                     <IllustrationBlock height={100} tone="warning" icon={<Newspaper size={20} color="white" />} />
                   </View>
                 )}
-                <Text numberOfLines={2} style={{ fontSize: fontSize.sm, fontWeight: '600', color: colors.text }}>
+                <Text numberOfLines={2} style={{ fontSize: fontSize.sm, ...fontForWeight('600'), color: colors.text }}>
                   {item.caption || 'Cập nhật từ tài xế'}
                 </Text>
                 <Text style={{ fontSize: fontSize.xs, color: colors.textSecondary, marginTop: spacing.xs }}>

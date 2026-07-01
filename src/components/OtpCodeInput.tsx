@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from 'react';
 import { NativeSyntheticEvent, Text, TextInput, TextInputKeyPressEventData, View } from 'react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 
 interface OtpCodeInputProps {
   value: string;
@@ -53,7 +53,7 @@ export function OtpCodeInput({
 
   return (
     <View style={{ marginBottom: spacing.lg }}>
-      <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '800', marginBottom: spacing.sm }}>
+      <Text style={{ color: colors.text, fontSize: fontSize.sm, ...fontForWeight('800'), marginBottom: spacing.sm }}>
         {label}
       </Text>
       <View style={{ flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' }}>
@@ -84,7 +84,7 @@ export function OtpCodeInput({
                 backgroundColor: disabled ? colors.surfaceAlt : colors.surface,
                 color: colors.text,
                 fontSize: 22,
-                fontWeight: '900',
+                ...fontForWeight('900'),
                 textAlign: 'center',
               }}
             />

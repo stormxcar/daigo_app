@@ -24,7 +24,7 @@ import {
   XCircle,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Avatar, Badge, Button, Card, TextInput } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { ProfileCompletionCard } from '@/components/ProfileCompletionCard';
@@ -98,7 +98,7 @@ function ProfileSection({
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>{title}</Text>
+            <Text style={{ color: colors.text, fontSize: 16, ...fontForWeight('900')}}>{title}</Text>
             {!!subtitle && (
               <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 3 }}>
                 {subtitle}
@@ -128,7 +128,7 @@ function StatCell({ label, value, icon }: { label: string; value: string | numbe
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs }}>
         {icon}
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>{value}</Text>
+        <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('900')}}>{value}</Text>
       </View>
       <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, textAlign: 'center', marginTop: spacing.xs }}>
         {label}
@@ -428,7 +428,7 @@ export default function DriverProfile() {
             </View>
           </TouchableOpacity>
 
-          <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text }}>{user?.fullName}</Text>
+          <Text style={{ fontSize: 20, ...fontForWeight('800'), color: colors.text }}>{user?.fullName}</Text>
           <Text style={{ fontSize: fontSize.sm, color: colors.textSecondary, marginTop: spacing.xs }}>{user?.email}</Text>
           <View style={{ marginTop: spacing.md }}>
             <Badge label={user?.emailVerified ? 'Email đã xác thực' : 'Email chưa xác thực'} variant={user?.emailVerified ? 'success' : 'warning'} />
@@ -449,7 +449,7 @@ export default function DriverProfile() {
             >
               {!user?.emailVerified && (
                 <View style={{ padding: spacing.md, borderBottomWidth: !user?.phoneVerified ? 1 : 0, borderBottomColor: colors.warning + '35' }}>
-                  <Text style={{ color: colors.text, fontWeight: '900' }}>Email chưa được xác thực</Text>
+                  <Text style={{ color: colors.text, ...fontForWeight('900')}}>Email chưa được xác thực</Text>
                   <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 }}>
                     Xác thực email để bảo vệ tài khoản tài xế và nhận thông báo vận hành.
                   </Text>
@@ -464,7 +464,7 @@ export default function DriverProfile() {
               )}
               {!user?.phoneVerified && (
                 <View style={{ padding: spacing.md }}>
-                  <Text style={{ color: colors.text, fontWeight: '900' }}>Số điện thoại chưa được xác thực</Text>
+                  <Text style={{ color: colors.text, ...fontForWeight('900')}}>Số điện thoại chưa được xác thực</Text>
                   <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 }}>
                     Xác thực SĐT để nhận chuyến, chat, gọi khách và xử lý thanh toán ổn định hơn.
                   </Text>
@@ -493,7 +493,7 @@ export default function DriverProfile() {
             <TextInput label="Họ và tên" value={fullName} onChangeText={setFullName} disabled={saving} style={{ marginBottom: spacing.md }} />
             <TextInput label="Số điện thoại" value={phone} onChangeText={setPhone} keyboardType="phone-pad" disabled={saving} style={{ marginBottom: spacing.md }} />
             <TextInput label="Địa chỉ" value={address} onChangeText={setAddress} disabled={saving} multiline numberOfLines={3} style={{ marginBottom: spacing.md }} />
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900', marginBottom: spacing.sm }}>
+            <Text style={{ color: colors.text, fontSize: 16, ...fontForWeight('900'), marginBottom: spacing.sm }}>
               Tài khoản nhận thanh toán
             </Text>
             <TextInput label="Tên ngân hàng" value={bankName} onChangeText={setBankName} disabled={saving} placeholder="Ví dụ: Vietcombank" style={{ marginBottom: spacing.md }} />
@@ -503,7 +503,7 @@ export default function DriverProfile() {
             <TextInput label="Chủ tài khoản" value={bankAccountHolder} onChangeText={setBankAccountHolder} disabled={saving} style={{ marginBottom: spacing.md }} />
             {!!bankQrPreviewUrl && (
               <View style={{ alignItems: 'center', padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, marginBottom: spacing.md }}>
-                <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.sm }}>Preview mã QR nhận tiền</Text>
+                <Text style={{ color: colors.text, ...fontForWeight('900'), marginBottom: spacing.sm }}>Preview mã QR nhận tiền</Text>
                 <Image source={{ uri: bankQrPreviewUrl }} resizeMode="contain" style={{ width: '100%', height: 220, borderRadius: borderRadius.lg, backgroundColor: 'white' }} />
               </View>
             )}
@@ -596,7 +596,7 @@ export default function DriverProfile() {
               }}
             >
               <UploadCloud size={26} color={colors.primary} />
-              <Text style={{ color: colors.text, fontWeight: '900', marginTop: spacing.sm }}>Upload ảnh giấy tờ</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900'), marginTop: spacing.sm }}>Upload ảnh giấy tờ</Text>
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, textAlign: 'center', marginTop: spacing.xs }}>
                 Có thể chọn nhiều ảnh CCCD/GPLX từ thư viện máy
               </Text>
@@ -649,7 +649,7 @@ export default function DriverProfile() {
                 }}
               >
                 <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginBottom: 3 }}>{item.label}</Text>
-                <Text style={{ color: colors.text, fontWeight: '800' }}>{item.value}</Text>
+                <Text style={{ color: colors.text, ...fontForWeight('800')}}>{item.value}</Text>
               </View>
             ))}
             {documentUrls.length > 0 && (
@@ -711,7 +711,7 @@ export default function DriverProfile() {
           <Wallet size={18} color={colors.success} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900' }}>Doanh thu</Text>
+          <Text style={{ color: colors.text, fontSize: 16, ...fontForWeight('900')}}>Doanh thu</Text>
           <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 3 }}>
             Biểu đồ, thống kê, thanh toán và chi tiết chuyến
           </Text>
@@ -743,13 +743,13 @@ export default function DriverProfile() {
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md }}>
           <View>
-            <Text style={{ color: colors.text, fontWeight: '900' }}>Điểm trung bình</Text>
+            <Text style={{ color: colors.text, ...fontForWeight('900')}}>Điểm trung bình</Text>
             <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>Tổng hợp từ các chuyến đã hoàn thành</Text>
           </View>
           <View style={{ alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
               <Star size={20} color={colors.warning} fill={colors.warning} />
-              <Text style={{ color: colors.text, fontSize: 28, fontWeight: '900' }}>{driverRating.toFixed(1)}</Text>
+              <Text style={{ color: colors.text, fontSize: 28, ...fontForWeight('900')}}>{driverRating.toFixed(1)}</Text>
             </View>
             <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs }}>trên 5.0</Text>
           </View>
@@ -791,18 +791,18 @@ export default function DriverProfile() {
         <BottomSheetScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.lg }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>Đánh giá của khách hàng</Text>
+              <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('900')}}>Đánh giá của khách hàng</Text>
               <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
                 {filteredRatings.length}/{ratings.length} đánh giá đang hiển thị
               </Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
               <Star size={20} color={colors.warning} fill={colors.warning} />
-              <Text style={{ color: colors.text, fontSize: 24, fontWeight: '900' }}>{driverRating.toFixed(1)}</Text>
+              <Text style={{ color: colors.text, fontSize: 24, ...fontForWeight('900')}}>{driverRating.toFixed(1)}</Text>
             </View>
           </View>
 
-          <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.sm }}>Lọc</Text>
+          <Text style={{ color: colors.text, ...fontForWeight('800'), marginBottom: spacing.sm }}>Lọc</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
             {[
               { key: 'all', label: 'Tất cả' },
@@ -823,14 +823,14 @@ export default function DriverProfile() {
                   backgroundColor: ratingFilter === item.key ? colors.primary : colors.surfaceAlt,
                 }}
               >
-                <Text style={{ color: ratingFilter === item.key ? 'white' : colors.text, fontWeight: '800', fontSize: fontSize.sm }}>
+                <Text style={{ color: ratingFilter === item.key ? 'white' : colors.text, ...fontForWeight('800'), fontSize: fontSize.sm }}>
                   {item.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.sm }}>Sắp xếp</Text>
+          <Text style={{ color: colors.text, ...fontForWeight('800'), marginBottom: spacing.sm }}>Sắp xếp</Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg }}>
             {[
               { key: 'newest', label: 'Mới nhất' },
@@ -847,7 +847,7 @@ export default function DriverProfile() {
                   backgroundColor: ratingSort === item.key ? colors.primary : colors.surfaceAlt,
                 }}
               >
-                <Text style={{ color: ratingSort === item.key ? 'white' : colors.text, fontWeight: '800' }}>{item.label}</Text>
+                <Text style={{ color: ratingSort === item.key ? 'white' : colors.text, ...fontForWeight('800')}}>{item.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -863,7 +863,7 @@ export default function DriverProfile() {
                 <Card key={rating.id} style={{ marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.sm }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: colors.text, fontWeight: '900' }}>
+                      <Text style={{ color: colors.text, ...fontForWeight('900')}}>
                         {booking?.customerName || 'Khách hàng'}
                       </Text>
                       <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: spacing.xs }}>

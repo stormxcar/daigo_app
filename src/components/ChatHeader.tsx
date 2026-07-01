@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChatConversation } from '@/types';
 import { useTheme } from '@/theme';
-import { spacing } from '@/theme/tokens';
+import { fontForWeight, spacing } from '@/theme/tokens';
 
 type Props = {
   conversation: ChatConversation;
@@ -48,7 +48,7 @@ export function ChatHeader({ conversation, roleLabel, onCallPress, onMenuPress }
           style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: colors.surfaceAlt }}
         />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }} numberOfLines={1}>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}} numberOfLines={1}>
             {conversation.participantName}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs }}>

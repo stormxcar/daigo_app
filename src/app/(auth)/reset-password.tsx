@@ -8,7 +8,7 @@ import { Screen } from '@/components/ScreenComponents';
 import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme';
 import { toVietnameseAuthError, validatePassword } from '@/utils/authValidation';
 import { showError as showErrorToast, showSuccess, showWarning } from '@/utils/toast';
@@ -94,7 +94,7 @@ export default function ResetPasswordScreen() {
         </View>
       )}
 
-      <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800', marginBottom: spacing.sm }}>
+      <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('800'), marginBottom: spacing.sm }}>
         Tạo mật khẩu mới
       </Text>
       <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.lg }}>

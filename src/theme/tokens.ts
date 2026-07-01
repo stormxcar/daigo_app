@@ -163,50 +163,79 @@ export const shadows = {
   },
 };
 
+export const fontFamily = {
+  regular: 'NunitoSans_400Regular',
+  medium: 'NunitoSans_500Medium',
+  semiBold: 'NunitoSans_600SemiBold',
+  bold: 'NunitoSans_700Bold',
+  extraBold: 'NunitoSans_800ExtraBold',
+  black: 'NunitoSans_900Black',
+} as const;
+
+export const fontForWeight = (
+  weight?: '400' | '500' | '600' | '700' | '800' | '900' | 400 | 500 | 600 | 700 | 800 | 900,
+) => {
+  const normalized = String(weight ?? '400');
+  const family =
+    normalized === '900'
+      ? fontFamily.black
+      : normalized === '800'
+        ? fontFamily.extraBold
+        : normalized === '700'
+          ? fontFamily.bold
+          : normalized === '600'
+            ? fontFamily.semiBold
+            : normalized === '500'
+              ? fontFamily.medium
+              : fontFamily.regular;
+
+  return { fontFamily: family };
+};
+
 export const typography = {
   h1: {
     fontSize: fontSize['4xl'],
     lineHeight: lineHeight['4xl'],
-    fontWeight: '700' as const,
+    ...fontForWeight('700'),
   },
   h2: {
     fontSize: fontSize['3xl'],
     lineHeight: lineHeight['3xl'],
-    fontWeight: '700' as const,
+    ...fontForWeight('700'),
   },
   h3: {
     fontSize: fontSize['2xl'],
     lineHeight: lineHeight['2xl'],
-    fontWeight: '700' as const,
+    ...fontForWeight('700'),
   },
   h4: {
     fontSize: fontSize.xl,
     lineHeight: lineHeight.xl,
-    fontWeight: '600' as const,
+    ...fontForWeight('600'),
   },
   h5: {
     fontSize: fontSize.lg,
     lineHeight: lineHeight.lg,
-    fontWeight: '600' as const,
+    ...fontForWeight('600'),
   },
   body: {
     fontSize: fontSize.base,
     lineHeight: lineHeight.base,
-    fontWeight: '400' as const,
+    ...fontForWeight('400'),
   },
   bodySmall: {
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
-    fontWeight: '400' as const,
+    ...fontForWeight('400'),
   },
   label: {
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
-    fontWeight: '600' as const,
+    ...fontForWeight('600'),
   },
   caption: {
     fontSize: fontSize.xs,
     lineHeight: lineHeight.xs,
-    fontWeight: '500' as const,
+    ...fontForWeight('500'),
   },
 };

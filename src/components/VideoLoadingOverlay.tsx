@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { Play } from 'lucide-react-native';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 
 type Props = {
   loading?: boolean;
@@ -36,7 +36,7 @@ export function VideoLoadingOverlay({ loading, label }: Props) {
         {loading ? <ActivityIndicator color="white" /> : <Play size={24} color="white" fill="white" />}
       </View>
       {!!label && (
-        <Text style={{ color: 'white', fontSize: fontSize.xs, fontWeight: '800', marginTop: spacing.sm }}>
+        <Text style={{ color: 'white', fontSize: fontSize.xs, ...fontForWeight('800'), marginTop: spacing.sm }}>
           {label}
         </Text>
       )}

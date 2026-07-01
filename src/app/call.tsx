@@ -10,7 +10,7 @@ import { joinAgoraVoiceChannel, leaveAgoraVoiceChannel, requestMicrophonePermiss
 import { callService } from '@/services/callService';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
-import { borderRadius, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, spacing } from '@/theme/tokens';
 import { CallSession } from '@/types';
 import { showError, showSuccess } from '@/utils/toast';
 
@@ -160,7 +160,7 @@ export default function CallScreen() {
           >
             {joining ? <ActivityIndicator color="white" /> : <Mic size={38} color="white" />}
           </View>
-          <Text style={{ color: colors.text, fontSize: 24, fontWeight: '900', marginBottom: spacing.sm }}>
+          <Text style={{ color: colors.text, fontSize: 24, ...fontForWeight('900'), marginBottom: spacing.sm }}>
             Gọi trong ứng dụng
           </Text>
           {call && <View style={{ marginBottom: spacing.md }}><CallStatusBadge status={call.status} /></View>}
@@ -169,7 +169,7 @@ export default function CallScreen() {
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xl }}>
             <Volume2 size={18} color={joined ? colors.success : colors.textTertiary} />
-            <Text style={{ color: joined ? colors.success : colors.textSecondary, fontWeight: '800' }}>
+            <Text style={{ color: joined ? colors.success : colors.textSecondary, ...fontForWeight('800')}}>
               {joined ? 'Kênh thoại đã sẵn sàng' : 'Đang kết nối'}
             </Text>
           </View>

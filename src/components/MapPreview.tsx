@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Crosshair, Expand, LocateFixed, MapPin, Minimize } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { DrivingRoute, getDrivingRoute, LatLng } from '@/services/mapRouteService';
 import { getNativeMapLibre, NativeMapUnavailable } from '@/components/NativeMapLibre';
 import { showError, showSuccess } from '@/utils/toast';
@@ -300,7 +300,7 @@ export function MapPreview({
                     { backgroundColor: selectMode === item.value ? colors.primary : colors.surfaceAlt },
                   ]}
                 >
-                  <Text style={{ color: selectMode === item.value ? 'white' : colors.text, fontWeight: '700', fontSize: fontSize.xs }}>
+                  <Text style={{ color: selectMode === item.value ? 'white' : colors.text, ...fontForWeight('700'), fontSize: fontSize.xs }}>
                     {item.label}
                   </Text>
                 </TouchableOpacity>
@@ -316,7 +316,7 @@ export function MapPreview({
               <View key={item.label} style={styles.locationItem}>
                 <MapPin size={14} color={item.color} />
                 <Text numberOfLines={1} style={[styles.locationText, { color: colors.text }]}>
-                  <Text style={{ color: item.color, fontWeight: '700' }}>{item.label}: </Text>
+                  <Text style={{ color: item.color, ...fontForWeight('700')}}>{item.label}: </Text>
                   {item.value}
                 </Text>
               </View>
@@ -359,7 +359,7 @@ export function MapPreview({
         <View style={[styles.fullscreenContainer, { paddingTop: insets.top, backgroundColor: colors.background }]}>
           <View style={[styles.fullscreenHeader, { backgroundColor: colors.primary }]}>
             <View style={styles.locationRow}>
-              <Text numberOfLines={1} style={{ color: 'white', fontWeight: '800' }}>Bản đồ Goong</Text>
+              <Text numberOfLines={1} style={{ color: 'white', ...fontForWeight('800')}}>Bản đồ Goong</Text>
               {route && (
                 <Text style={styles.fullscreenRouteText}>
                   {(route.distanceMeters / 1000).toFixed(1)} km{route.duration ? ` · ${route.duration}` : ''}
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   },
   pinText: {
     color: 'white',
-    fontWeight: '900',
+    ...fontForWeight('900'),
     fontSize: fontSize.sm,
   },
   userDot: {
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
   routeText: {
     color: 'white',
     fontSize: fontSize.xs,
-    fontWeight: '700',
+    ...fontForWeight('700'),
   },
   gpsBtn: {
     flexDirection: 'row',
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
   },
   gpsBtnText: {
     color: 'white',
-    fontWeight: '700',
+    ...fontForWeight('700'),
     fontSize: fontSize.sm,
   },
   fullscreenContainer: {
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
   fullscreenRouteText: {
     color: 'rgba(255,255,255,0.85)',
     fontSize: fontSize.xs,
-    fontWeight: '600',
+    ...fontForWeight('600'),
   },
   overlayButtons: {
     position: 'absolute',

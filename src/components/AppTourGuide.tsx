@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Modal, Text, TouchableOpacity, View } from 'react-native';
 import { Bell, Car, CheckCircle2, Newspaper, Search, UserCircle } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { Button } from '@/components/BaseComponents';
 
 type Props = {
@@ -88,7 +88,7 @@ export function AppTourGuide({ visible, onDone, onSkip }: Props) {
             <Icon size={30} color="#ffffff" />
           </View>
 
-          <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900', marginBottom: spacing.sm }}>
+          <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('900'), marginBottom: spacing.sm }}>
             {step.title}
           </Text>
           <Text style={{ color: colors.textSecondary, fontSize: fontSize.base, lineHeight: 24 }}>
@@ -121,7 +121,7 @@ export function AppTourGuide({ visible, onDone, onSkip }: Props) {
                 backgroundColor: colors.surfaceAlt,
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: '800' }}>Skip</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('800')}}>Skip</Text>
             </TouchableOpacity>
             <Button
               label={isLast ? 'Done' : 'Next'}

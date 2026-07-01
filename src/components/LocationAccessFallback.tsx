@@ -5,7 +5,7 @@ import { Button } from '@/components/BaseComponents';
 import { DestinationPlace, DestinationSearchInput } from '@/components/DestinationSearchInput';
 import { Screen } from '@/components/ScreenComponents';
 import { useTheme } from '@/theme';
-import { borderRadius, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, spacing } from '@/theme/tokens';
 
 type Props = {
   description?: string;
@@ -37,7 +37,7 @@ export function LocationAccessFallback({
         >
           <LocateFixed size={34} color={colors.primary} />
         </View>
-        <Text style={{ color: colors.text, fontSize: 24, fontWeight: '900', marginBottom: spacing.sm }}>
+        <Text style={{ color: colors.text, fontSize: 24, ...fontForWeight('900'), marginBottom: spacing.sm }}>
           Rất tiếc, chúng tôi không thể truy cập vị trí của bạn
         </Text>
         <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.xl }}>

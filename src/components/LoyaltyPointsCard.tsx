@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { useTheme } from '@/theme';
-import { spacing, borderRadius, fontSize } from '@/theme/tokens';
+import { fontForWeight, spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Card } from '@/components/BaseComponents';
 
 // Placeholder loyalty data – replace with real API later
@@ -16,11 +16,11 @@ export const LoyaltyPointsCard: React.FC = () => {
   const progress = Math.min(1, loyalty.points / loyalty.nextTierPoints);
   return (
     <Card style={{ padding: spacing.md, backgroundColor: colors.surfaceAlt }}>
-      <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: colors.text, marginBottom: spacing.sm }}>
+      <Text style={{ fontSize: fontSize.base, ...fontForWeight('700'), color: colors.text, marginBottom: spacing.sm }}>
         Điểm thưởng
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs }}>
-        <Text style={{ fontSize: fontSize.lg, fontWeight: '800', color: colors.primary }}>{loyalty.points}</Text>
+        <Text style={{ fontSize: fontSize.lg, ...fontForWeight('800'), color: colors.primary }}>{loyalty.points}</Text>
         <Text style={{ fontSize: fontSize.sm, color: colors.textSecondary, marginLeft: spacing.sm }}>
           điểm
         </Text>

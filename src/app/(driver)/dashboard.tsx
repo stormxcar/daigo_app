@@ -3,7 +3,7 @@ import { ActivityIndicator, Animated, Text, TouchableOpacity, View } from 'react
 import { router } from 'expo-router';
 import { BarChart3, Briefcase, CalendarClock, LocateFixed, Newspaper, Percent, Route, Star, TrendingUp, Wallet } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, CardSkeleton } from '@/components/BaseComponents';
 import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { ActiveTripSheet } from '@/components/ActiveTripSheet';
@@ -86,7 +86,7 @@ function DriverAvailabilityToggle({
       }}
     >
       <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.text, fontWeight: '900' }}>
+        <Text style={{ color: colors.text, ...fontForWeight('900')}}>
           {enabled ? 'Đang nhận chuyến' : 'Tạm dừng nhận chuyến'}
         </Text>
         <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, fontSize: fontSize.sm }}>
@@ -373,19 +373,19 @@ export default function DriverDashboard() {
         >
           <CalendarClock size={26} color={colors.warning} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.warning, fontWeight: '900', fontSize: 14 }}>
+            <Text style={{ color: colors.warning, ...fontForWeight('900'), fontSize: 14 }}>
               Bạn có chuyến đặt trước hôm nay!
             </Text>
             <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
               {new Date(todayScheduledBooking.scheduledStartAt!).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • Đi đón khách tại {todayScheduledBooking.pickupLocation?.split(',')[0] ?? '...'}
             </Text>
           </View>
-          <Text style={{ color: colors.warning, fontWeight: '700', fontSize: 13 }}>Xem ›</Text>
+          <Text style={{ color: colors.warning, ...fontForWeight('700'), fontSize: 13 }}>Xem ›</Text>
         </TouchableOpacity>
       )}
 
       <View style={{ paddingHorizontal: spacing.lg }}>
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: spacing.xs, marginTop: spacing.md }}>
+        <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('800'), marginBottom: spacing.xs, marginTop: spacing.md }}>
           Thống kê tài xế
         </Text>
         <Text style={{ color: colors.textSecondary, marginBottom: spacing.lg }}>
@@ -399,11 +399,11 @@ export default function DriverDashboard() {
             <LocateFixed size={22} color="white" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontWeight: '900' }}>GPS tài xế</Text>
+            <Text style={{ color: colors.text, ...fontForWeight('900')}}>GPS tài xế</Text>
             <Text numberOfLines={2} style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
               {driverLocation?.label ?? 'Cho phép GPS để chỉ đường đến điểm đón chính xác hơn.'}
             </Text>
-            <Text style={{ color: isOnline ? colors.success : colors.textTertiary, fontWeight: '800', marginTop: spacing.xs }}>
+            <Text style={{ color: isOnline ? colors.success : colors.textTertiary, ...fontForWeight('800'), marginTop: spacing.xs }}>
               {isOnline ? 'Đang online nhận chuyến' : 'Đang offline'}
             </Text>
           </View>
@@ -429,7 +429,7 @@ export default function DriverDashboard() {
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>{item.label}</Text>
               {item.icon}
             </View>
-            <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>{item.value}</Text>
+            <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('900')}}>{item.value}</Text>
           </Card>
         ))}
       </View>}
@@ -437,7 +437,7 @@ export default function DriverDashboard() {
       {!loading && (
         <Card style={{ marginBottom: spacing.lg }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Chuyến đi gần đây</Text>
+            <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Chuyến đi gần đây</Text>
             <Button
               label="Xem tất cả"
               size="sm"
@@ -447,7 +447,7 @@ export default function DriverDashboard() {
           </View>
           {recentBookings.length === 0 ? (
             <View style={{ padding: spacing.lg, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
-              <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.xs }}>Chưa có chuyến đi</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900'), marginBottom: spacing.xs }}>Chưa có chuyến đi</Text>
               <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>
                 Khi bạn nhận hoặc hoàn thành chuyến, danh sách gần đây sẽ hiển thị tại đây.
               </Text>
@@ -471,10 +471,10 @@ export default function DriverDashboard() {
                     }}
                   >
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.sm }}>
-                      <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontWeight: '900' }}>
+                      <Text numberOfLines={1} style={{ flex: 1, color: colors.text, ...fontForWeight('900')}}>
                         {booking.pickupLocation}
                       </Text>
-                      <Text style={{ color: colors.primary, fontWeight: '900' }}>{money(amount)}</Text>
+                      <Text style={{ color: colors.primary, ...fontForWeight('900')}}>{money(amount)}</Text>
                     </View>
                     <Text numberOfLines={1} style={{ color: colors.textSecondary, marginBottom: spacing.sm }}>
                       đến {booking.dropoffLocation}
@@ -483,13 +483,13 @@ export default function DriverDashboard() {
                       <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs }}>
                         {booking.time} - {formatVietnamDate(booking.date)}
                       </Text>
-                      <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '800' }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('800')}}>
                         {statusInfo.label}
                       </Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm }}>
                       <PaymentStatusBadge status={booking.paymentStatus} />
-                      <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, fontWeight: '700' }}>
+                      <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, ...fontForWeight('700')}}>
                         {getPaymentMethodLabel(booking.paymentMethod)}
                       </Text>
                     </View>
@@ -503,7 +503,7 @@ export default function DriverDashboard() {
 
       {!loading && (
         <Card style={{ marginBottom: spacing.lg }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginBottom: spacing.md }}>
             Thống kê thanh toán
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -524,7 +524,7 @@ export default function DriverDashboard() {
                 }}
               >
                 <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{item.label}</Text>
-                <Text style={{ color: item.color, fontWeight: '900', fontSize: 22, marginTop: spacing.xs }}>{item.value}</Text>
+                <Text style={{ color: item.color, ...fontForWeight('900'), fontSize: 22, marginTop: spacing.xs }}>{item.value}</Text>
               </View>
             ))}
           </View>
@@ -533,7 +533,7 @@ export default function DriverDashboard() {
 
       {!loading && (
         <Card style={{ marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.primaryLight }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginBottom: spacing.md }}>
             Doanh thu theo ngày
           </Text>
           <View style={{ flexDirection: 'row', gap: spacing.md }}>
@@ -544,7 +544,7 @@ export default function DriverDashboard() {
             ].map((item) => (
               <View key={item.label} style={{ flex: 1, padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
                 <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{item.label}</Text>
-                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '900', marginTop: spacing.xs }}>{item.value}</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, ...fontForWeight('900'), marginTop: spacing.xs }}>{item.value}</Text>
                 <Text numberOfLines={2} style={{ color: colors.textTertiary, fontSize: 10, marginTop: spacing.xs }}>{item.sub}</Text>
               </View>
             ))}
@@ -554,7 +554,7 @@ export default function DriverDashboard() {
 
       {!loading && (
         <Card style={{ marginBottom: spacing.lg }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginBottom: spacing.md }}>
             Hiệu suất tài xế
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
@@ -574,10 +574,10 @@ export default function DriverDashboard() {
                 }}
               >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm }}>
-                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '700' }}>{item.label}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('700')}}>{item.label}</Text>
                   {item.icon}
                 </View>
-                <Text numberOfLines={1} style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>{item.value}</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>{item.value}</Text>
                 <Text numberOfLines={2} style={{ color: colors.textTertiary, fontSize: 10, marginTop: spacing.xs }}>{item.sub}</Text>
               </View>
             ))}
@@ -592,7 +592,7 @@ export default function DriverDashboard() {
               <Star size={26} color="#ffffff" fill="#ffffff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>
+              <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>
                 {stats.ratingCount ? `${stats.averageRating.toFixed(1)}/5` : 'Chưa có đánh giá'}
               </Text>
               <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
@@ -611,7 +611,7 @@ export default function DriverDashboard() {
 
       {!loading && <Card style={{ marginBottom: spacing.lg }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>Biểu đồ doanh thu</Text>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800')}}>Biểu đồ doanh thu</Text>
           <View style={{ flexDirection: 'row', gap: spacing.xs }}>
             {[
               { key: 'day', label: 'Ngày' },
@@ -628,7 +628,7 @@ export default function DriverDashboard() {
                   backgroundColor: mode === item.key ? colors.primary : colors.surfaceAlt,
                 }}
               >
-                <Text style={{ color: mode === item.key ? 'white' : colors.text, fontSize: fontSize.xs, fontWeight: '700' }}>
+                <Text style={{ color: mode === item.key ? 'white' : colors.text, fontSize: fontSize.xs, ...fontForWeight('700')}}>
                   {item.label}
                 </Text>
               </TouchableOpacity>
@@ -660,7 +660,7 @@ export default function DriverDashboard() {
 
       {!loading && <Card>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>Hoạt động nội dung</Text>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800')}}>Hoạt động nội dung</Text>
           <Newspaper size={20} color={colors.primary} />
         </View>
         <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>

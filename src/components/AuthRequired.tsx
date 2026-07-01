@@ -5,7 +5,7 @@ import { Lock } from 'lucide-react-native';
 import { Button } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { useTheme } from '@/theme';
-import { spacing, fontSize } from '@/theme/tokens';
+import { fontForWeight, spacing, fontSize } from '@/theme/tokens';
 
 interface AuthRequiredProps {
   title?: string;
@@ -39,7 +39,7 @@ export function AuthRequired({
           style={{
             color: colors.text,
             fontSize: 20,
-            fontWeight: '700',
+            ...fontForWeight('700'),
             marginBottom: spacing.sm,
             textAlign: 'center',
           }}

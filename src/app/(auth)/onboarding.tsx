@@ -13,7 +13,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 
 interface OnboardingStep {
@@ -188,13 +188,13 @@ const styles = StyleSheet.create({
   badgeText: {
     color: 'white',
     fontSize: 11,
-    fontWeight: '800',
+    ...fontForWeight('800'),
     letterSpacing: 1,
   },
   title: {
     color: 'white',
     fontSize: 34,
-    fontWeight: '900',
+    ...fontForWeight('900'),
     lineHeight: 40,
     marginBottom: spacing.md,
   },
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.9)',
     fontSize: 17,
     lineHeight: 25,
-    fontWeight: '700',
+    ...fontForWeight('700'),
     marginBottom: spacing.sm,
   },
   detail: {
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
   ctaText: {
     color: '#0f172a',
     fontSize: fontSize.base,
-    fontWeight: '900',
+    ...fontForWeight('900'),
   },
   skipButton: {
     paddingVertical: spacing.md,
@@ -239,6 +239,6 @@ const styles = StyleSheet.create({
   skipText: {
     color: 'rgba(255,255,255,0.82)',
     fontSize: fontSize.sm,
-    fontWeight: '700',
+    ...fontForWeight('700'),
   },
 });

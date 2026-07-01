@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { ArrowUpDown, Search, SlidersHorizontal, X } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 
 export interface FilterChip {
   key: string;
@@ -195,7 +195,7 @@ export function SearchFilterBar({
                       <Text
                         style={[
                           styles.dropdownText,
-                          { color: opt.key === activeSort ? colors.primary : colors.text, fontWeight: opt.key === activeSort ? '700' : '500' },
+                          { color: opt.key === activeSort ? colors.primary : colors.text, ...fontForWeight(opt.key === activeSort ? '700' : '500')},
                         ]}
                       >
                         {opt.label}
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: fontSize.xs,
-    fontWeight: '600',
+    ...fontForWeight('600'),
   },
   sortBtn: {
     flexDirection: 'row',
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   },
   sortBtnText: {
     fontSize: fontSize.xs,
-    fontWeight: '600',
+    ...fontForWeight('600'),
     flexShrink: 1,
   },
   dropdown: {
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
   },
   resultCount: {
     fontSize: fontSize.xs,
-    fontWeight: '500',
+    ...fontForWeight('500'),
     marginTop: -spacing.xs,
   },
 });

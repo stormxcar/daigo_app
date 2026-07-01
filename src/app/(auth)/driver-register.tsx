@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { isFirebasePhoneAuthEnabled, isTestPhoneOtpEnabled, isValidVietnamPhone, normalizeVietnamPhone, TEST_PHONE_OTP } from '@/services/phoneAuthConfig';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { toVietnameseAuthError, isValidEmail } from '@/utils/authValidation';
 import { showError, showInfo, showSuccess } from '@/utils/toast';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
@@ -280,7 +280,7 @@ export default function DriverRegisterScreen() {
             >
               <Car size={32} color={colors.primary} />
             </View>
-            <Text style={{ color: colors.text, fontSize: 24, fontWeight: '900', textAlign: 'center' }}>
+            <Text style={{ color: colors.text, fontSize: 24, ...fontForWeight('900'), textAlign: 'center' }}>
               Đăng ký làm tài xế
             </Text>
             <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, lineHeight: 21, textAlign: 'center', marginTop: spacing.sm }}>
@@ -348,7 +348,7 @@ export default function DriverRegisterScreen() {
               {step === 'docs' ? <FileText size={26} color={colors.primary} /> : <Car size={26} color={colors.primary} />}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontSize: 24, fontWeight: '900' }}>{stepTitle}</Text>
+              <Text style={{ color: colors.text, fontSize: 24, ...fontForWeight('900')}}>{stepTitle}</Text>
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, lineHeight: 20, marginTop: spacing.xs }}>
                 {step === 'docs'
                   ? 'MVP cho phép bỏ trống giấy tờ và hoàn tất sau trong hồ sơ tài xế.'
@@ -440,7 +440,7 @@ export default function DriverRegisterScreen() {
               disabled={isLoading || countdown > 0}
               style={{ alignItems: 'center', opacity: countdown > 0 ? 0.55 : 1 }}
             >
-              <Text style={{ color: colors.primary, fontWeight: '800' }}>
+              <Text style={{ color: colors.primary, ...fontForWeight('800')}}>
                 {countdown > 0 ? `Gửi lại sau ${countdown}s` : 'Gửi lại OTP'}
               </Text>
             </TouchableOpacity>
@@ -615,7 +615,7 @@ export default function DriverRegisterScreen() {
                       source={{ uri: url }}
                       style={{ width: 58, height: 44, borderRadius: borderRadius.sm, backgroundColor: colors.surfaceAlt }}
                     />
-                    <Text style={{ flex: 1, color: colors.text, fontWeight: '800' }}>
+                    <Text style={{ flex: 1, color: colors.text, ...fontForWeight('800')}}>
                       Ảnh giấy tờ {index + 1}
                     </Text>
                     <TouchableOpacity

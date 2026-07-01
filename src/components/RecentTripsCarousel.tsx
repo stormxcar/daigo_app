@@ -1,7 +1,7 @@
 import React from 'react';
 import { FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '@/theme';
-import { spacing, borderRadius, fontSize } from '@/theme/tokens';
+import { fontForWeight, spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Card } from '@/components/BaseComponents';
 import { Booking } from '@/types';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
@@ -19,7 +19,7 @@ export const RecentTripsCarousel: React.FC<{
 
   return (
     <View style={{ marginBottom: spacing.xl, paddingHorizontal: spacing.md }}>
-      <Text style={{ fontSize: fontSize.base, fontWeight: '800', color: colors.text, marginBottom: spacing.md }}>
+      <Text style={{ fontSize: fontSize.base, ...fontForWeight('800'), color: colors.text, marginBottom: spacing.md }}>
         Lịch sử chuyến đi
       </Text>
       <FlatList
@@ -47,12 +47,12 @@ export const RecentTripsCarousel: React.FC<{
                 </View>
               )}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm, alignItems: 'center', marginBottom: spacing.xs }}>
-                <Text style={{ fontSize: fontSize.sm, fontWeight: '900', color: colors.text, flex: 1 }}>
+                <Text style={{ fontSize: fontSize.sm, ...fontForWeight('900'), color: colors.text, flex: 1 }}>
                   {item.bookingCode ?? 'Chuyến đi'}
                 </Text>
                 <Badge label={getBookingStatusInfo(item.status).label} variant={item.status === 'TRIP_COMPLETED' ? 'success' : 'info'} />
               </View>
-              <Text style={{ fontSize: fontSize.xs, fontWeight: '700', color: colors.textSecondary, marginBottom: spacing.sm }}>
+              <Text style={{ fontSize: fontSize.xs, ...fontForWeight('700'), color: colors.textSecondary, marginBottom: spacing.sm }}>
                 {item.time} - {formatVietnamDate(item.date)}
               </Text>
               {[
@@ -68,7 +68,7 @@ export const RecentTripsCarousel: React.FC<{
                   </Text>
                 </View>
               ))}
-              <Text style={{ fontSize: fontSize.sm, color: colors.primary, fontWeight: '900', marginTop: spacing.sm }}>
+              <Text style={{ fontSize: fontSize.sm, color: colors.primary, ...fontForWeight('900'), marginTop: spacing.sm }}>
                 {formatCurrency(item.actualPrice ?? item.estimatedPrice)}
               </Text>
             </Card>

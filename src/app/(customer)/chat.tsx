@@ -3,7 +3,7 @@ import { Alert, Text, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
 import { MessageCircle, Trash2, X } from "lucide-react-native";
 import { useTheme } from "@/theme";
-import { spacing } from "@/theme/tokens";
+import { fontForWeight, spacing } from '@/theme/tokens';
 import { AuthRequired } from "@/components/AuthRequired";
 import { Button, Skeleton } from "@/components/BaseComponents";
 import { ChatConversationRow } from "@/components/ChatConversationRow";
@@ -227,7 +227,7 @@ export default function ChatScreen() {
             justifyContent: "space-between",
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "900" }}>{selectedIds.length} cuộc trò chuyện đã chọn</Text>
+          <Text style={{ color: colors.text, ...fontForWeight("900")}}>{selectedIds.length} cuộc trò chuyện đã chọn</Text>
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             <TouchableOpacity onPress={() => setSelectedIds([])} style={{ padding: spacing.sm }}>
               <X size={20} color={colors.textSecondary} />

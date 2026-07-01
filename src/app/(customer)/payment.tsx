@@ -13,7 +13,7 @@ import { apiClient } from '@/services/api';
 import { paymentService } from '@/services/paymentService';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
-import { borderRadius, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, spacing } from '@/theme/tokens';
 import { Booking, PaymentMethod } from '@/types';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 import { BOOKING_STATUS } from '@/constants';
@@ -161,7 +161,7 @@ export default function CustomerPaymentScreen() {
     return (
       <Screen padding>
         <Card>
-          <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.sm }}>Không tìm thấy chuyến đi</Text>
+          <Text style={{ color: colors.text, ...fontForWeight('900'), marginBottom: spacing.sm }}>Không tìm thấy chuyến đi</Text>
           <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>{error || 'Vui lòng quay lại và thử lại.'}</Text>
           <Button label="Quay lại" onPress={() => router.back()} variant="outline" />
         </Card>
@@ -173,7 +173,7 @@ export default function CustomerPaymentScreen() {
     return (
       <Screen padding>
         <Card>
-          <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.sm }}>Không cần thanh toán</Text>
+          <Text style={{ color: colors.text, ...fontForWeight('900'), marginBottom: spacing.sm }}>Không cần thanh toán</Text>
           <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.md }}>
             Chuyến đi này đã hủy hoặc hết hạn nên không phát sinh thanh toán. Bạn có thể quay lại chi tiết chuyến để xem lý do hủy.
           </Text>
@@ -193,7 +193,7 @@ export default function CustomerPaymentScreen() {
       <PaymentSection>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>
+            <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('900')}}>
               Thanh toán chuyến đi
             </Text>
             <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
@@ -206,7 +206,7 @@ export default function CustomerPaymentScreen() {
 
       {!payment ? (
         <PaymentSection>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.sm }}>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginBottom: spacing.sm }}>
             Chọn phương thức thanh toán
           </Text>
           <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.md }}>
@@ -220,7 +220,7 @@ export default function CustomerPaymentScreen() {
             >
               <Banknote size={24} color={colors.success} />
               <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: '900' }}>Tiền mặt</Text>
+                <Text style={{ color: colors.text, ...fontForWeight('900')}}>Tiền mặt</Text>
                 <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>Thanh toán trực tiếp, tài xế xác nhận khi nhận tiền.</Text>
               </View>
             </TouchableOpacity>
@@ -231,7 +231,7 @@ export default function CustomerPaymentScreen() {
             >
               <CreditCard size={24} color={colors.primary} />
               <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: '900' }}>VietQR / chuyển khoản</Text>
+                <Text style={{ color: colors.text, ...fontForWeight('900')}}>VietQR / chuyển khoản</Text>
                 <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>Quét QR hoặc copy thông tin chuyển khoản của tài xế.</Text>
               </View>
             </TouchableOpacity>
@@ -246,7 +246,7 @@ export default function CustomerPaymentScreen() {
                   <View style={{ flexDirection: 'row', gap: spacing.md }}>
                     <ShieldAlert size={22} color={colors.error} />
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.xs }}>Thanh toán bị từ chối</Text>
+                      <Text style={{ color: colors.text, ...fontForWeight('900'), marginBottom: spacing.xs }}>Thanh toán bị từ chối</Text>
                       <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>
                         {payment.driverNote || 'Tài xế chưa xác nhận được khoản thanh toán. Vui lòng kiểm tra lại với tài xế.'}
                       </Text>
@@ -257,7 +257,7 @@ export default function CustomerPaymentScreen() {
               {payment.paymentMethod === 'cash' ? (
                 <PaymentSection>
                   <Banknote size={34} color={colors.success} />
-                  <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginTop: spacing.md, marginBottom: spacing.sm }}>
+                  <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginTop: spacing.md, marginBottom: spacing.sm }}>
                     Thanh toán tiền mặt
                   </Text>
                   <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
@@ -271,7 +271,7 @@ export default function CustomerPaymentScreen() {
                     <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
                       <Clock size={22} color={vietQrExpired ? colors.error : colors.primary} />
                       <View style={{ flex: 1 }}>
-                        <Text style={{ color: colors.text, fontWeight: '900' }}>
+                        <Text style={{ color: colors.text, ...fontForWeight('900')}}>
                           {vietQrExpired ? 'Mã QR đã hết hạn' : `Mã QR còn hiệu lực trong ${formatRemainingTime(paymentRemainingMs ?? 0)}`}
                         </Text>
                         <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 }}>
@@ -306,7 +306,7 @@ export default function CustomerPaymentScreen() {
               >
                 <Clock size={26} color={colors.warning} />
               </View>
-              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.sm }}>
+              <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginBottom: spacing.sm }}>
                 Đang chờ tài xế xác nhận
               </Text>
               <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
@@ -318,7 +318,7 @@ export default function CustomerPaymentScreen() {
           {payment.paymentStatus === 'driver_verified' && (
             <PaymentSection>
               <CheckCircle2 size={42} color={colors.success} />
-              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginTop: spacing.md, marginBottom: spacing.sm }}>
+              <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginTop: spacing.md, marginBottom: spacing.sm }}>
                 Thanh toán thành công
               </Text>
               <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
@@ -330,7 +330,7 @@ export default function CustomerPaymentScreen() {
           {payment.paymentStatus === 'expired' && (
             <PaymentSection>
               <RotateCcw size={32} color={colors.error} />
-              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginTop: spacing.md }}>
+              <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginTop: spacing.md }}>
                 Phiên thanh toán đã hết hạn
               </Text>
               <Text style={{ color: colors.textSecondary, lineHeight: 22, marginTop: spacing.sm, marginBottom: spacing.md }}>

@@ -3,7 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Bell, CheckCircle2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, fontSize, spacing } from '@/theme/tokens';
 import { Button, Skeleton } from '@/components/BaseComponents';
 import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { SearchFilterBar } from '@/components/SearchFilterBar';
@@ -153,7 +153,7 @@ export default function NotificationsScreen() {
                     style={{
                       color: colors.text,
                       fontSize: fontSize.base,
-                      fontWeight: notification.read ? '600' : '700',
+                      ...fontForWeight(notification.read ? '600' : '700'),
                       flex: 1,
                       lineHeight: 22,
                     }}

@@ -13,7 +13,7 @@ import { Button } from '@/components/BaseComponents';
 import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { apiClient } from '@/services/api';
 import { callService } from '@/services/callService';
 import { uploadMediaToCloudinary } from '@/services/cloudinary';
@@ -466,7 +466,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
                 borderLeftColor: fromMe ? 'white' : colors.primary,
               }}
             >
-              <Text style={{ color: fromMe ? 'rgba(255,255,255,0.8)' : colors.textSecondary, fontSize: fontSize.xs, fontWeight: '800' }}>
+              <Text style={{ color: fromMe ? 'rgba(255,255,255,0.8)' : colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('800')}}>
                 Trả lời {replyLabel}
               </Text>
               <Text numberOfLines={1} style={{ color: fromMe ? 'white' : colors.text, fontSize: fontSize.sm, marginTop: spacing.xs }}>
@@ -477,7 +477,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
           {isDeleted && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <RotateCcw size={16} color={colors.textSecondary} />
-              <Text style={{ color: colors.textSecondary, fontStyle: 'italic', fontWeight: '800' }}>
+              <Text style={{ color: colors.textSecondary, fontStyle: 'italic', ...fontForWeight('800')}}>
                 {recalledText}
               </Text>
             </View>
@@ -486,7 +486,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <PhoneCall size={17} color={isMissedCall ? colors.error : colors.primary} />
               <View style={{ flex: 1 }}>
-                <Text style={{ color: isMissedCall ? colors.error : colors.text, fontWeight: '900' }}>
+                <Text style={{ color: isMissedCall ? colors.error : colors.text, ...fontForWeight('900')}}>
                   {item.text}
                 </Text>
                 {!!callDuration && (
@@ -516,7 +516,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
             <ChatVideoPreview uri={item.mediaUrl} onPress={() => setPreviewMedia({ url: item.mediaUrl!, type: 'video' })} />
           )}
           {!isDeleted && !isCallLog && !!item.text && item.text !== 'Đã gửi một ảnh' && (
-            <Text style={{ color: isMissedCall ? colors.error : fromMe ? 'white' : colors.text, lineHeight: 21, fontWeight: isMissedCall ? '900' : '400' }}>
+            <Text style={{ color: isMissedCall ? colors.error : fromMe ? 'white' : colors.text, lineHeight: 21, ...fontForWeight(isMissedCall ? '900' : '400')}}>
               {item.text}
             </Text>
           )}
@@ -547,7 +547,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
             }}
           >
             <PhoneCall size={15} color="white" />
-            <Text style={{ color: 'white', fontWeight: '900', fontSize: fontSize.sm }}>Gọi lại</Text>
+            <Text style={{ color: 'white', ...fontForWeight('900'), fontSize: fontSize.sm }}>Gọi lại</Text>
           </TouchableOpacity>
         )}
         {showSeen && (
@@ -652,7 +652,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
           >
             <Reply size={16} color={colors.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontWeight: '800', fontSize: fontSize.sm }}>Đang trả lời</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('800'), fontSize: fontSize.sm }}>Đang trả lời</Text>
               <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: spacing.xs }}>
                 {replyTo.text || 'Ảnh'}
               </Text>
@@ -766,7 +766,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
               }}
             >
               <Download size={20} color="white" />
-              <Text style={{ color: 'white', fontWeight: '900' }}>
+              <Text style={{ color: 'white', ...fontForWeight('900')}}>
                 {previewMedia.type === 'image' ? 'Tải ảnh về máy' : 'Tải video về máy'}
               </Text>
             </TouchableOpacity>

@@ -6,14 +6,14 @@ import { AppState, AppStateStatus, Text, TextInput, TouchableOpacity, View } fro
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  Inter_800ExtraBold,
-  Inter_900Black,
+  NunitoSans_400Regular,
+  NunitoSans_500Medium,
+  NunitoSans_600SemiBold,
+  NunitoSans_700Bold,
+  NunitoSans_800ExtraBold,
+  NunitoSans_900Black,
   useFonts,
-} from "@expo-google-fonts/inter";
+} from "@expo-google-fonts/nunito-sans";
 import { apiClient } from "@/services/api";
 import { supabase } from "@/services/supabase";
 import { useChatStore } from "@/stores/chatStore";
@@ -31,11 +31,14 @@ import {
   cleanupRealtimeDriverLocationSubscriptions,
 } from "@/services/bookingRealtimeService";
 import { showError, showSuccess } from "@/utils/toast";
+import { fontForWeight } from "@/theme/tokens";
+
+let defaultAppFontApplied = false;
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
   return (
     <View style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: "#0f172a" }}>
-      <Text style={{ color: "white", fontSize: 22, fontWeight: "900", marginBottom: 10 }}>
+      <Text style={{ color: "white", fontSize: 22, ...fontForWeight("900"), marginBottom: 10 }}>
         Ứng dụng gặp lỗi
       </Text>
       <Text style={{ color: "#cbd5e1", lineHeight: 21, marginBottom: 18 }}>
@@ -50,7 +53,7 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
         onPress={retry}
         style={{ alignSelf: "flex-start", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: "#2563eb" }}
       >
-        <Text style={{ color: "white", fontWeight: "900" }}>Thử lại</Text>
+        <Text style={{ color: "white", ...fontForWeight("900") }}>Thử lại</Text>
       </TouchableOpacity>
     </View>
   );
@@ -78,13 +81,30 @@ export default function RootLayout() {
   const { incomingCall, clearIncomingCall } = useIncomingCall(currentUser);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Inter_800ExtraBold,
-    Inter_900Black,
+    NunitoSans_400Regular,
+    NunitoSans_500Medium,
+    NunitoSans_600SemiBold,
+    NunitoSans_700Bold,
+    NunitoSans_800ExtraBold,
+    NunitoSans_900Black,
   });
+
+  if (fontsLoaded && !defaultAppFontApplied) {
+    const textComponent = Text as any;
+    const inputComponent = TextInput as any;
+    const textDefaultProps = textComponent.defaultProps ?? {};
+    textComponent.defaultProps = {
+      ...textDefaultProps,
+      style: [{ fontFamily: "NunitoSans_400Regular" }, textDefaultProps.style],
+    };
+
+    const inputDefaultProps = inputComponent.defaultProps ?? {};
+    inputComponent.defaultProps = {
+      ...inputDefaultProps,
+      style: [{ fontFamily: "NunitoSans_400Regular" }, inputDefaultProps.style],
+    };
+    defaultAppFontApplied = true;
+  }
 
   useEffect(() => {
     if (!__DEV__) return undefined;
@@ -107,23 +127,6 @@ export default function RootLayout() {
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (!fontsLoaded) return;
-    const textComponent = Text as any;
-    const inputComponent = TextInput as any;
-    const textDefaultProps = textComponent.defaultProps ?? {};
-    textComponent.defaultProps = {
-      ...textDefaultProps,
-      style: [{ fontFamily: "Inter_400Regular" }, textDefaultProps.style],
-    };
-
-    const inputDefaultProps = inputComponent.defaultProps ?? {};
-    inputComponent.defaultProps = {
-      ...inputDefaultProps,
-      style: [{ fontFamily: "Inter_400Regular" }, inputDefaultProps.style],
-    };
-  }, [fontsLoaded]);
 
   useEffect(() => {
     let mounted = true;

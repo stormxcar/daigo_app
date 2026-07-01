@@ -3,7 +3,7 @@ import { Animated, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { borderRadius, fontForWeight, fontSize, shadows, spacing } from '@/theme/tokens';
 import { useChatStore } from '@/stores/chatStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { apiClient } from '@/services/api';
@@ -264,7 +264,7 @@ export function LiquidTabBar({
                       paddingHorizontal: 5,
                     }}
                   >
-                    <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>
+                    <Text style={{ color: 'white', fontSize: 10, ...fontForWeight('900') }}>
                       {typeof routeBadge === 'number' && routeBadge > 99 ? '99+' : String(routeBadge)}
                     </Text>
                   </View>
@@ -275,7 +275,7 @@ export function LiquidTabBar({
                 style={{
                   color,
                   fontSize: fontSize.xs,
-                  fontWeight: focused ? '700' : '600',
+                  ...fontForWeight(focused ? '700' : '600'),
                   textAlign: 'center',
                 }}
               >

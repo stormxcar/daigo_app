@@ -11,7 +11,7 @@ import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { paymentService } from '@/services/paymentService';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Booking, Payment } from '@/types';
 import { calculateBookingPrice, formatCurrency, formatVietnamDate } from '@/utils/helpers';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
@@ -168,7 +168,7 @@ function InfoRow({ label, value }: { label: string; value?: string | number | nu
   return (
     <View style={{ paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
       <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{label}</Text>
-      <Text style={{ color: colors.text, fontWeight: '800', marginTop: spacing.xs }}>
+      <Text style={{ color: colors.text, ...fontForWeight('800'), marginTop: spacing.xs }}>
         {value || 'Chưa có'}
       </Text>
     </View>
@@ -257,7 +257,7 @@ export default function CustomerReceiptScreen() {
     return (
       <Screen padding>
         <Card>
-          <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.sm }}>Không tìm thấy biên nhận</Text>
+          <Text style={{ color: colors.text, ...fontForWeight('900'), marginBottom: spacing.sm }}>Không tìm thấy biên nhận</Text>
           <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>Vui lòng quay lại chi tiết chuyến đi và thử lại.</Text>
           <Button label="Quay lại" onPress={() => router.back()} variant="outline" />
         </Card>
@@ -287,13 +287,13 @@ export default function CustomerReceiptScreen() {
             <FileText size={26} color="#ffffff" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#ffffff', fontSize: 22, fontWeight: '900' }}>Biên nhận chuyến đi</Text>
+            <Text style={{ color: '#ffffff', fontSize: 22, ...fontForWeight('900')}}>Biên nhận chuyến đi</Text>
             <Text style={{ color: 'rgba(255,255,255,0.82)', marginTop: spacing.xs }}>
               {booking.bookingCode ?? booking.id.slice(0, 8)}
             </Text>
           </View>
         </View>
-        <Text style={{ color: '#ffffff', fontSize: 28, fontWeight: '900' }}>
+        <Text style={{ color: '#ffffff', fontSize: 28, ...fontForWeight('900')}}>
           {formatCurrency(total)}
         </Text>
       </ReceiptSection>
@@ -301,7 +301,7 @@ export default function CustomerReceiptScreen() {
       <ReceiptSection>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
           <MapPin size={20} color={colors.primary} />
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Lộ trình</Text>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Lộ trình</Text>
         </View>
         <InfoRow label="Điểm đón" value={booking.pickupLocation} />
         <InfoRow label="Điểm đến" value={booking.dropoffLocation} />
@@ -311,7 +311,7 @@ export default function CustomerReceiptScreen() {
       <ReceiptSection>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
           <CalendarClock size={20} color={colors.info} />
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Thời gian</Text>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Thời gian</Text>
         </View>
         <InfoRow label="Lịch đặt" value={`${booking.time} - ${formatVietnamDate(booking.date)}`} />
         <InfoRow label="Bắt đầu chuyến" value={booking.startedAt ? new Date(booking.startedAt).toLocaleString('vi-VN') : undefined} />
@@ -321,7 +321,7 @@ export default function CustomerReceiptScreen() {
       <ReceiptSection>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
           <User size={20} color={colors.primary} />
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Người đi và tài xế</Text>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Người đi và tài xế</Text>
         </View>
         <InfoRow label="Customer" value={booking.customerName} />
         <InfoRow label="Số điện thoại customer" value={booking.customerPhone} />
@@ -332,7 +332,7 @@ export default function CustomerReceiptScreen() {
       <ReceiptSection>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
           <Car size={20} color={colors.warning} />
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Xe</Text>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Xe</Text>
         </View>
         <InfoRow label="Tên xe" value={booking.vehicle?.name} />
         <InfoRow label="Biển số" value={booking.vehicle?.licensePlate} />
@@ -343,7 +343,7 @@ export default function CustomerReceiptScreen() {
       <ReceiptSection>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
           <Banknote size={20} color={colors.success} />
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Thanh toán</Text>
+          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Thanh toán</Text>
         </View>
         <View style={{ marginBottom: spacing.md }}>
           <PaymentStatusBadge status={paymentStatus} size="md" />
@@ -368,7 +368,7 @@ export default function CustomerReceiptScreen() {
         <ReceiptSection>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
             <Navigation size={20} color={colors.textSecondary} />
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>Ghi chú</Text>
+            <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Ghi chú</Text>
           </View>
           <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>{booking.note}</Text>
         </ReceiptSection>

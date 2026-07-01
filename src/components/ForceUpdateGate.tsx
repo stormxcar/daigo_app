@@ -3,7 +3,7 @@ import { ActivityIndicator, Linking, Text, TouchableOpacity, View } from 'react-
 import { Download, RefreshCw } from 'lucide-react-native';
 import { appUpdateService, AppUpdateStatus } from '@/services/appUpdateService';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { showError } from '@/utils/toast';
 
 interface ForceUpdateGateProps {
@@ -82,7 +82,7 @@ export function ForceUpdateGate({ children }: ForceUpdateGateProps) {
           <Download size={28} color="white" />
         </View>
 
-        <Text style={{ color: colors.text, fontSize: fontSize['2xl'], fontWeight: '900', marginBottom: spacing.sm }}>
+        <Text style={{ color: colors.text, fontSize: fontSize['2xl'], ...fontForWeight('900'), marginBottom: spacing.sm }}>
           Cần cập nhật ứng dụng
         </Text>
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.base, lineHeight: 23, marginBottom: spacing.md }}>
@@ -112,7 +112,7 @@ export function ForceUpdateGate({ children }: ForceUpdateGateProps) {
           }}
         >
           <Download size={18} color="white" />
-          <Text style={{ color: 'white', fontWeight: '900' }}>Cập nhật ngay</Text>
+          <Text style={{ color: 'white', ...fontForWeight('900')}}>Cập nhật ngay</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -128,7 +128,7 @@ export function ForceUpdateGate({ children }: ForceUpdateGateProps) {
           }}
         >
           <RefreshCw size={16} color={colors.textSecondary} />
-          <Text style={{ color: colors.textSecondary, fontWeight: '800' }}>
+          <Text style={{ color: colors.textSecondary, ...fontForWeight('800')}}>
             {checking ? 'Đang kiểm tra...' : 'Tôi đã cập nhật, kiểm tra lại'}
           </Text>
         </TouchableOpacity>

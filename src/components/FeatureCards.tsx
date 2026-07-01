@@ -1,7 +1,7 @@
 import React, { FC } from "react";
 import { View, Text, TouchableOpacity, Image, ViewStyle } from "react-native";
 import { useTheme } from "@/theme";
-import { spacing, borderRadius } from "@/theme/tokens";
+import { fontForWeight, spacing, borderRadius } from '@/theme/tokens';
 import { Card } from "./BaseComponents";
 import {
   Star,
@@ -59,7 +59,7 @@ export const VehicleCard: FC<VehicleCardProps> = ({
       <Text
         style={{
           fontSize: 16,
-          fontWeight: "700",
+          ...fontForWeight("700"),
           color: colors.text,
           marginBottom: spacing.sm,
         }}
@@ -75,24 +75,24 @@ export const VehicleCard: FC<VehicleCardProps> = ({
         }}
       >
         <View>
-          <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+          <Text style={{ fontSize: 12, color: colors.textSecondary, ...fontForWeight("400") }}>
             Biển số
           </Text>
-          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.text }}>
+          <Text style={{ fontSize: 14, ...fontForWeight("600"), color: colors.text }}>
             {licensePlate}
           </Text>
         </View>
         <View>
-          <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+          <Text style={{ fontSize: 12, color: colors.textSecondary, ...fontForWeight("400") }}>
             Màu sắc
           </Text>
-          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.text }}>
+          <Text style={{ fontSize: 14, ...fontForWeight("600"), color: colors.text }}>
             {color}
           </Text>
         </View>
         <View>
-          <Text style={{ fontSize: 12, color: colors.textSecondary }}>Ghế</Text>
-          <Text style={{ fontSize: 14, fontWeight: "600", color: colors.text }}>
+          <Text style={{ fontSize: 12, color: colors.textSecondary, ...fontForWeight("400") }}>Ghế</Text>
+          <Text style={{ fontSize: 14, ...fontForWeight("600"), color: colors.text }}>
             {seats} chỗ
           </Text>
         </View>
@@ -106,7 +106,7 @@ export const VehicleCard: FC<VehicleCardProps> = ({
         }}
       >
         <Text
-          style={{ fontSize: 14, fontWeight: "600", color: colors.primary }}
+          style={{ fontSize: 14, ...fontForWeight("600"), color: colors.primary }}
         >
           {pricePerKm.toLocaleString("vi-VN")} VND/km
         </Text>
@@ -123,7 +123,7 @@ export const VehicleCard: FC<VehicleCardProps> = ({
                   : colors.error,
           }}
         >
-          <Text style={{ fontSize: 12, fontWeight: "600", color: "white" }}>
+          <Text style={{ fontSize: 12, ...fontForWeight("600"), color: "white" }}>
             {status}
           </Text>
         </View>
@@ -168,7 +168,7 @@ export const DriverCard: FC<DriverCardProps> = ({
           />
         )}
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+          <Text style={{ fontSize: 16, ...fontForWeight("700"), color: colors.text }}>
             {name}
           </Text>
           <View
@@ -183,21 +183,21 @@ export const DriverCard: FC<DriverCardProps> = ({
               style={{
                 marginLeft: spacing.xs,
                 fontSize: 14,
-                fontWeight: "600",
+                ...fontForWeight("600"),
                 color: colors.text,
               }}
             >
               {rating}
             </Text>
           </View>
-          <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+          <Text style={{ fontSize: 12, color: colors.textSecondary, ...fontForWeight("400") }}>
             {experience} năm kinh nghiệm
           </Text>
           <Text
             style={{
               fontSize: 13,
               color: colors.primary,
-              fontWeight: "700",
+              ...fontForWeight("700"),
               marginTop: spacing.xs,
             }}
           >
@@ -222,7 +222,7 @@ export const DriverCard: FC<DriverCardProps> = ({
           }}
         >
           <Phone size={18} color="white" />
-          <Text style={{ color: "white", fontWeight: "600" }}>Gọi</Text>
+          <Text style={{ color: "white", ...fontForWeight("600")}}>Gọi</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={onChatPress}
@@ -239,7 +239,7 @@ export const DriverCard: FC<DriverCardProps> = ({
           }}
         >
           <MessageCircle size={18} color={colors.text} />
-          <Text style={{ color: colors.text, fontWeight: "600" }}>Chat</Text>
+          <Text style={{ color: colors.text, ...fontForWeight("600")}}>Chat</Text>
         </TouchableOpacity>
       </View>
     </Card>
@@ -299,7 +299,7 @@ export const BookingCard: FC<BookingCardProps> = ({
           marginBottom: spacing.md,
         }}
       >
-        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+        <Text style={{ fontSize: 14, ...fontForWeight("700"), color: colors.text }}>
           {bookingCode ?? "Chuyến đi"}
         </Text>
         <View style={{ alignItems: "flex-end", gap: spacing.xs }}>
@@ -311,7 +311,7 @@ export const BookingCard: FC<BookingCardProps> = ({
               backgroundColor: statusInfo.color,
             }}
           >
-            <Text style={{ fontSize: 11, fontWeight: "600", color: "white" }}>
+            <Text style={{ fontSize: 11, ...fontForWeight("600"), color: "white" }}>
               {statusInfo.label}
             </Text>
           </View>
@@ -332,6 +332,7 @@ export const BookingCard: FC<BookingCardProps> = ({
             style={{
               marginLeft: spacing.sm,
               fontSize: 13,
+              ...fontForWeight("400"),
               color: colors.text,
               flex: 1,
             }}
@@ -345,6 +346,7 @@ export const BookingCard: FC<BookingCardProps> = ({
             style={{
               marginLeft: spacing.sm,
               fontSize: 13,
+              ...fontForWeight("400"),
               color: colors.text,
               flex: 1,
             }}
@@ -361,6 +363,7 @@ export const BookingCard: FC<BookingCardProps> = ({
             style={{
               marginLeft: spacing.xs,
               fontSize: 12,
+              ...fontForWeight("400"),
               color: colors.textSecondary,
             }}
           >
@@ -373,6 +376,7 @@ export const BookingCard: FC<BookingCardProps> = ({
             style={{
               marginLeft: spacing.xs,
               fontSize: 12,
+              ...fontForWeight("400"),
               color: colors.textSecondary,
             }}
           >
@@ -384,7 +388,7 @@ export const BookingCard: FC<BookingCardProps> = ({
             style={{
               marginLeft: spacing.xs,
               fontSize: 12,
-              fontWeight: "600",
+              ...fontForWeight("600"),
               color: colors.primary,
             }}
           >
@@ -392,7 +396,7 @@ export const BookingCard: FC<BookingCardProps> = ({
           </Text>
         </View>
       </View>
-      <Text style={{ color: colors.textTertiary, fontSize: 11, marginTop: spacing.sm, fontWeight: "700" }}>
+      <Text style={{ color: colors.textTertiary, fontSize: 11, marginTop: spacing.sm, ...fontForWeight("700")}}>
         Thanh toán: {getPaymentMethodLabel(paymentMethod)}
       </Text>
     </TouchableOpacity>
@@ -440,7 +444,7 @@ export const NotificationCard: FC<NotificationCardProps> = ({
         <Text
           style={{
             fontSize: 14,
-            fontWeight: "700",
+            ...fontForWeight("700"),
             color: colors.text,
             flex: 1,
           }}

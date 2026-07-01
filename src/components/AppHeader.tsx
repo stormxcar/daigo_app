@@ -4,7 +4,7 @@ import { Href, router } from 'expo-router';
 import { Bell, ChevronLeft, Moon, Sun } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { borderRadius, fontForWeight, fontSize, shadows, spacing } from '@/theme/tokens';
 import { useAuthStore } from '@/stores/authStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { DAIGO_LOGO_URL } from '@/constants/branding';
@@ -107,7 +107,7 @@ export function AppHeader({
               flex: 1,
               color: 'white',
               fontSize: fontSize.lg,
-              fontWeight: '700',
+              ...fontForWeight('700'),
               textAlign: 'center',
             }}
           >
@@ -146,7 +146,7 @@ export function AppHeader({
                     transform: [{ scale: pulse }],
                   }}
                 >
-                  <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>
+                  <Text style={{ color: 'white', fontSize: 10, ...fontForWeight('900') }}>
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </Text>
                 </Animated.View>

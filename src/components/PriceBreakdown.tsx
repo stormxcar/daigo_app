@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { Banknote, Clock, Moon, Percent, Route } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, fontSize, spacing } from '@/theme/tokens';
 import { calculateBookingPrice, formatCurrency } from '@/utils/helpers';
 
 type PriceBreakdownProps = {
@@ -38,7 +38,7 @@ function Row({
         {icon}
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, flex: 1 }}>{label}</Text>
       </View>
-      <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '900' }}>{value}</Text>
+      <Text style={{ color: colors.text, fontSize: fontSize.sm, ...fontForWeight('900') }}>{value}</Text>
     </View>
   );
 }
@@ -92,8 +92,8 @@ export function PriceBreakdown({
           justifyContent: 'space-between',
         }}
       >
-        <Text style={{ color: colors.text, fontWeight: '900' }}>Tạm tính</Text>
-        <Text style={{ color: colors.primary, fontSize: compact ? 18 : 22, fontWeight: '900' }}>
+        <Text style={{ color: colors.text, ...fontForWeight('900') }}>Tạm tính</Text>
+        <Text style={{ color: colors.primary, fontSize: compact ? 18 : 22, ...fontForWeight('900') }}>
           {formatCurrency(quote.totalPrice)}
         </Text>
       </View>

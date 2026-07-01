@@ -4,7 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { Camera, Car, MoreVertical, Plus, X } from "lucide-react-native";
 import { useTheme } from "@/theme";
-import { borderRadius, fontSize, spacing } from "@/theme/tokens";
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import {
   Badge,
   Button,
@@ -346,7 +346,7 @@ export default function DriverVehicles() {
         }}
       >
         <View>
-          <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
+          <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight("800")}}>
             Xe của tôi
           </Text>
           <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
@@ -394,7 +394,7 @@ export default function DriverVehicles() {
             style={{
               color: colors.text,
               fontSize: 18,
-              fontWeight: "800",
+              ...fontForWeight("800"),
               marginBottom: spacing.md,
             }}
           >
@@ -424,7 +424,7 @@ export default function DriverVehicles() {
               <View style={{ alignItems: "center", gap: spacing.sm }}>
                 <Camera size={28} color={colors.primary} />
                 <Text
-                  style={{ color: colors.textSecondary, fontWeight: "600" }}
+                  style={{ color: colors.textSecondary, ...fontForWeight("600")}}
                 >
                   Upload ảnh xe
                 </Text>
@@ -542,13 +542,16 @@ export default function DriverVehicles() {
             error={formErrors.pricePerKm}
             keyboardType="numeric"
             disabled={saving}
-            style={{ marginBottom: spacing.md }}
+            style={{ marginBottom: spacing.xs }}
           />
+          <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, lineHeight: 18, marginBottom: spacing.md }}>
+            Đây là giá vận hành của xe. Phí nền tảng, phụ phí cao điểm, phí đêm và phí chờ do hệ thống tính thêm theo chính sách chung.
+          </Text>
 
           <Text
             style={{
               color: colors.text,
-              fontWeight: "700",
+              ...fontForWeight("700"),
               marginBottom: spacing.sm,
             }}
           >
@@ -579,7 +582,7 @@ export default function DriverVehicles() {
                   style={{
                     color: form.status === status ? "white" : colors.text,
                     fontSize: fontSize.xs,
-                    fontWeight: "700",
+                    ...fontForWeight("700"),
                   }}
                 >
                   {status}
@@ -690,7 +693,7 @@ export default function DriverVehicles() {
                   style={{
                     color: colors.text,
                     fontSize: 18,
-                    fontWeight: "800",
+                    ...fontForWeight("800"),
                   }}
                 >
                   {vehicle.name}
@@ -725,7 +728,7 @@ export default function DriverVehicles() {
               <Text style={{ color: colors.textSecondary }}>
                 {vehicle.seats} ghế
               </Text>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>
+              <Text style={{ color: colors.text, ...fontForWeight("800")}}>
                 {vehicle.pricePerKm.toLocaleString("vi-VN")}đ/km
               </Text>
             </View>

@@ -3,7 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Bell, CheckCircle2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, fontSize, spacing } from '@/theme/tokens';
 import { Button, Skeleton } from '@/components/BaseComponents';
 import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { SearchFilterBar } from '@/components/SearchFilterBar';
@@ -101,7 +101,7 @@ export default function DriverNotifications() {
             backgroundColor: colors.error + '12',
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.xs }}>
+          <Text style={{ color: colors.text, ...fontForWeight('900'), marginBottom: spacing.xs }}>
             Không thể tải thông báo
           </Text>
           <Text style={{ color: colors.textSecondary, lineHeight: 20 }}>
@@ -186,7 +186,7 @@ export default function DriverNotifications() {
                     style={{
                       color: colors.text,
                       fontSize: fontSize.base,
-                      fontWeight: notification.read ? '600' : '700',
+                      ...fontForWeight(notification.read ? '600' : '700'),
                       flex: 1,
                       lineHeight: 22,
                     }}

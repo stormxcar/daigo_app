@@ -6,7 +6,7 @@ import { Phone, PhoneOff } from 'lucide-react-native';
 import { CallSession } from '@/types';
 import { callService } from '@/services/callService';
 import { useTheme } from '@/theme';
-import { borderRadius, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, spacing } from '@/theme/tokens';
 import { showError } from '@/utils/toast';
 
 type Props = {
@@ -134,7 +134,7 @@ export function IncomingCallModal({ call, onClose }: Props) {
           >
             <Phone size={30} color="white" />
           </View>
-          <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900', textAlign: 'center' }}>
+          <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('900'), textAlign: 'center' }}>
             Cuộc gọi đến
           </Text>
           <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing.xl }}>

@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Bell, CalendarClock, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
@@ -82,7 +82,7 @@ export default function NotificationDetailScreen() {
         >
           <Bell size={26} color="white" />
         </View>
-        <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800', marginBottom: spacing.sm }}>
+        <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('800'), marginBottom: spacing.sm }}>
           {notification.title}
         </Text>
         <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.md }}>
@@ -97,7 +97,7 @@ export default function NotificationDetailScreen() {
         <NotificationSection>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
             <CalendarClock size={22} color={colors.primary} />
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>
+            <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('700')}}>
               Chuyến đi liên quan
             </Text>
           </View>
@@ -111,7 +111,7 @@ export default function NotificationDetailScreen() {
             <View key={label} style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm }}>
               <ChevronRight size={16} color={colors.primary} />
               <Text style={{ color: colors.textSecondary, flex: 1 }}>
-                {label}: <Text style={{ color: colors.text, fontWeight: '700' }}>{value}</Text>
+                {label}: <Text style={{ color: colors.text, ...fontForWeight('700')}}>{value}</Text>
               </Text>
             </View>
           ))}

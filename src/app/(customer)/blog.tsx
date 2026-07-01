@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Heart, MessageCircle, Share2 } from "lucide-react-native";
 import { useTheme } from "@/theme";
-import { fontSize, spacing } from "@/theme/tokens";
+import { fontForWeight, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, Skeleton } from "@/components/BaseComponents";
 import { Screen } from "@/components/ScreenComponents";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
@@ -213,7 +213,7 @@ export default function BlogScreen() {
             }}
           />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
+            <Text style={{ color: colors.text, ...fontForWeight("700")}}>
               {post.driverName}
             </Text>
             <Text

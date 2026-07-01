@@ -4,7 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useAuthStore } from "@/stores/authStore";
 import { DAIGO_LOGO_URL, APP_TAGLINE_SHORT } from "@/constants/branding";
-import { spacing } from "@/theme/tokens";
+import { fontForWeight, spacing } from '@/theme/tokens';
 
 // Blue gradient: dark royal blue (top) → vivid blue (bottom)
 const GRADIENT_COLORS: [string, string, string] = [
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   tagline: {
     color: "rgba(255,255,255,0.85)",
     fontSize: 13,
-    fontWeight: "500",
+    ...fontForWeight("500"),
     letterSpacing: 1.4,
     textTransform: "uppercase",
   },

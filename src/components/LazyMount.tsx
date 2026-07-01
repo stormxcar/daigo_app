@@ -1,7 +1,7 @@
 import React, { ReactNode, useEffect, useState } from 'react';
 import { InteractionManager, Text, View, ViewStyle } from 'react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, spacing } from '@/theme/tokens';
 
 type LazyMountProps = {
   children: ReactNode;
@@ -35,7 +35,7 @@ export function LazyMount({ children, minHeight = 260, label = 'Đang chuẩn b�
         style,
       ]}
     >
-      <Text style={{ color: colors.textSecondary, fontWeight: '700', textAlign: 'center' }}>{label}</Text>
+      <Text style={{ color: colors.textSecondary, ...fontForWeight('700'), textAlign: 'center' }}>{label}</Text>
     </View>
   );
 }

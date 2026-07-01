@@ -1,7 +1,7 @@
 import React from 'react';
 import { FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '@/theme';
-import { spacing, borderRadius, fontSize } from '@/theme/tokens';
+import { fontForWeight, spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Vehicle } from '@/types';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Car } from 'lucide-react-native';
@@ -16,7 +16,7 @@ export const RecommendedVehicleCarousel: React.FC<{
 
   return (
     <View style={{ marginBottom: spacing.xl , paddingHorizontal: spacing.md}}>
-      <Text style={{ fontSize: fontSize.base, fontWeight: '800', color: colors.text, marginBottom: spacing.md }}>
+      <Text style={{ fontSize: fontSize.base, ...fontForWeight('800'), color: colors.text, marginBottom: spacing.md }}>
         Gợi ý xe
       </Text>
       <FlatList
@@ -52,7 +52,7 @@ export const RecommendedVehicleCarousel: React.FC<{
                 <IllustrationBlock height={80} tone="primary" icon={<Car size={20} color="white" />} />
               </View>
             )}
-            <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: colors.text }}>{item.name}</Text>
+            <Text style={{ fontSize: fontSize.sm, ...fontForWeight('600'), color: colors.text }}>{item.name}</Text>
             <Text style={{ fontSize: fontSize.xs, color: colors.textSecondary }}>
               {item.pricePerKm.toLocaleString('vi-VN')}đ/km
             </Text>

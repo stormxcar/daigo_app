@@ -3,7 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import { Phone, Smartphone, X } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, spacing } from '@/theme/tokens';
 
 type Props = {
   onAgoraCall: () => void;
@@ -37,7 +37,7 @@ export const CallOptionsBottomSheet = forwardRef<BottomSheetModal, Props>(
           <TouchableOpacity onPress={onAgoraCall} activeOpacity={0.82} style={optionStyle}>
             <Smartphone size={22} color={colors.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontWeight: '900' }}>Gọi trong ứng dụng</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900')}}>Gọi trong ứng dụng</Text>
               <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>Gọi miễn phí bằng Internet</Text>
             </View>
           </TouchableOpacity>
@@ -49,13 +49,13 @@ export const CallOptionsBottomSheet = forwardRef<BottomSheetModal, Props>(
           >
             <Phone size={22} color={hasPhone ? colors.success : colors.textTertiary} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontWeight: '900' }}>Gọi số điện thoại</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900')}}>Gọi số điện thoại</Text>
               <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>Có thể phát sinh cước nhà mạng</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity onPress={onCancel} activeOpacity={0.82} style={[optionStyle, { justifyContent: 'center' }]}>
             <X size={18} color={colors.textSecondary} />
-            <Text style={{ color: colors.textSecondary, fontWeight: '900' }}>Hủy</Text>
+            <Text style={{ color: colors.textSecondary, ...fontForWeight('900')}}>Hủy</Text>
           </TouchableOpacity>
         </BottomSheetView>
       </BottomSheetModal>

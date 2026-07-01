@@ -5,7 +5,7 @@ import { Button, TextInput } from '@/components/BaseComponents';
 import { BOOKING_STATUS } from '@/constants';
 import { Booking, BookingStatus } from '@/types';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { getBookingStatusInfo } from '@/utils/helpers';
 
 export type BookingStatusFilter = 'all' | 'active' | 'completed' | 'cancelled' | BookingStatus;
@@ -118,14 +118,14 @@ export function BookingListControls({
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <SlidersHorizontal size={18} color={colors.primary} />
-          <Text style={{ color: colors.text, fontWeight: '900' }}>Tìm kiếm chuyến đi</Text>
+          <Text style={{ color: colors.text, ...fontForWeight('900')}}>Tìm kiếm chuyến đi</Text>
           {activeCount > 0 && (
             <View style={{ minWidth: 22, height: 22, borderRadius: borderRadius.full, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: 'white', fontWeight: '900', fontSize: fontSize.xs }}>{activeCount}</Text>
+              <Text style={{ color: 'white', ...fontForWeight('900'), fontSize: fontSize.xs }}>{activeCount}</Text>
             </View>
           )}
         </View>
-        <Text style={{ color: colors.primary, fontWeight: '800' }}>{expanded ? 'Thu gọn' : 'Mở'}</Text>
+        <Text style={{ color: colors.primary, ...fontForWeight('800')}}>{expanded ? 'Thu gọn' : 'Mở'}</Text>
       </TouchableOpacity>
 
       {expanded && (
@@ -138,7 +138,7 @@ export function BookingListControls({
             style={{ marginBottom: spacing.md }}
           />
 
-          <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.sm }}>Trạng thái</Text>
+          <Text style={{ color: colors.text, ...fontForWeight('800'), marginBottom: spacing.sm }}>Trạng thái</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
             {statusOptions.map((option) => (
               <TouchableOpacity
@@ -151,14 +151,14 @@ export function BookingListControls({
                   backgroundColor: statusFilter === option.value ? colors.primary : colors.surfaceAlt,
                 }}
               >
-                <Text style={{ color: statusFilter === option.value ? 'white' : colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
+                <Text style={{ color: statusFilter === option.value ? 'white' : colors.text, ...fontForWeight('700'), fontSize: fontSize.sm }}>
                   {option.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.sm }}>Sắp xếp</Text>
+          <Text style={{ color: colors.text, ...fontForWeight('800'), marginBottom: spacing.sm }}>Sắp xếp</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
             {sortOptions.map((option) => (
               <TouchableOpacity
@@ -171,7 +171,7 @@ export function BookingListControls({
                   backgroundColor: sortMode === option.value ? colors.primary : colors.surfaceAlt,
                 }}
               >
-                <Text style={{ color: sortMode === option.value ? 'white' : colors.text, fontWeight: '700', fontSize: fontSize.sm }}>
+                <Text style={{ color: sortMode === option.value ? 'white' : colors.text, ...fontForWeight('700'), fontSize: fontSize.sm }}>
                   {option.label}
                 </Text>
               </TouchableOpacity>

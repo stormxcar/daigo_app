@@ -3,7 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import { Car, ChevronUp, Clock, MapPin, UserRound } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card } from '@/components/BaseComponents';
 import { Booking } from '@/types';
 import { formatCurrency, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
@@ -38,7 +38,7 @@ export function ActiveTripSheet({ booking, role, onOpenDetail }: ActiveTripSheet
               <Car size={22} color="white" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: 'white', fontWeight: '900', fontSize: fontSize.base }}>Chuyến đang diễn ra</Text>
+              <Text style={{ color: 'white', ...fontForWeight('900'), fontSize: fontSize.base }}>Chuyến đang diễn ra</Text>
               <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.82)', marginTop: 3, fontSize: fontSize.xs }}>
                 {statusInfo.label} - {booking.bookingCode ?? 'Booking'}
               </Text>
@@ -58,11 +58,11 @@ export function ActiveTripSheet({ booking, role, onOpenDetail }: ActiveTripSheet
         <BottomSheetView style={{ padding: spacing.lg }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg }}>
             <View>
-              <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>Trạng thái chuyến</Text>
+              <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('900')}}>Trạng thái chuyến</Text>
               <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>{booking.bookingCode ?? 'Booking'}</Text>
             </View>
             <View style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: borderRadius.full, backgroundColor: statusInfo.color }}>
-              <Text style={{ color: 'white', fontWeight: '800', fontSize: fontSize.xs }}>{statusInfo.label}</Text>
+              <Text style={{ color: 'white', ...fontForWeight('800'), fontSize: fontSize.xs }}>{statusInfo.label}</Text>
             </View>
           </View>
 
@@ -71,14 +71,14 @@ export function ActiveTripSheet({ booking, role, onOpenDetail }: ActiveTripSheet
               <MapPin size={18} color={colors.primary} />
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>Điểm đón</Text>
-                <Text style={{ color: colors.text, fontWeight: '800', marginTop: 3 }}>{booking.pickupLocation}</Text>
+                <Text style={{ color: colors.text, ...fontForWeight('800'), marginTop: 3 }}>{booking.pickupLocation}</Text>
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: spacing.md }}>
               <MapPin size={18} color={colors.error} />
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>Điểm đến</Text>
-                <Text style={{ color: colors.text, fontWeight: '800', marginTop: 3 }}>{booking.dropoffLocation}</Text>
+                <Text style={{ color: colors.text, ...fontForWeight('800'), marginTop: 3 }}>{booking.dropoffLocation}</Text>
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: spacing.md }}>
@@ -90,16 +90,16 @@ export function ActiveTripSheet({ booking, role, onOpenDetail }: ActiveTripSheet
             <View style={{ flexDirection: 'row', gap: spacing.md }}>
               <UserRound size={18} color={colors.warning} />
               <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: '800' }}>{personLabel || 'Đang cập nhật'}</Text>
+                <Text style={{ color: colors.text, ...fontForWeight('800')}}>{personLabel || 'Đang cập nhật'}</Text>
                 {!!personPhone && <Text style={{ color: colors.textSecondary, marginTop: 3 }}>{personPhone}</Text>}
               </View>
-              <Text style={{ color: colors.primary, fontWeight: '900' }}>
+              <Text style={{ color: colors.primary, ...fontForWeight('900')}}>
                 {formatCurrency(booking.actualPrice ?? booking.estimatedPrice ?? 0)}
               </Text>
             </View>
             {!!booking.note && (
               <View style={{ padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
-                <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.xs }}>Ghi chú</Text>
+                <Text style={{ color: colors.text, ...fontForWeight('800'), marginBottom: spacing.xs }}>Ghi chú</Text>
                 <Text style={{ color: colors.textSecondary, lineHeight: 20 }}>{booking.note}</Text>
               </View>
             )}

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Car, Crosshair, Expand, LocateFixed, MapPin, Navigation, Route } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { Button } from '@/components/BaseComponents';
 import { BOOKING_STATUS, TERMINAL_BOOKING_STATUSES } from '@/constants';
 import { DriverLocation } from '@/types';
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
   },
   pinText: {
     color: 'white',
-    fontWeight: '900',
+    ...fontForWeight('900'),
     fontSize: fontSize.sm,
   },
   driverMarker: {

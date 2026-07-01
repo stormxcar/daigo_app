@@ -10,7 +10,7 @@ import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { isFirebasePhoneAuthEnabled, isTestPhoneOtpEnabled, isValidVietnamPhone, normalizeVietnamPhone, TEST_PHONE_OTP } from '@/services/phoneAuthConfig';
 import { toVietnameseAuthError } from '@/utils/authValidation';
 import { showError, showSuccess } from '@/utils/toast';
@@ -130,7 +130,7 @@ export default function PhoneOtpScreen() {
           >
             {step === 'phone' ? <Smartphone size={34} color={colors.primary} /> : <ShieldCheck size={34} color={colors.primary} />}
           </View>
-          <Text style={{ color: colors.text, fontSize: 24, fontWeight: '900', marginBottom: spacing.xs }}>
+          <Text style={{ color: colors.text, fontSize: 24, ...fontForWeight('900'), marginBottom: spacing.xs }}>
             {step === 'phone' ? 'Xác minh số điện thoại' : 'Nhập mã OTP'}
           </Text>
           <Text style={{ color: colors.textSecondary, textAlign: 'center', lineHeight: 21 }}>
@@ -201,7 +201,7 @@ export default function PhoneOtpScreen() {
               disabled={isLoading || countdown > 0}
               style={{ alignItems: 'center', opacity: countdown > 0 ? 0.55 : 1 }}
             >
-              <Text style={{ color: colors.primary, fontWeight: '800' }}>
+              <Text style={{ color: colors.primary, ...fontForWeight('800')}}>
                 {countdown > 0 ? `Gửi lại sau ${countdown}s` : 'Gửi lại OTP'}
               </Text>
             </TouchableOpacity>
@@ -210,7 +210,7 @@ export default function PhoneOtpScreen() {
               disabled={isLoading}
               style={{ alignItems: 'center', marginTop: spacing.md }}
             >
-              <Text style={{ color: colors.textSecondary, fontWeight: '800' }}>Xác minh sau</Text>
+              <Text style={{ color: colors.textSecondary, ...fontForWeight('800')}}>Xác minh sau</Text>
             </TouchableOpacity>
           </>
         )}

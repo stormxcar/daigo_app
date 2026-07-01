@@ -14,6 +14,7 @@ import { AuthRequired } from '@/components/AuthRequired';
 import { AppHeader } from '@/components/AppHeader';
 import { LiquidTabBar } from '@/components/LiquidTabBar';
 import { useAuthStore } from '@/stores/authStore';
+import { fontForWeight } from '@/theme/tokens';
 
 export default function DriverLayout() {
   const { colors } = useTheme();
@@ -98,7 +99,7 @@ export default function DriverLayout() {
         tabBarInactiveTintColor: colors.textTertiary,
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '500',
+          ...fontForWeight('500'),
           marginTop: 4,
         },
         tabBarStyle: {

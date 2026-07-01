@@ -3,7 +3,7 @@ import { Animated, Text, View } from 'react-native';
 import { CheckCircle2, Circle, Clock3, Flag, Navigation, Search, ShieldCheck } from 'lucide-react-native';
 import { BOOKING_STATUS, TERMINAL_BOOKING_STATUSES } from '@/constants';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 
 type BookingTimelineProps = {
   status: string;
@@ -84,7 +84,7 @@ export function BookingTimeline({ status, compact = false }: BookingTimelineProp
   if (isCancelled) {
     return (
       <View style={{ padding: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.error + '55' }}>
-        <Text style={{ color: colors.error, fontWeight: '900', fontSize: fontSize.base }}>Chuyến đi đã dừng</Text>
+        <Text style={{ color: colors.error, ...fontForWeight('900'), fontSize: fontSize.base }}>Chuyến đi đã dừng</Text>
         <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 }}>
           Chuyến này đã bị hủy hoặc hết hạn. Các thao tác điều hướng sẽ không còn khả dụng.
         </Text>
@@ -166,12 +166,12 @@ export function BookingTimeline({ status, compact = false }: BookingTimelineProp
             </View>
             <View style={{ flex: 1, paddingBottom: index < ACTIVE_STEPS.length - 1 ? spacing.sm : 0 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                <Text style={{ color: active ? colors.primary : done ? colors.text : colors.textSecondary, fontWeight: active ? '900' : '800' }}>
+                <Text style={{ color: active ? colors.primary : done ? colors.text : colors.textSecondary, ...fontForWeight(active ? '900' : '800')}}>
                   {step.title}
                 </Text>
                 {active && (
                   <View style={{ paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: borderRadius.full, backgroundColor: colors.primary + '18' }}>
-                    <Text style={{ color: colors.primary, fontSize: 10, fontWeight: '900' }}>Đang diễn ra</Text>
+                    <Text style={{ color: colors.primary, fontSize: 10, ...fontForWeight('900')}}>Đang diễn ra</Text>
                   </View>
                 )}
               </View>

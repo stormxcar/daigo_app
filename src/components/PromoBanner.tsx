@@ -1,7 +1,7 @@
 import React from 'react';
 import { FlatList, Image, ImageBackground, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/theme';
-import { spacing, fontSize, borderRadius } from '@/theme/tokens';
+import { fontForWeight, spacing, fontSize, borderRadius } from '@/theme/tokens';
 import { IllustrationBlock } from '@/components/IllustrationBlocks';
 import { Play, Sparkles } from 'lucide-react-native';
 import { buildCloudinaryVideoPosterUrl, buildOptimizedCloudinaryImageUrl } from '@/services/videoOptimizationService';
@@ -62,7 +62,7 @@ export const PromoBanner: React.FC<{ promotions: Promotion[] }> = ({ promotions 
   const { colors } = useTheme();
   return (
     <View style={{ marginBottom: spacing.xl , paddingHorizontal: spacing.md}}>
-      <Text style={{ fontSize: fontSize.base, fontWeight: '800', color: colors.text, marginBottom: spacing.md }}>
+      <Text style={{ fontSize: fontSize.base, ...fontForWeight('800'), color: colors.text, marginBottom: spacing.md }}>
         Nổi bật hôm nay
       </Text>
       <FlatList
@@ -120,7 +120,7 @@ export const PromoBanner: React.FC<{ promotions: Promotion[] }> = ({ promotions 
               backgroundColor: 'rgba(0,0,0,0.5)',
             }}
           >
-            <Text numberOfLines={2} style={{ fontSize: fontSize.base, fontWeight: '900', color: 'white', lineHeight: 22 }}>
+            <Text numberOfLines={2} style={{ fontSize: fontSize.base, ...fontForWeight('900'), color: 'white', lineHeight: 22 }}>
               {item.title}
             </Text>
             <Text numberOfLines={2} style={{ fontSize: fontSize.sm, color: 'rgba(255,255,255,0.86)', marginTop: spacing.xs, lineHeight: 19 }}>

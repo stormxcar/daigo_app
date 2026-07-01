@@ -10,7 +10,7 @@ import {
 import * as SecureStore from "expo-secure-store";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/theme";
-import { spacing, borderRadius, fontSize } from "@/theme/tokens";
+import { fontForWeight, spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from "@/components/ScreenComponents";
 import { Button, TextInput } from "@/components/BaseComponents";
 import { SubmitOverlay } from "@/components/SubmitOverlay";
@@ -222,7 +222,7 @@ export default function LoginScreen() {
           style={{
             fontSize: fontSize.sm,
             color: colors.textSecondary,
-            fontWeight: '500',
+            ...fontForWeight('500'),
             letterSpacing: 0.5,
           }}
         >
@@ -234,7 +234,7 @@ export default function LoginScreen() {
       <Text
         style={{
           fontSize: 26,
-          fontWeight: "800",
+          ...fontForWeight("800"),
           color: colors.text,
           marginBottom: spacing.xs,
         }}
@@ -372,7 +372,7 @@ export default function LoginScreen() {
             style={{
               color: colors.text,
               fontSize: fontSize.sm,
-              fontWeight: "600",
+              ...fontForWeight("600"),
             }}
           >
             Ghi nhớ đăng nhập
@@ -387,7 +387,7 @@ export default function LoginScreen() {
             style={{
               color: colors.primary,
               fontSize: fontSize.sm,
-              fontWeight: "600",
+              ...fontForWeight("600"),
             }}
           >
             Quên mật khẩu?
@@ -414,7 +414,7 @@ export default function LoginScreen() {
             marginBottom: spacing.md,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "800" }}>
+          <Text style={{ color: colors.text, ...fontForWeight("800")}}>
             Tạm khóa đăng nhập
           </Text>
           <Text
@@ -453,7 +453,7 @@ export default function LoginScreen() {
         >
           <ActivityIndicator size="small" color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>
+            <Text style={{ color: colors.text, ...fontForWeight("800")}}>
               Đang đăng nhập Google
             </Text>
             <Text
@@ -489,7 +489,7 @@ export default function LoginScreen() {
           >
             <AlertCircle size={20} color={colors.error} />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontWeight: "900" }}>
+              <Text style={{ color: colors.text, ...fontForWeight("900")}}>
                 Google chưa hoàn tất đăng nhập
               </Text>
               <Text
@@ -518,7 +518,7 @@ export default function LoginScreen() {
             }}
           >
             <RotateCcw size={16} color="white" />
-            <Text style={{ color: "white", fontWeight: "800" }}>
+            <Text style={{ color: "white", ...fontForWeight("800")}}>
               Thử lại Google
             </Text>
           </TouchableOpacity>
@@ -549,7 +549,7 @@ export default function LoginScreen() {
             style={{
               color: colors.primary,
               fontSize: fontSize.sm,
-              fontWeight: "700",
+              ...fontForWeight("700"),
             }}
           >
             Đăng ký
@@ -573,7 +573,7 @@ export default function LoginScreen() {
             style={{
               color: colors.primary,
               fontSize: fontSize.sm,
-              fontWeight: "800",
+              ...fontForWeight("800"),
             }}
           >
             Bạn muốn làm tài xế

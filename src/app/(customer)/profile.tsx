@@ -34,7 +34,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Avatar, Button, TextInput } from '@/components/BaseComponents';
 import { AuthRequired } from '@/components/AuthRequired';
 import { Screen } from '@/components/ScreenComponents';
@@ -167,7 +167,7 @@ function CustomerBookingListRow({ booking, onPress }: { booking: Booking; onPres
             marginBottom: spacing.xs,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: '900', flex: 1 }} numberOfLines={1}>
+          <Text style={{ color: colors.text, ...fontForWeight('900'), flex: 1 }} numberOfLines={1}>
             {booking.bookingCode ?? 'Chuyến đi'}
           </Text>
           <View
@@ -178,7 +178,7 @@ function CustomerBookingListRow({ booking, onPress }: { booking: Booking; onPres
               backgroundColor: statusInfo.color,
             }}
           >
-            <Text style={{ color: 'white', fontSize: 10, fontWeight: '800' }}>
+            <Text style={{ color: 'white', fontSize: 10, ...fontForWeight('800')}}>
               {statusInfo.label}
             </Text>
           </View>
@@ -218,7 +218,7 @@ function CustomerBookingListRow({ booking, onPress }: { booking: Booking; onPres
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <DollarSign size={11} color={colors.primary} />
-            <Text style={{ color: colors.primary, fontSize: 10, fontWeight: '900' }}>
+            <Text style={{ color: colors.primary, fontSize: 10, ...fontForWeight('900')}}>
               {formatCurrency(price)}
             </Text>
           </View>
@@ -260,7 +260,7 @@ function SectionHeader({
         borderBottomColor: colors.border,
       }}
     >
-      <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700', letterSpacing: 0.3 }}>
+      <Text style={{ color: colors.text, fontSize: 13, ...fontForWeight('700'), letterSpacing: 0.3 }}>
         {title}
       </Text>
       {expanded ? (
@@ -326,7 +326,7 @@ function FlatRow({
           flex: 1,
           color: destructive ? colors.error : colors.text,
           fontSize: fontSize.base,
-          fontWeight: '500',
+          ...fontForWeight('500'),
         }}
       >
         {label}
@@ -384,7 +384,7 @@ function ToggleRow({
         </View>
       )}
       <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: '500' }}>
+        <Text style={{ color: colors.text, fontSize: fontSize.base, ...fontForWeight('500')}}>
           {label}
         </Text>
         {description ? (
@@ -653,7 +653,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>
+        <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800')}}>
           {user?.fullName}
         </Text>
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 2 }}>
@@ -671,7 +671,7 @@ export default function ProfileScreen() {
           <Text
             style={{
               fontSize: fontSize.xs,
-              fontWeight: '700',
+              ...fontForWeight('700'),
               color: user?.emailVerified ? colors.success : colors.warning,
             }}
           >
@@ -691,7 +691,7 @@ export default function ProfileScreen() {
         >
           {!user?.emailVerified && (
             <View style={{ padding: spacing.md, borderBottomWidth: !user?.phoneVerified ? 1 : 0, borderBottomColor: colors.warning + '35' }}>
-              <Text style={{ color: colors.text, fontWeight: '900' }}>Email chưa được xác thực</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900')}}>Email chưa được xác thực</Text>
               <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 }}>
                 Xác thực email để bảo vệ tài khoản và nhận thông báo quan trọng.
               </Text>
@@ -706,7 +706,7 @@ export default function ProfileScreen() {
           )}
           {!user?.phoneVerified && (
             <View style={{ padding: spacing.md }}>
-              <Text style={{ color: colors.text, fontWeight: '900' }}>Số điện thoại chưa được xác thực</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900')}}>Số điện thoại chưa được xác thực</Text>
               <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 }}>
                 Xác thực SĐT để đặt xe, chat, gọi tài xế và thanh toán an toàn hơn.
               </Text>
@@ -788,7 +788,7 @@ export default function ProfileScreen() {
             }}
           >
             <View>
-              <Text style={{ color: colors.text, fontWeight: '900' }}>Chi tiết hơn</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900')}}>Chi tiết hơn</Text>
               <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, fontSize: fontSize.xs }}>
                 Thao tác nhiều hơn với thời gian, thanh toán, đặt ngay/đặt trước
               </Text>
@@ -867,7 +867,7 @@ export default function ProfileScreen() {
                     backgroundColor: colors.surface,
                   }}
                 >
-                  <Text style={{ color: colors.primary, fontWeight: '700', fontSize: fontSize.sm }}>
+                  <Text style={{ color: colors.primary, ...fontForWeight('700'), fontSize: fontSize.sm }}>
                     Xem thêm {filteredBookings.length - visibleBookingCount} chuyến
                   </Text>
                 </TouchableOpacity>
@@ -955,7 +955,7 @@ export default function ProfileScreen() {
               source={{ uri: DAIGO_LOGO_URL }}
               style={{ width: 120, height: 48, resizeMode: 'contain', marginBottom: spacing.sm }}
             />
-            <Text style={{ color: colors.text, fontWeight: '700' }}>{APP_NAME}</Text>
+            <Text style={{ color: colors.text, ...fontForWeight('700')}}>{APP_NAME}</Text>
             <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
               {APP_TAGLINE}
             </Text>
@@ -1007,7 +1007,7 @@ export default function ProfileScreen() {
         }}
       >
         <LogOut size={18} color={colors.error} />
-        <Text style={{ color: colors.error, fontWeight: '800', fontSize: fontSize.base }}>
+        <Text style={{ color: colors.error, ...fontForWeight('800'), fontSize: fontSize.base }}>
           Đăng xuất
         </Text>
       </TouchableOpacity>
@@ -1039,7 +1039,7 @@ export default function ProfileScreen() {
                 marginBottom: spacing.md,
               }}
             >
-              <Text style={{ color: colors.text, fontSize: fontSize.lg, fontWeight: '700' }}>
+              <Text style={{ color: colors.text, fontSize: fontSize.lg, ...fontForWeight('700')}}>
                 {selectedItem}
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>

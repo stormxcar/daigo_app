@@ -3,7 +3,7 @@ import { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import { Car, MapPinned, Newspaper, Route, Sparkles } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 
 interface IllustrationBlockProps {
   title?: string;
@@ -73,7 +73,7 @@ export function IllustrationBlock({
       {(title || subtitle) && (
         <View>
           {!!title && (
-            <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '900', fontSize: fontSize.base }}>
+            <Text numberOfLines={1} style={{ color: colors.text, ...fontForWeight('900'), fontSize: fontSize.base }}>
               {title}
             </Text>
           )}

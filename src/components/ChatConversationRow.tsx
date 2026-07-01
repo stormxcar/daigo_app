@@ -3,7 +3,7 @@ import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Check, Image as ImageIcon, MessageCircle, Trash2 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { ChatConversation } from '@/types';
 
 type Props = {
@@ -44,7 +44,7 @@ export function ChatConversationRow({
           }}
         >
           <Trash2 size={20} color="white" />
-          <Text style={{ color: 'white', fontWeight: '900', fontSize: fontSize.xs, marginTop: spacing.xs }}>Xóa</Text>
+          <Text style={{ color: 'white', ...fontForWeight('900'), fontSize: fontSize.xs, marginTop: spacing.xs }}>Xóa</Text>
         </TouchableOpacity>
       )}
     >
@@ -91,7 +91,7 @@ export function ChatConversationRow({
                   style={{
                     color: colors.text,
                     fontSize: 16,
-                    fontWeight: '900',
+                    ...fontForWeight('900'),
                     flex: 1,
                   }}
                   numberOfLines={1}
@@ -105,7 +105,7 @@ export function ChatConversationRow({
                 style={{
                   color: conversation.unreadCount > 0 ? colors.text : colors.textSecondary,
                   fontSize: fontSize.sm,
-                  fontWeight: conversation.unreadCount > 0 ? '800' : '500',
+                  ...fontForWeight(conversation.unreadCount > 0 ? '800' : '500'),
                   marginTop: spacing.xs,
                 }}
               >
@@ -136,7 +136,7 @@ export function ChatConversationRow({
                     justifyContent: 'center',
                   }}
                 >
-                  <Text style={{ color: 'white', fontSize: fontSize.xs, fontWeight: '700' }}>
+                  <Text style={{ color: 'white', fontSize: fontSize.xs, ...fontForWeight('700')}}>
                     {conversation.unreadCount}
                   </Text>
                 </View>

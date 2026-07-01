@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Image, View, Text, TextInput as RNTextInput, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/theme';
-import { spacing, borderRadius, fontSize } from '@/theme/tokens';
+import { fontForWeight, spacing, borderRadius, fontSize } from '@/theme/tokens';
 import { Screen } from '@/components/ScreenComponents';
 import { Button, TextInput } from '@/components/BaseComponents';
 import { PasswordRequirementCard } from '@/components/PasswordRequirementCard';
@@ -131,7 +131,7 @@ export default function RegisterScreen() {
       <Text
         style={{
           fontSize: 24,
-          fontWeight: '800',
+          ...fontForWeight('800'),
           color: colors.text,
           marginBottom: spacing.xs,
         }}
@@ -335,7 +335,7 @@ export default function RegisterScreen() {
           marginBottom: spacing.lg,
         }}
       >
-        <Text style={{ color: colors.text, fontWeight: '800', marginBottom: spacing.xs }}>
+        <Text style={{ color: colors.text, ...fontForWeight('800'), marginBottom: spacing.xs }}>
           Bạn muốn lái xe cùng Daigo?
         </Text>
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, lineHeight: 20, marginBottom: spacing.md }}>
@@ -350,7 +350,7 @@ export default function RegisterScreen() {
           }
           disabled={isLoading || isDriverIntent}
         >
-          <Text style={{ color: colors.primary, fontWeight: '800' }}>Đăng ký làm tài xế</Text>
+          <Text style={{ color: colors.primary, ...fontForWeight('800')}}>Đăng ký làm tài xế</Text>
         </TouchableOpacity>
       </View>
 
@@ -378,7 +378,7 @@ export default function RegisterScreen() {
             style={{
               color: colors.primary,
               fontSize: fontSize.sm,
-              fontWeight: '700',
+              ...fontForWeight('700'),
             }}
           >
             Đăng nhập

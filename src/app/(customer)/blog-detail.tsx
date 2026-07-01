@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Heart, MessageCircle, Send, Share2 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
-import { fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, fontSize, spacing } from '@/theme/tokens';
 import { Button, CardSkeleton, TextInput } from '@/components/BaseComponents';
 import { Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
@@ -147,7 +147,7 @@ export default function BlogDetailScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
           <Image source={{ uri: post.driverAvatar }} style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surfaceAlt }} />
           <View>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>{post.driverName}</Text>
+            <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('700')}}>{post.driverName}</Text>
             <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
               {new Date(post.createdAt).toLocaleString('vi-VN')}
             </Text>
@@ -185,7 +185,7 @@ export default function BlogDetailScreen() {
           backgroundColor: colors.background,
         }}
       >
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: spacing.md }}>Bình luận</Text>
+        <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800'), marginBottom: spacing.md }}>Bình luận</Text>
         {parentComments.length === 0 && (
           <View
             style={{
@@ -214,7 +214,7 @@ export default function BlogDetailScreen() {
               <Image source={{ uri: comment.authorAvatar }} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surfaceAlt }} />
               <View style={{ flex: 1 }}>
                 <View style={{ paddingVertical: spacing.xs }}>
-                  <Text style={{ color: colors.text, fontWeight: '800' }}>{comment.authorName}</Text>
+                  <Text style={{ color: colors.text, ...fontForWeight('800')}}>{comment.authorName}</Text>
                   <Text style={{ color: colors.text, marginTop: spacing.xs, lineHeight: 20 }}>{comment.text}</Text>
                 </View>
                 <TouchableOpacity
@@ -224,7 +224,7 @@ export default function BlogDetailScreen() {
                   }}
                   style={{ alignSelf: 'flex-start', paddingVertical: spacing.xs }}
                 >
-                  <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: '800' }}>Trả lời</Text>
+                  <Text style={{ color: colors.primary, fontSize: fontSize.sm, ...fontForWeight('800')}}>Trả lời</Text>
                 </TouchableOpacity>
 
                 {getReplies(comment.id).map((reply) => (
@@ -241,7 +241,7 @@ export default function BlogDetailScreen() {
                   >
                     <Image source={{ uri: reply.authorAvatar }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surfaceAlt }} />
                     <View style={{ flex: 1, paddingVertical: spacing.xs }}>
-                      <Text style={{ color: colors.text, fontWeight: '800', fontSize: fontSize.sm }}>{reply.authorName}</Text>
+                      <Text style={{ color: colors.text, ...fontForWeight('800'), fontSize: fontSize.sm }}>{reply.authorName}</Text>
                       <Text style={{ color: colors.text, marginTop: spacing.xs, lineHeight: 19 }}>{reply.text}</Text>
                     </View>
                   </View>
@@ -264,7 +264,7 @@ export default function BlogDetailScreen() {
               Đang trả lời {replyTo.authorName}
             </Text>
             <TouchableOpacity onPress={() => setReplyTo(null)} style={{ marginTop: spacing.xs }}>
-              <Text style={{ color: colors.primary, fontWeight: '800' }}>Hủy trả lời</Text>
+              <Text style={{ color: colors.primary, ...fontForWeight('800')}}>Hủy trả lời</Text>
             </TouchableOpacity>
           </View>
         )}

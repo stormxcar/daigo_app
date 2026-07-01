@@ -37,7 +37,7 @@ import {
   Users,
 } from "lucide-react-native";
 import { useTheme } from "@/theme";
-import { borderRadius, fontSize, spacing } from "@/theme/tokens";
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, Card, TextInput } from "@/components/BaseComponents";
 import { AuthRequired } from "@/components/AuthRequired";
 import { Screen } from "@/components/ScreenComponents";
@@ -1085,7 +1085,7 @@ export default function BookingScreen() {
             style={{
               color: colors.text,
               fontSize: 18,
-              fontWeight: "700",
+              ...fontForWeight("700"),
             }}
           >
             Tìm chuyến đi
@@ -1110,7 +1110,7 @@ export default function BookingScreen() {
               style={{
                 color: colors.primary,
                 fontSize: fontSize.sm,
-                fontWeight: "800",
+                ...fontForWeight("800"),
               }}
             >
               Làm mới
@@ -1166,7 +1166,7 @@ export default function BookingScreen() {
                 <Text
                   style={{
                     color: selected ? "white" : colors.textSecondary,
-                    fontWeight: "900",
+                    ...fontForWeight("900"),
                     fontSize: fontSize.sm,
                   }}
                 >
@@ -1394,13 +1394,13 @@ export default function BookingScreen() {
                     style={{
                       color: colors.textSecondary,
                       fontSize: fontSize.xs,
-                      fontWeight: "700",
+                      ...fontForWeight("700"),
                     }}
                   >
                     Ngày
                   </Text>
                 </View>
-                <Text style={{ color: colors.text, fontWeight: "900" }}>
+                <Text style={{ color: colors.text, ...fontForWeight("900")}}>
                   {dateInput}
                 </Text>
               </TouchableOpacity>
@@ -1429,13 +1429,13 @@ export default function BookingScreen() {
                     style={{
                       color: colors.textSecondary,
                       fontSize: fontSize.xs,
-                      fontWeight: "700",
+                      ...fontForWeight("700"),
                     }}
                   >
                     Giờ
                   </Text>
                 </View>
-                <Text style={{ color: colors.text, fontWeight: "900" }}>
+                <Text style={{ color: colors.text, ...fontForWeight("900")}}>
                   {time}
                 </Text>
               </TouchableOpacity>
@@ -1443,7 +1443,7 @@ export default function BookingScreen() {
             <Text
               style={{
                 color: colors.primary,
-                fontWeight: "800",
+                ...fontForWeight("800"),
                 fontSize: fontSize.sm,
                 marginBottom: spacing.md,
               }}
@@ -1486,7 +1486,7 @@ export default function BookingScreen() {
                   <ChevronLeft size={17} color={colors.text} />
                 </TouchableOpacity>
                 <View style={{ alignItems: "center" }}>
-                  <Text style={{ color: colors.text, fontWeight: "900" }}>
+                  <Text style={{ color: colors.text, ...fontForWeight("900")}}>
                     Lịch tháng {scheduleMonth.getMonth() + 1}/{scheduleMonth.getFullYear()}
                   </Text>
                   <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
@@ -1520,7 +1520,7 @@ export default function BookingScreen() {
                       textAlign: "center",
                       color: colors.textSecondary,
                       fontSize: 10,
-                      fontWeight: "900",
+                      ...fontForWeight("900"),
                       paddingBottom: spacing.xs,
                     }}
                   >
@@ -1558,7 +1558,7 @@ export default function BookingScreen() {
                           borderColor: selected ? colors.primary : colors.border,
                         }}
                       >
-                        <Text style={{ color: selected ? "white" : colors.text, fontWeight: today || selected ? "900" : "700" }}>
+                        <Text style={{ color: selected ? "white" : colors.text, ...fontForWeight(today || selected ? "900" : "700")}}>
                           {cell.day}
                         </Text>
                       </View>
@@ -1621,7 +1621,7 @@ export default function BookingScreen() {
             }}
           >
             <SlidersHorizontal size={18} color={colors.primary} />
-            <Text style={{ color: colors.text, fontWeight: "900" }}>
+            <Text style={{ color: colors.text, ...fontForWeight("900")}}>
               Bộ lọc và sắp xếp
             </Text>
             {activeFilterCount > 0 && (
@@ -1639,7 +1639,7 @@ export default function BookingScreen() {
                   style={{
                     color: "white",
                     fontSize: fontSize.xs,
-                    fontWeight: "900",
+                    ...fontForWeight("900"),
                   }}
                 >
                   {activeFilterCount}
@@ -1686,7 +1686,7 @@ export default function BookingScreen() {
             <Text
               style={{
                 color: colors.text,
-                fontWeight: "800",
+                ...fontForWeight("800"),
                 marginBottom: spacing.sm,
               }}
             >
@@ -1718,7 +1718,7 @@ export default function BookingScreen() {
                     <Text
                       style={{
                         color: statusFilter === status ? "white" : colors.text,
-                        fontWeight: "700",
+                        ...fontForWeight("700"),
                         fontSize: fontSize.sm,
                       }}
                     >
@@ -1732,7 +1732,7 @@ export default function BookingScreen() {
             <Text
               style={{
                 color: colors.text,
-                fontWeight: "800",
+                ...fontForWeight("800"),
                 marginBottom: spacing.sm,
               }}
             >
@@ -1763,7 +1763,7 @@ export default function BookingScreen() {
                   <Text
                     style={{
                       color: brandFilter === brand ? "white" : colors.text,
-                      fontWeight: "700",
+                      ...fontForWeight("700"),
                       fontSize: fontSize.sm,
                     }}
                   >
@@ -1776,7 +1776,7 @@ export default function BookingScreen() {
             <Text
               style={{
                 color: colors.text,
-                fontWeight: "800",
+                ...fontForWeight("800"),
                 marginBottom: spacing.sm,
               }}
             >
@@ -1807,7 +1807,7 @@ export default function BookingScreen() {
                   <Text
                     style={{
                       color: sortMode === option.value ? "white" : colors.text,
-                      fontWeight: "700",
+                      ...fontForWeight("700"),
                       fontSize: fontSize.sm,
                     }}
                   >
@@ -1834,7 +1834,7 @@ export default function BookingScreen() {
                 <Text
                   style={{
                     color: onlyAvailable ? "white" : colors.text,
-                    fontWeight: "800",
+                    ...fontForWeight("800"),
                   }}
                 >
                   Xe trống đúng giờ
@@ -1858,7 +1858,7 @@ export default function BookingScreen() {
                   backgroundColor: colors.surfaceAlt,
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "800" }}>
+                <Text style={{ color: colors.text, ...fontForWeight("800")}}>
                   Đặt lại
                 </Text>
               </TouchableOpacity>
@@ -1887,7 +1887,7 @@ export default function BookingScreen() {
               <Text
                 style={{
                   color: onlyAvailable ? "white" : colors.text,
-                  fontWeight: "600",
+                  ...fontForWeight("600"),
                 }}
               >
                 Xe trống đúng giờ
@@ -1910,7 +1910,7 @@ export default function BookingScreen() {
                 <Text
                   style={{
                     color: sortMode === option.value ? "white" : colors.text,
-                    fontWeight: "600",
+                    ...fontForWeight("600"),
                   }}
                 >
                   {option.label}
@@ -1958,7 +1958,7 @@ export default function BookingScreen() {
             <Car size={22} color={colors.primary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontWeight: "900" }}>
+            <Text style={{ color: colors.text, ...fontForWeight("900")}}>
               {vehicles.length} xe phù hợp
             </Text>
             <Text
@@ -1973,7 +1973,7 @@ export default function BookingScreen() {
               {routeDistance ? ` - ${routeDistance} km` : ""}
             </Text>
           </View>
-          <Text style={{ color: colors.primary, fontWeight: "900" }}>
+          <Text style={{ color: colors.primary, ...fontForWeight("900")}}>
             Xem
           </Text>
         </TouchableOpacity>
@@ -2003,7 +2003,7 @@ export default function BookingScreen() {
               style={{
                 color: colors.text,
                 fontSize: 20,
-                fontWeight: "900",
+                ...fontForWeight("900"),
               }}
             >
               Xe phù hợp
@@ -2031,7 +2031,7 @@ export default function BookingScreen() {
               }}
             >
               <Car size={28} color={colors.textSecondary} />
-              <Text style={{ color: colors.text, fontWeight: "900" }}>
+              <Text style={{ color: colors.text, ...fontForWeight("900")}}>
                 Chưa có xe phù hợp
               </Text>
               <Text
@@ -2121,7 +2121,7 @@ export default function BookingScreen() {
                         style={{
                           color: colors.text,
                           fontSize: 16,
-                          fontWeight: "900",
+                          ...fontForWeight("900"),
                         }}
                       >
                         {vehicle.name}
@@ -2151,7 +2151,7 @@ export default function BookingScreen() {
                                 style={{
                                   color: badge.color,
                                   fontSize: 10,
-                                  fontWeight: "900",
+                                  ...fontForWeight("900"),
                                 }}
                               >
                                 {badge.label}
@@ -2180,7 +2180,7 @@ export default function BookingScreen() {
                             style={{
                               color: colors.textSecondary,
                               fontSize: fontSize.xs,
-                              fontWeight: "700",
+                              ...fontForWeight("700"),
                             }}
                           >
                             {vehicle.seats} chỗ
@@ -2192,7 +2192,7 @@ export default function BookingScreen() {
                             flex: 1,
                             color: pickupMinutes ? colors.success : colors.warning,
                             fontSize: fontSize.xs,
-                            fontWeight: "800",
+                            ...fontForWeight("800"),
                             flexWrap: 'wrap'
                           }}
                         >
@@ -2207,7 +2207,7 @@ export default function BookingScreen() {
                       style={{
                         color: colors.primary,
                         fontSize: 15,
-                        fontWeight: "900",
+                        ...fontForWeight("900"),
                       }}
                     >
                       {formatCurrency(priceQuote.totalPrice)}
@@ -2217,7 +2217,7 @@ export default function BookingScreen() {
                     style={{
                       color: colors.textTertiary,
                       fontSize: 10,
-                      fontWeight: "700",
+                      ...fontForWeight("700"),
                       marginTop: spacing.xs,
                       textAlign: "right",
                     }}
@@ -2259,7 +2259,7 @@ export default function BookingScreen() {
             style={{
               color: colors.text,
               fontSize: 20,
-              fontWeight: "900",
+              ...fontForWeight("900"),
               marginBottom: spacing.xs,
             }}
           >
@@ -2287,7 +2287,7 @@ export default function BookingScreen() {
               <Text
                 style={{
                   color: colors.text,
-                  fontWeight: "900",
+                  ...fontForWeight("900"),
                   marginBottom: spacing.xs,
                 }}
               >
@@ -2324,7 +2324,7 @@ export default function BookingScreen() {
               <Text
                 style={{
                   color: colors.error,
-                  fontWeight: "900",
+                  ...fontForWeight("900"),
                   marginBottom: spacing.xs,
                 }}
               >
@@ -2345,7 +2345,7 @@ export default function BookingScreen() {
               <Text
                 style={{
                   color: colors.text,
-                  fontWeight: "900",
+                  ...fontForWeight("900"),
                   marginBottom: spacing.xs,
                 }}
               >
@@ -2386,7 +2386,7 @@ export default function BookingScreen() {
                     {savedLocationIcon(location.type)}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text, fontWeight: "900" }}>
+                    <Text style={{ color: colors.text, ...fontForWeight("900")}}>
                       {location.label}
                     </Text>
                     <Text

@@ -10,7 +10,7 @@ import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
 import { apiClient } from '@/services/api';
 import { paymentService } from '@/services/paymentService';
 import { useTheme } from '@/theme';
-import { spacing } from '@/theme/tokens';
+import { fontForWeight, spacing } from '@/theme/tokens';
 import { Booking, Payment } from '@/types';
 import { showError, showSuccess } from '@/utils/toast';
 
@@ -120,7 +120,7 @@ export default function DriverPaymentReviewScreen() {
     return (
       <Screen padding>
         <Card>
-          <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.sm }}>Chưa có thanh toán</Text>
+          <Text style={{ color: colors.text, ...fontForWeight('900'), marginBottom: spacing.sm }}>Chưa có thanh toán</Text>
           <Text style={{ color: colors.textSecondary, marginBottom: spacing.md }}>
             Khách hàng chưa chọn phương thức thanh toán cho chuyến này.
           </Text>
@@ -158,7 +158,7 @@ export default function DriverPaymentReviewScreen() {
       <PaymentReviewSection>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900' }}>Xác nhận thanh toán</Text>
+            <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('900')}}>Xác nhận thanh toán</Text>
             <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
               {booking?.bookingCode ?? payment.transferContent}
             </Text>
@@ -168,7 +168,7 @@ export default function DriverPaymentReviewScreen() {
       </PaymentReviewSection>
 
       <PaymentReviewSection>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
+        <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginBottom: spacing.md }}>
           Thông tin thanh toán
         </Text>
         {[
@@ -185,13 +185,13 @@ export default function DriverPaymentReviewScreen() {
         ].map(([label, value]) => (
           <View key={label} style={{ marginBottom: spacing.md }}>
             <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{label}</Text>
-            <Text style={{ color: colors.text, fontWeight: '800', marginTop: spacing.xs }}>{value}</Text>
+            <Text style={{ color: colors.text, ...fontForWeight('800'), marginTop: spacing.xs }}>{value}</Text>
           </View>
         ))}
       </PaymentReviewSection>
 
       <PaymentReviewSection>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: spacing.md }}>
+        <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginBottom: spacing.md }}>
           Ghi chú khi từ chối
         </Text>
         <TextInput

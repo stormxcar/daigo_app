@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppState, InteractionManager, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Car, Crosshair, MapPinned, Navigation } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button } from '@/components/BaseComponents';
 import { NativeMapUnavailable, getNativeMapLibre } from '@/components/NativeMapLibre';
 import { DeviceLocation } from '@/services/deviceLocation';
@@ -234,7 +234,7 @@ export function NearbyDriverMapCard({ vehicles, currentLocation, onPress }: Near
       <View style={[styles.container, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: fontSize.base, fontWeight: '900', color: colors.text }}>
+            <Text style={{ fontSize: fontSize.base, ...fontForWeight('900'), color: colors.text }}>
               {title}
             </Text>
             <Text numberOfLines={1} style={{ fontSize: fontSize.xs, color: colors.textSecondary, marginTop: spacing.xs }}>
@@ -306,7 +306,7 @@ export function NearbyDriverMapCard({ vehicles, currentLocation, onPress }: Near
           ) : customerPoint && driverPoint ? (
             <View style={[styles.emptyMap, { backgroundColor: colors.surface }]}>
               <MapPinned size={30} color={colors.primary} />
-              <Text style={{ color: colors.text, fontWeight: '900', marginTop: spacing.sm }}>
+              <Text style={{ color: colors.text, ...fontForWeight('900'), marginTop: spacing.sm }}>
                 Đang chuẩn bị bản đồ
               </Text>
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, textAlign: 'center', marginTop: spacing.xs, lineHeight: 19 }}>
@@ -316,7 +316,7 @@ export function NearbyDriverMapCard({ vehicles, currentLocation, onPress }: Near
           ) : (
             <View style={[styles.emptyMap, { backgroundColor: colors.surface }]}>
               <MapPinned size={30} color={colors.primary} />
-              <Text style={{ color: colors.text, fontWeight: '900', marginTop: spacing.sm }}>
+              <Text style={{ color: colors.text, ...fontForWeight('900'), marginTop: spacing.sm }}>
                 Chưa có GPS tài xế online
               </Text>
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, textAlign: 'center', marginTop: spacing.xs, lineHeight: 19 }}>
@@ -338,7 +338,7 @@ export function NearbyDriverMapCard({ vehicles, currentLocation, onPress }: Near
 
         <View style={styles.footer}>
           <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '900' }}>
+            <Text numberOfLines={1} style={{ color: colors.text, fontSize: fontSize.sm, ...fontForWeight('900')}}>
               {nearestVehicle ? nearestVehicle.name : 'Chưa tìm thấy xe online'}
             </Text>
             <Text numberOfLines={2} style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: spacing.xs, lineHeight: 18 }}>
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
   badgeText: {
     color: 'white',
     fontSize: fontSize.xs,
-    fontWeight: '900',
+    ...fontForWeight('900'),
   },
   mapWrap: {
     height: 180,
@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
   pinText: {
     color: 'white',
     fontSize: 10,
-    fontWeight: '900',
+    ...fontForWeight('900'),
   },
   driverMarker: {
     width: 38,

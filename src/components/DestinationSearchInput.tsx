@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { LocateFixed, MapPin, Search, X } from 'lucide-react-native';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { LocationSuggestion, searchVietnamLocations } from '@/services/locations';
 
 export type DestinationPlace = {
@@ -122,7 +122,7 @@ export function DestinationSearchInput({
           ...shadows.md,
         }}
       >
-        <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: '900', marginBottom: spacing.xs }}>
+        <Text style={{ color: colors.text, fontSize: fontSize.base, ...fontForWeight('900'), marginBottom: spacing.xs }}>
           {title}
         </Text>
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: spacing.md }}>
@@ -159,7 +159,7 @@ export function DestinationSearchInput({
               minHeight: 48,
               color: colors.text,
               fontSize: fontSize.base,
-              fontWeight: '700',
+              ...fontForWeight('700'),
             }}
           />
           {loading ? (
@@ -220,7 +220,7 @@ export function DestinationSearchInput({
                 >
                   <MapPin size={18} color={colors.primary} />
                   <View style={{ flex: 1 }}>
-                    <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '900' }}>
+                    <Text numberOfLines={1} style={{ color: colors.text, ...fontForWeight('900')}}>
                       {label.name}
                     </Text>
                     <Text numberOfLines={2} style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs }}>

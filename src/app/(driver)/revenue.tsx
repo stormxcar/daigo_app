@@ -7,7 +7,7 @@ import { EmptyState, Screen } from '@/components/ScreenComponents';
 import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
-import { borderRadius, fontSize, spacing } from '@/theme/tokens';
+import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { BOOKING_STATUS } from '@/constants';
 import { Booking } from '@/types';
 import { formatVietnamDate } from '@/utils/helpers';
@@ -180,7 +180,7 @@ export default function DriverRevenueScreen() {
   return (
     <Screen scroll refreshing={refreshing || loading} onRefresh={() => loadData(true)}>
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md }}>
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900' }}>Doanh thu tài xế</Text>
+        <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('900')}}>Doanh thu tài xế</Text>
         <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
           Theo dõi thu nhập, thanh toán và hiệu suất chuyến hoàn thành.
         </Text>
@@ -213,7 +213,7 @@ export default function DriverRevenueScreen() {
                       backgroundColor: active ? colors.primary : colors.surfaceAlt,
                     }}
                   >
-                    <Text style={{ color: active ? 'white' : colors.text, fontWeight: '900', fontSize: fontSize.sm }}>
+                    <Text style={{ color: active ? 'white' : colors.text, ...fontForWeight('900'), fontSize: fontSize.sm }}>
                       {item.label}
                     </Text>
                   </TouchableOpacity>
@@ -226,7 +226,7 @@ export default function DriverRevenueScreen() {
               <View style={{ alignItems: 'center', flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
                   <CalendarDays size={16} color={colors.primary} />
-                  <Text style={{ color: colors.text, fontWeight: '900' }}>{getRangeLabel(date, range)}</Text>
+                  <Text style={{ color: colors.text, ...fontForWeight('900')}}>{getRangeLabel(date, range)}</Text>
                 </View>
                 <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
                   {revenue.trips} chuyến hoàn thành
@@ -256,9 +256,9 @@ export default function DriverRevenueScreen() {
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs }}>
                     {item.icon}
-                    <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '800' }}>{item.label}</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('800')}}>{item.label}</Text>
                   </View>
-                  <Text numberOfLines={1} style={{ color: colors.text, fontSize: 18, fontWeight: '900' }}>{item.value}</Text>
+                  <Text numberOfLines={1} style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>{item.value}</Text>
                 </View>
               ))}
             </View>
@@ -268,7 +268,7 @@ export default function DriverRevenueScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
                 <BarChart3 size={18} color={colors.primary} />
-                <Text style={{ color: colors.text, fontWeight: '900' }}>Biểu đồ doanh thu</Text>
+                <Text style={{ color: colors.text, ...fontForWeight('900')}}>Biểu đồ doanh thu</Text>
               </View>
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{revenue.distance.toFixed(1)} km</Text>
             </View>
@@ -292,7 +292,7 @@ export default function DriverRevenueScreen() {
           </RevenueSection>
 
           <RevenueSection>
-            <Text style={{ color: colors.text, fontWeight: '900', marginBottom: spacing.sm }}>Cơ cấu thanh toán</Text>
+            <Text style={{ color: colors.text, ...fontForWeight('900'), marginBottom: spacing.sm }}>Cơ cấu thanh toán</Text>
             {[
               { label: 'Tiền mặt', value: revenue.cash, color: colors.success },
               { label: 'VietQR / chuyển khoản', value: revenue.transfer, color: colors.primary },
@@ -302,7 +302,7 @@ export default function DriverRevenueScreen() {
                 <View key={item.label} style={{ marginBottom: spacing.sm }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
                     <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>{item.label}</Text>
-                    <Text style={{ color: colors.text, fontWeight: '900', fontSize: fontSize.sm }}>{money(item.value)} · {percent}%</Text>
+                    <Text style={{ color: colors.text, ...fontForWeight('900'), fontSize: fontSize.sm }}>{money(item.value)} · {percent}%</Text>
                   </View>
                   <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.surfaceAlt, overflow: 'hidden' }}>
                     <View style={{ width: `${percent}%`, height: '100%', backgroundColor: item.color }} />
@@ -314,13 +314,13 @@ export default function DriverRevenueScreen() {
 
           <RevenueSection>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm }}>
-              <Text style={{ color: colors.text, fontWeight: '900' }}>Chi tiết chuyến doanh thu</Text>
+              <Text style={{ color: colors.text, ...fontForWeight('900')}}>Chi tiết chuyến doanh thu</Text>
               <TouchableOpacity
                 onPress={() => setSort((current) => current === 'newest' ? 'highest' : 'newest')}
                 activeOpacity={0.82}
                 style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, backgroundColor: colors.surfaceAlt, borderRadius: borderRadius.full }}
               >
-                <Text style={{ color: colors.primary, fontWeight: '900', fontSize: fontSize.xs }}>
+                <Text style={{ color: colors.primary, ...fontForWeight('900'), fontSize: fontSize.xs }}>
                   {sort === 'newest' ? 'Mới nhất' : 'Cao nhất'}
                 </Text>
               </TouchableOpacity>
@@ -344,10 +344,10 @@ export default function DriverRevenueScreen() {
                   }}
                 >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md }}>
-                    <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '900', flex: 1 }}>
+                    <Text numberOfLines={1} style={{ color: colors.text, ...fontForWeight('900'), flex: 1 }}>
                       {booking.pickupLocation}
                     </Text>
-                    <Text style={{ color: colors.primary, fontWeight: '900' }}>
+                    <Text style={{ color: colors.primary, ...fontForWeight('900')}}>
                       {money(booking.actualPrice ?? booking.estimatedPrice ?? 0)}
                     </Text>
                   </View>

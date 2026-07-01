@@ -2,7 +2,7 @@ import React from 'react';
 import { FlatList, TouchableOpacity, Text, View } from 'react-native';
 import { Card } from '@/components/BaseComponents';
 import { useTheme } from '@/theme';
-import { spacing, fontSize } from '@/theme/tokens';
+import { fontForWeight, spacing, fontSize } from '@/theme/tokens';
 import { Car, CalendarClock, Star, ShieldCheck } from 'lucide-react-native';
 import { router } from 'expo-router';
 
@@ -23,7 +23,7 @@ export const QuickActionRow: React.FC<{ actions: readonly ActionItem[] }> = ({ a
   const { colors } = useTheme();
   return (
     <View style={{ marginBottom: spacing.xl , }}>
-      <Text style={{ fontSize: fontSize.base, fontWeight: '800', color: colors.text, marginBottom: spacing.md, paddingHorizontal: spacing.md }}>
+      <Text style={{ fontSize: fontSize.base, ...fontForWeight('800'), color: colors.text, marginBottom: spacing.md, paddingHorizontal: spacing.md }}>
         Lối tắt
       </Text>
       <FlatList
