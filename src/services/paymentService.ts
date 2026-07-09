@@ -60,7 +60,6 @@ const mapPayment = (row: PaymentRow): Payment => ({
 
 const PAYMENT_EXPIRY_MINUTES = 15;
 const NON_PAYABLE_BOOKING_STATUSES = [
-  BOOKING_STATUS.CUSTOMER_CANCELLED,
   BOOKING_STATUS.DRIVER_CANCELLED,
   BOOKING_STATUS.EXPIRED,
   BOOKING_STATUS.SCHEDULED_CANCELLED,
@@ -152,6 +151,9 @@ class PaymentService {
     }
     if (NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any)) {
       throw new Error('Chuyến đi này đã hủy hoặc hết hạn nên không phát sinh thanh toán.');
+    }
+    if (booking.status === BOOKING_STATUS.CUSTOMER_CANCELLED && !(booking.actualPrice && booking.actualPrice > 0)) {
+      throw new Error('Chuyến đi đã hủy trước khi phát sinh phí nên không cần thanh toán.');
     }
 
     const existing = await this.getPaymentByBooking(booking.id);

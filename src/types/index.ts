@@ -36,6 +36,9 @@ export interface DriverStatus {
   currentLatitude?: number;
   currentLongitude?: number;
   updatedLocationAt?: string;
+  pauseUntil?: string;
+  offlineReason?: 'manual' | 'pause' | 'system';
+  acceptsScheduledBookings?: boolean;
   cccdNumber?: string;
   licenseNumber?: string;
   documentUrls: string[];
@@ -240,6 +243,8 @@ export type NotificationType =
   | 'payment_verified'
   | 'blog_liked'
   | 'blog_commented'
+  | 'rating_received'
+  | 'blog_post_created'
   | 'system';
 
 export interface NotificationItem {
@@ -386,3 +391,10 @@ export interface PaginatedResponse<T> {
   pageSize: number;
   hasMore: boolean;
 }
+
+
+
+
+
+
+

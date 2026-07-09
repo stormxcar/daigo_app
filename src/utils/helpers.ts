@@ -92,7 +92,8 @@ export const calculateBookingPrice = (
   distance: number,
   pricePerKm: number,
   _passengerCount: number = 1,
-  time?: string
+  time?: string,
+  waitingMinutes: number = 0
 ): {
   basePrice: number;
   distanceFare: number;
@@ -100,12 +101,15 @@ export const calculateBookingPrice = (
   peakFee: number;
   nightFee: number;
   waitingFee: number;
+  billableWaitingMinutes: number;
   totalPrice: number;
   peakMultiplier: number;
   isPeakHour: boolean;
   isNightTrip: boolean;
 } => {
-  const distanceFare = Math.round(distance * pricePerKm);
+  const safeDistance = Number.isFinite(distance) ? Math.max(Number(distance), 0) : 0;
+  const safePricePerKm = Number.isFinite(pricePerKm) ? Math.max(Number(pricePerKm), 0) : 0;
+  const distanceFare = Math.round(safeDistance * safePricePerKm);
   const basePrice = Math.max(distanceFare, PRICE_CONFIG.MINIMUM_BOOKING_PRICE);
   const platformFee = Math.floor(basePrice * (PRICE_CONFIG.PLATFORM_FEE_PERCENT / 100));
   const hour = Number((time ?? '').split(':')[0]);
@@ -113,8 +117,10 @@ export const calculateBookingPrice = (
   const isNightTrip = Number.isFinite(hour) && (hour >= 22 || hour < 5);
   const peakMultiplier = isPeakHour ? PRICE_CONFIG.SURGE_MULTIPLIER_PEAK : 1;
   const peakFee = Math.floor((basePrice + platformFee) * (peakMultiplier - 1));
-  const nightFee = isNightTrip ? Math.floor(basePrice * 0.12) : 0;
-  const waitingFee = 0;
+  const nightFee = isNightTrip ? Math.floor(basePrice * (PRICE_CONFIG.NIGHT_FEE_PERCENT / 100)) : 0;
+  const safeWaitingMinutes = Number.isFinite(waitingMinutes) ? Math.max(0, Math.ceil(Number(waitingMinutes))) : 0;
+  const billableWaitingMinutes = Math.max(0, safeWaitingMinutes - PRICE_CONFIG.WAITING_FREE_MINUTES);
+  const waitingFee = billableWaitingMinutes * PRICE_CONFIG.WAITING_FEE_PER_MINUTE;
   const totalPrice = basePrice + platformFee + peakFee + nightFee + waitingFee;
 
   return {
@@ -124,6 +130,7 @@ export const calculateBookingPrice = (
     peakFee,
     nightFee,
     waitingFee,
+    billableWaitingMinutes,
     totalPrice,
     peakMultiplier,
     isPeakHour,
@@ -131,6 +138,13 @@ export const calculateBookingPrice = (
   };
 };
 
+export const calculateWaitingMinutes = (arrivedAt?: string | null, startedAt?: string | null): number => {
+  if (!arrivedAt || !startedAt) return 0;
+  const arrivedTime = new Date(arrivedAt).getTime();
+  const startedTime = new Date(startedAt).getTime();
+  if (!Number.isFinite(arrivedTime) || !Number.isFinite(startedTime) || startedTime <= arrivedTime) return 0;
+  return Math.ceil((startedTime - arrivedTime) / 60000);
+};
 // Get booking status label and color
 export const getBookingStatusInfo = (status: string): { label: string; color: string } => {
   const statusMap: Record<string, { label: string; color: string }> = {

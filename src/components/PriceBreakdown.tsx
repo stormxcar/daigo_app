@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import { Banknote, Clock, Moon, Percent, Route } from 'lucide-react-native';
+import { PRICE_CONFIG } from '@/constants';
 import { useTheme } from '@/theme';
 import { fontForWeight, fontSize, spacing } from '@/theme/tokens';
 import { calculateBookingPrice, formatCurrency } from '@/utils/helpers';
@@ -10,6 +11,7 @@ type PriceBreakdownProps = {
   pricePerKm: number;
   passengers?: number;
   time?: string;
+  waitingMinutes?: number;
   compact?: boolean;
 };
 
@@ -48,10 +50,11 @@ export function PriceBreakdown({
   pricePerKm,
   passengers = 1,
   time,
+  waitingMinutes = 0,
   compact = false,
 }: PriceBreakdownProps) {
   const { colors } = useTheme();
-  const quote = calculateBookingPrice(distance || 1, pricePerKm || 0, passengers, time);
+  const quote = calculateBookingPrice(distance || 1, pricePerKm || 0, passengers, time, waitingMinutes);
 
   return (
     <View style={{ gap: compact ? spacing.xs : spacing.sm }}>
@@ -76,9 +79,9 @@ export function PriceBreakdown({
         value={quote.nightFee > 0 ? formatCurrency(quote.nightFee) : 'Không áp dụng'}
       />
       <Row
-        icon={<Banknote size={16} color={colors.textTertiary} />}
-        label="Phí chờ"
-        value={quote.waitingFee > 0 ? formatCurrency(quote.waitingFee) : 'Chưa phát sinh'}
+        icon={<Banknote size={16} color={quote.waitingFee > 0 ? colors.warning : colors.textTertiary} />}
+        label={`Phí chờ${waitingMinutes > 0 ? ` (${quote.billableWaitingMinutes} phút tính phí)` : ''}`}
+        value={quote.waitingFee > 0 ? formatCurrency(quote.waitingFee) : `Miễn ${PRICE_CONFIG.WAITING_FREE_MINUTES} phút đầu`}
       />
 
       <View

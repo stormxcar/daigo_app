@@ -4,6 +4,7 @@ import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { supabase } from './supabase';
 import { getAuthRedirectUri } from '@/utils/authRedirect';
 import { firebasePhoneAuth } from './firebasePhoneAuth';
+import { getInstallationDeviceId } from './deviceSession';
 import {
   isFirebasePhoneAuthEnabled,
   isTestPhoneOtpEnabled,
@@ -68,6 +69,9 @@ type DriverRow = {
   current_latitude: number | null;
   current_longitude: number | null;
   updated_location_at: string | null;
+  pause_until?: string | null;
+  offline_reason?: 'manual' | 'pause' | 'system' | null;
+  accepts_scheduled_bookings?: boolean | null;
   cccd_number?: string | null;
   license_number?: string | null;
   document_urls?: string[] | null;
@@ -295,6 +299,9 @@ const mapDriverStatus = (row: DriverRow): DriverStatus => ({
   currentLatitude: row.current_latitude ?? undefined,
   currentLongitude: row.current_longitude ?? undefined,
   updatedLocationAt: row.updated_location_at ?? undefined,
+  pauseUntil: row.pause_until && new Date(row.pause_until).getTime() > Date.now() ? row.pause_until : undefined,
+  offlineReason: row.offline_reason ?? undefined,
+  acceptsScheduledBookings: row.accepts_scheduled_bookings ?? true,
   cccdNumber: row.cccd_number ?? undefined,
   licenseNumber: row.license_number ?? undefined,
   documentUrls: row.document_urls ?? [],
@@ -803,6 +810,15 @@ class ApiClient {
     if (error) throw error;
   }
 
+  async disablePushToken(userId: string, token: string): Promise<void> {
+    const { error } = await supabase
+      .from('push_tokens')
+      .update({ enabled: false, updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('token', token);
+    if (error) throw error;
+  }
+
   async disablePushTokens(userId: string): Promise<void> {
     const { error } = await supabase
       .from('push_tokens')
@@ -858,6 +874,15 @@ class ApiClient {
     return this.setCached(cacheKey, (data as VehicleRow[]).map(mapVehicle));
   }
 
+  async getVehicleById(id: string): Promise<Vehicle> {
+    const { data, error } = await supabase
+      .from('vehicles')
+      .select('*, profiles!vehicles_driver_id_fkey(full_name, phone, avatar_url)')
+      .eq('id', id)
+      .single();
+    if (error) throw error;
+    return mapVehicle(data as VehicleRow);
+  }
   async getDriverStatus(profileId: string): Promise<DriverStatus | null> {
     const { data, error } = await supabase
       .from('drivers')
@@ -868,6 +893,31 @@ class ApiClient {
     return data ? mapDriverStatus(data as DriverRow) : null;
   }
 
+  async updateDriverDocuments(profileId: string, data: { cccdNumber?: string; licenseNumber?: string; documentUrls?: string[] }): Promise<DriverStatus> {
+    const { data: updated, error } = await supabase
+      .from('drivers')
+      .update({
+        cccd_number: data.cccdNumber,
+        license_number: data.licenseNumber,
+        document_urls: data.documentUrls,
+      })
+      .eq('profile_id', profileId)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return mapDriverStatus(updated as DriverRow);
+  }
+
+  async setDriverScheduledBookingAcceptance(profileId: string, enabled: boolean): Promise<DriverStatus> {
+    const { data, error } = await supabase
+      .from('drivers')
+      .update({ accepts_scheduled_bookings: enabled })
+      .eq('profile_id', profileId)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return mapDriverStatus(data as DriverRow);
+  }
   async getOnlineDriverStatuses(): Promise<DriverStatus[]> {
     const { data, error } = await supabase
       .from('drivers')
@@ -881,71 +931,17 @@ class ApiClient {
     return (data ?? []).map((row) => mapDriverStatus(row as DriverRow));
   }
 
-  async setDriverOnline(profileId: string, isOnline: boolean, location?: { lat: number; lng: number }): Promise<DriverStatus> {
-    const existing = await this.getDriverStatus(profileId);
-    if (!existing) {
-      const { data, error } = await supabase
-        .from('drivers')
-        .insert({
-          profile_id: profileId,
-          is_online: isOnline,
-          verification_status: 'PENDING',
-          current_latitude: location?.lat,
-          current_longitude: location?.lng,
-          updated_location_at: location ? new Date().toISOString() : null,
-        })
-        .select('*')
-        .single();
-      if (error) throw error;
-      return mapDriverStatus(data as DriverRow);
-    }
-
-    if (isOnline && existing.verificationStatus !== 'APPROVED') {
-      throw new Error('Bạn chưa được duyệt tài khoản tài xế.');
-    }
-
-    const { data, error } = await supabase
-      .from('drivers')
-      .update({
-        is_online: isOnline,
-        current_latitude: location?.lat ?? existing.currentLatitude,
-        current_longitude: location?.lng ?? existing.currentLongitude,
-        updated_location_at: location ? new Date().toISOString() : existing.updatedLocationAt,
-      })
-      .eq('profile_id', profileId)
-      .select('*')
-      .single();
+  async setDriverOnline(profileId: string, isOnline: boolean, location?: { lat: number; lng: number }, pauseUntil?: string | null): Promise<DriverStatus> {
+    const deviceId = await getInstallationDeviceId();
+    const { data, error } = await supabase.rpc('set_driver_online_from_device', {
+      p_device_id: deviceId,
+      p_is_online: isOnline,
+      p_lat: location?.lat ?? null,
+      p_lng: location?.lng ?? null,
+      p_pause_until: pauseUntil ?? null,
+    });
     if (error) throw error;
     return mapDriverStatus(data as DriverRow);
-  }
-
-  async updateDriverDocuments(profileId: string, data: Pick<DriverOnboardingData, 'cccdNumber' | 'licenseNumber' | 'documentUrls'>): Promise<DriverStatus> {
-    const existing = await this.getDriverStatus(profileId);
-    const payload = {
-      profile_id: profileId,
-      cccd_number: data.cccdNumber?.trim() || null,
-      license_number: data.licenseNumber?.trim() || null,
-      document_urls: data.documentUrls ?? [],
-      verification_status: existing?.verificationStatus ?? 'PENDING',
-    };
-
-    const { data: updated, error } = await supabase
-      .from('drivers')
-      .upsert(payload, { onConflict: 'profile_id' })
-      .select('*')
-      .single();
-    if (error) throw error;
-    return mapDriverStatus(updated as DriverRow);
-  }
-
-  async getVehicleById(id: string): Promise<Vehicle> {
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('*, profiles!vehicles_driver_id_fkey(full_name, phone, avatar_url)')
-      .eq('id', id)
-      .single();
-    if (error) throw error;
-    return mapVehicle(data as VehicleRow);
   }
 
   async createVehicle(data: Partial<Vehicle>): Promise<Vehicle> {
@@ -1080,6 +1076,38 @@ class ApiClient {
     );
 
     return (data ?? []).map(mapBookingDispatch);
+  }
+
+  async getSkippedBookingIdsForDriver(driverId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('driver_booking_skips')
+      .select('booking_id')
+      .eq('driver_id', driverId);
+    if (error) throw error;
+    return (data ?? []).map((row: any) => row.booking_id).filter(Boolean);
+  }
+
+  async skipBookingForDriver(driverId: string, bookingId: string, reason = 'dismissed'): Promise<void> {
+    const { error } = await supabase
+      .from('driver_booking_skips')
+      .upsert(
+        {
+          driver_id: driverId,
+          booking_id: bookingId,
+          reason,
+        },
+        { onConflict: 'driver_id,booking_id' },
+      );
+    if (error) throw error;
+  }
+
+  async restoreSkippedBookingForDriver(driverId: string, bookingId: string): Promise<void> {
+    const { error } = await supabase
+      .from('driver_booking_skips')
+      .delete()
+      .eq('driver_id', driverId)
+      .eq('booking_id', bookingId);
+    if (error) throw error;
   }
 
   async getActiveBooking(userId: string, role: User['role'] = 'customer'): Promise<Booking | null> {
@@ -1303,6 +1331,7 @@ class ApiClient {
       p_booking_id: id,
       p_action: 'complete_trip',
       p_reason: null,
+      p_device_id: await getInstallationDeviceId(),
     });
     if (error) throw error;
     return this.getBookingById(data.id);
@@ -1313,6 +1342,7 @@ class ApiClient {
       p_booking_id: id,
       p_action: 'mark_arriving',
       p_reason: null,
+      p_device_id: await getInstallationDeviceId(),
     });
     if (error) throw error;
     return this.getBookingById(data.id);
@@ -1323,6 +1353,7 @@ class ApiClient {
       p_booking_id: id,
       p_action: 'mark_arrived',
       p_reason: null,
+      p_device_id: await getInstallationDeviceId(),
     });
     if (error) throw error;
     return this.getBookingById(data.id);
@@ -1333,6 +1364,7 @@ class ApiClient {
       p_booking_id: id,
       p_action: 'start_trip',
       p_reason: null,
+      p_device_id: await getInstallationDeviceId(),
     });
     if (error) throw error;
     return this.getBookingById(data.id);
@@ -1355,13 +1387,14 @@ class ApiClient {
       p_booking_id: id,
       p_action: 'cancel_by_driver',
       p_reason: reason ?? null,
+      p_device_id: await getInstallationDeviceId(),
     });
     if (error) throw error;
     return this.getBookingById(data.id);
   }
 
   async acceptBooking(id: string, driverId: string): Promise<Booking> {
-    const { data, error } = await supabase.rpc('accept_booking', { p_booking_id: id });
+    const { data, error } = await supabase.rpc('accept_booking', { p_booking_id: id, p_device_id: await getInstallationDeviceId() });
     if (error) throw error;
     const booking = await this.getBookingById(data.id);
     await supabase.from('conversations').update({ driver_id: driverId }).eq('booking_id', id);
@@ -1369,7 +1402,7 @@ class ApiClient {
   }
 
   async acceptScheduledBooking(id: string): Promise<Booking> {
-    const { data, error } = await supabase.rpc('accept_scheduled_booking', { p_booking_id: id });
+    const { data, error } = await supabase.rpc('accept_scheduled_booking', { p_booking_id: id, p_device_id: await getInstallationDeviceId() });
     if (error) throw error;
     if (data?.driver_id) {
       await supabase.from('conversations').update({ driver_id: data.driver_id }).eq('booking_id', id);
@@ -1378,7 +1411,7 @@ class ApiClient {
   }
 
   async rejectScheduledBooking(id: string): Promise<Booking> {
-    const { data, error } = await supabase.rpc('reject_scheduled_booking', { p_booking_id: id });
+    const { data, error } = await supabase.rpc('reject_scheduled_booking', { p_booking_id: id, p_device_id: await getInstallationDeviceId() });
     if (error) throw error;
     return mapBooking(data);
   }
@@ -1402,12 +1435,12 @@ class ApiClient {
     }));
   }
 
-  async getDriverScheduleBlocks(driverId: string, month: Date): Promise<Array<{ id: string; startAt: string; endAt: string }>> {
+  async getDriverScheduleBlocks(driverId: string, month: Date): Promise<Array<{ id: string; startAt: string; endAt: string; blockKind?: 'all_day' | 'custom'; repeatGroupId?: string; repeatUntil?: string; note?: string }>> {
     const start = new Date(month.getFullYear(), month.getMonth(), 1);
     const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
     const { data, error } = await supabase
       .from('driver_schedules')
-      .select('id, start_at, end_at')
+      .select('id, start_at, end_at, block_kind, repeat_group_id, repeat_until, note')
       .eq('driver_id', driverId)
       .eq('status', 'blocked')
       .gte('start_at', start.toISOString())
@@ -1418,6 +1451,10 @@ class ApiClient {
       id: row.id,
       startAt: row.start_at,
       endAt: row.end_at,
+      blockKind: row.block_kind ?? 'custom',
+      repeatGroupId: row.repeat_group_id ?? undefined,
+      repeatUntil: row.repeat_until ?? undefined,
+      note: row.note ?? undefined,
     }));
   }
 
@@ -1425,6 +1462,10 @@ class ApiClient {
     driverId: string;
     startAt: string;
     endAt: string;
+    blockKind?: 'all_day' | 'custom';
+    repeatGroupId?: string;
+    repeatUntil?: string;
+    note?: string;
   }): Promise<{ id: string; startAt: string; endAt: string }> {
     const { data, error } = await supabase
       .from('driver_schedules')
@@ -1434,6 +1475,10 @@ class ApiClient {
         start_at: input.startAt,
         end_at: input.endAt,
         status: 'blocked',
+        block_kind: input.blockKind ?? 'custom',
+        repeat_group_id: input.repeatGroupId ?? null,
+        repeat_until: input.repeatUntil ?? null,
+        note: input.note ?? null,
       })
       .select('id, start_at, end_at')
       .single();
@@ -1441,11 +1486,49 @@ class ApiClient {
     return { id: data.id, startAt: data.start_at, endAt: data.end_at };
   }
 
+  async createDriverScheduleBlocks(inputs: Array<{
+    driverId: string;
+    startAt: string;
+    endAt: string;
+    blockKind?: 'all_day' | 'custom';
+    repeatGroupId?: string;
+    repeatUntil?: string;
+    note?: string;
+  }>): Promise<Array<{ id: string; startAt: string; endAt: string }>> {
+    if (inputs.length === 0) return [];
+    const { data, error } = await supabase
+      .from('driver_schedules')
+      .insert(inputs.map((input) => ({
+        driver_id: input.driverId,
+        booking_id: null,
+        start_at: input.startAt,
+        end_at: input.endAt,
+        status: 'blocked',
+        block_kind: input.blockKind ?? 'custom',
+        repeat_group_id: input.repeatGroupId ?? null,
+        repeat_until: input.repeatUntil ?? null,
+        note: input.note ?? null,
+      })))
+      .select('id, start_at, end_at');
+    if (error) throw error;
+    return (data ?? []).map((row: any) => ({ id: row.id, startAt: row.start_at, endAt: row.end_at }));
+  }
+
   async deleteDriverScheduleBlock(id: string): Promise<void> {
     const { error } = await supabase
       .from('driver_schedules')
       .delete()
       .eq('id', id)
+      .eq('status', 'blocked');
+    if (error) throw error;
+  }
+
+  async deleteDriverScheduleBlockGroup(driverId: string, repeatGroupId: string): Promise<void> {
+    const { error } = await supabase
+      .from('driver_schedules')
+      .delete()
+      .eq('driver_id', driverId)
+      .eq('repeat_group_id', repeatGroupId)
       .eq('status', 'blocked');
     if (error) throw error;
   }
@@ -2147,3 +2230,18 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

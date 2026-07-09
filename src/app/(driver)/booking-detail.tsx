@@ -24,7 +24,7 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { Booking, DriverLocation, TripPhase } from '@/types';
 import { BOOKING_STATUS, DRIVER_CANCEL_REASONS, TERMINAL_BOOKING_STATUSES } from '@/constants';
-import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
+import { calculateWaitingMinutes, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { openExternalDirections } from '@/services/externalMapsUrlService';
 import { getCurrentLatLng } from '@/services/locationService';
 import { showError, showInfo, showSuccess, showWarning } from '@/utils/toast';
@@ -345,8 +345,9 @@ export default function DriverBookingDetail() {
         : booking.status === BOOKING_STATUS.SEARCHING_DRIVER || booking.status === BOOKING_STATUS.SCHEDULED_PENDING_DRIVER
           ? 'warning'
           : 'info';
-  const isNonPayableBooking = [
-    BOOKING_STATUS.CUSTOMER_CANCELLED,
+  const waitingMinutes = booking ? calculateWaitingMinutes(booking.arrivedAt, booking.startedAt) : 0;
+  const isCancellationFeeBooking = booking?.status === BOOKING_STATUS.CUSTOMER_CANCELLED && !!booking.actualPrice && booking.actualPrice > 0;
+  const isNonPayableBooking = !isCancellationFeeBooking && [
     BOOKING_STATUS.DRIVER_CANCELLED,
     BOOKING_STATUS.EXPIRED,
     BOOKING_STATUS.SCHEDULED_CANCELLED,
@@ -486,6 +487,7 @@ export default function DriverBookingDetail() {
               pricePerKm={booking.vehicle.pricePerKm}
               passengers={booking.passengers}
               time={booking.time}
+              waitingMinutes={waitingMinutes}
               compact
             />
           </View>

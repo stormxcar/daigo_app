@@ -1,184 +1,352 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
-import { BarChart3, Briefcase, CalendarClock, LocateFixed, Newspaper, Percent, Route, Star, TrendingUp, Wallet } from 'lucide-react-native';
-import { useTheme } from '@/theme';
-import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
-import { Button, Card, CardSkeleton } from '@/components/BaseComponents';
-import { EmptyState, Screen } from '@/components/ScreenComponents';
-import { ActiveTripSheet } from '@/components/ActiveTripSheet';
-import { LocationAccessFallback } from '@/components/LocationAccessFallback';
-import { apiClient } from '@/services/api';
-import { useAuthStore } from '@/stores/authStore';
-import { BlogPost, Booking, RatingReview, Vehicle } from '@/types';
-import { DeviceLocation, getCurrentDeviceLocation } from '@/services/deviceLocation';
-import { VISIBLE_ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
-import { showError, showSuccess } from '@/utils/toast';
-import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
-import { getPaymentMethodLabel, PaymentStatusBadge } from '@/components/PaymentStatusBadge';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { ActivityIndicator, Text, TouchableOpacity, Vibration, View } from "react-native";
+import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
+import * as Location from "expo-location";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import { Bell, MapPin, UserCircle } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ActiveTripSheet } from "@/components/ActiveTripSheet";
+import { LocationAccessFallback } from "@/components/LocationAccessFallback";
+import { DriverDashboardSheet } from "@/components/driver-dashboard/DriverDashboardSheet";
+import {
+  DriverDashboardRouteState,
+  DriverMapView,
+} from "@/components/driver-dashboard/DriverMapView";
+import { DriverStatusPill } from "@/components/driver-dashboard/DriverStatusPill";
+import { BOOKING_STATUS, VISIBLE_ACTIVE_BOOKING_STATUSES } from "@/constants";
+import { apiClient } from "@/services/api";
+import {
+  DeviceLocation,
+  getCurrentDeviceLocation,
+} from "@/services/deviceLocation";
+import {
+  getDistanceMeters,
+  startDriverLocationWatch,
+} from "@/services/driverLocation";
+import { supabase } from "@/services/supabase";
+import { useAuthStore } from "@/stores/authStore";
+import { useNotificationStore } from "@/stores/notificationStore";
+import { useTheme } from "@/theme";
+import {
+  borderRadius,
+  fontForWeight,
+  fontSize,
+  shadows,
+  spacing,
+} from "@/theme/tokens";
+import { Booking, BookingDispatch, RatingReview, TripPhase } from "@/types";
+import { showError, showInfo, showSuccess } from "@/utils/toast";
 
-type RangeMode = 'day' | 'month' | 'year';
+const money = (value: number) => `${value.toLocaleString("vi-VN")}đ`;
+const defaultRouteState: DriverDashboardRouteState = {
+  loading: false,
+  route: null,
+  error: null,
+};
 
-const money = (value: number) => `${value.toLocaleString('vi-VN')}đ`;
+const getTripPhase = (booking?: Booking | null): TripPhase =>
+  booking?.status === BOOKING_STATUS.TRIP_STARTED ? "dropoff" : "pickup";
 
-function getBucketLabel(date: Date, mode: RangeMode) {
-  if (mode === 'day') return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-  if (mode === 'month') return date.toLocaleDateString('vi-VN', { month: '2-digit', year: '2-digit' });
-  return String(date.getFullYear());
-}
-
-function buildBuckets(mode: RangeMode) {
-  const count = mode === 'day' ? 7 : mode === 'month' ? 6 : 3;
-  return Array.from({ length: count }).map((_, index) => {
-    const date = new Date();
-    const offset = count - index - 1;
-    if (mode === 'day') date.setDate(date.getDate() - offset);
-    if (mode === 'month') date.setMonth(date.getMonth() - offset);
-    if (mode === 'year') date.setFullYear(date.getFullYear() - offset);
-    return { key: getBucketLabel(date, mode), label: getBucketLabel(date, mode), trips: 0, revenue: 0 };
-  });
-}
-
-function DriverAvailabilityToggle({
-  enabled,
-  loading,
-  onPress,
-}: {
-  enabled: boolean;
-  loading: boolean;
-  onPress: () => void;
-}) {
-  const { colors } = useTheme();
-  const progress = useRef(new Animated.Value(enabled ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.spring(progress, {
-      toValue: enabled ? 1 : 0,
-      useNativeDriver: false,
-      friction: 8,
-      tension: 90,
-    }).start();
-  }, [enabled, progress]);
-
-  const trackColor = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [colors.surfaceAlt, colors.success],
-  });
-  const thumbTranslate = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [3, 43],
-  });
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.84}
-      onPress={onPress}
-      disabled={loading}
-      style={{
-        marginTop: spacing.md,
-        paddingVertical: spacing.md,
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: spacing.md,
-      }}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.text, ...fontForWeight('900')}}>
-          {enabled ? 'Đang nhận chuyến' : 'Tạm dừng nhận chuyến'}
-        </Text>
-        <Text style={{ color: colors.textSecondary, marginTop: spacing.xs, fontSize: fontSize.sm }}>
-          {enabled ? 'Khách hàng có thể gửi booking mới cho bạn.' : 'Bật lại khi bạn sẵn sàng chạy xe.'}
-        </Text>
-      </View>
-
-      <Animated.View
-        style={{
-          width: 82,
-          height: 42,
-          borderRadius: 21,
-          padding: 3,
-          backgroundColor: trackColor,
-          borderWidth: 1,
-          borderColor: enabled ? colors.success : colors.border,
-          opacity: loading ? 0.72 : 1,
-          justifyContent: 'center',
-        }}
-      >
-        <Animated.View
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 17,
-            backgroundColor: '#ffffff',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transform: [{ translateX: thumbTranslate }],
-          }}
-        >
-          {loading && <ActivityIndicator size="small" color={enabled ? colors.success : colors.primary} />}
-        </Animated.View>
-      </Animated.View>
-    </TouchableOpacity>
-  );
-}
+const canShowAsNearby = (booking: Booking) =>
+  !booking.driverId &&
+  [
+    BOOKING_STATUS.SEARCHING_DRIVER,
+    BOOKING_STATUS.SCHEDULED_PENDING_DRIVER,
+  ].includes(booking.status as any);
 
 export default function DriverDashboard() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
+  const unreadNotifications = useNotificationStore(
+    (state) => state.notifications.filter((item) => !item.read).length,
+  );
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [visibleBookings, setVisibleBookings] = useState<Booking[]>([]);
+  const [pendingDispatches, setPendingDispatches] = useState<BookingDispatch[]>(
+    [],
+  );
   const [ratings, setRatings] = useState<RatingReview[]>([]);
-  const [mode, setMode] = useState<RangeMode>('day');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [driverLocation, setDriverLocation] = useState<DeviceLocation | null>(null);
+  const [driverLocation, setDriverLocation] = useState<DeviceLocation | null>(
+    null,
+  );
   const [locationAccessBlocked, setLocationAccessBlocked] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<string>('PENDING');
+  const [verificationStatus, setVerificationStatus] =
+    useState<string>("PENDING");
   const [onlineLoading, setOnlineLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [hiddenNearbyBookingIds, setHiddenNearbyBookingIds] = useState<
+    Set<string>
+  >(() => new Set());
+  const [serverSkippedBookingIds, setServerSkippedBookingIds] = useState<
+    Set<string>
+  >(() => new Set());
+  const [lastSkippedBooking, setLastSkippedBooking] = useState<Booking | null>(
+    null,
+  );
+  const [pickupRadiusKm, setPickupRadiusKm] = useState<2 | 5 | 10>(5);
+  const [pauseUntil, setPauseUntil] = useState<string | null>(null);
+  const [routeState, setRouteState] =
+    useState<DriverDashboardRouteState>(defaultRouteState);
+  const [followDriver, setFollowDriver] = useState(true);
+  const bookingAlertPlayer = useAudioPlayer(require("../../../assets/sounds/incoming-call.mp3"));
+  const knownNearbyBookingIdsRef = useRef<Set<string>>(new Set());
+  const nearbyAlertReadyRef = useRef(false);
+  const bookingAlertStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastOnlineLocationSyncRef = useRef(0);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadData = useCallback(async (manualRefresh = false) => {
-    if (!user) return;
-    try {
-      if (manualRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
+  const loadData = useCallback(
+    async (manualRefresh = false) => {
+      if (!user) return;
+      try {
+        if (manualRefresh) setRefreshing(true);
+        else setLoading(true);
+
+        const [
+          driverBookings,
+          candidateBookings,
+          dispatches,
+          skippedBookingIds,
+          driverStatus,
+          driverRatings,
+        ] = await Promise.all([
+          apiClient.getBookings({ driverId: user.id, page: 1, pageSize: 80 }),
+          apiClient.getBookings({
+            driverVisibleTo: user.id,
+            page: 1,
+            pageSize: 30,
+          }),
+          apiClient
+            .getPendingBookingDispatches(user.id)
+            .catch(() => [] as BookingDispatch[]),
+          apiClient
+            .getSkippedBookingIdsForDriver(user.id)
+            .catch(() => [] as string[]),
+          apiClient.getDriverStatus(user.id),
+          apiClient.getRatingsForUser(user.id),
+        ]);
+
+        setBookings(driverBookings);
+        setVisibleBookings(candidateBookings);
+        setPendingDispatches(
+          dispatches.filter((dispatch) => !!dispatch.booking),
+        );
+        setServerSkippedBookingIds(new Set(skippedBookingIds));
+        setRatings(driverRatings);
+        const activePauseUntil =
+          driverStatus?.pauseUntil &&
+          new Date(driverStatus.pauseUntil).getTime() > Date.now()
+            ? driverStatus.pauseUntil
+            : null;
+        setPauseUntil(activePauseUntil);
+        setIsOnline(!!driverStatus?.isOnline && !activePauseUntil);
+        setVerificationStatus(driverStatus?.verificationStatus ?? "PENDING");
+
+        if (
+          driverStatus?.pauseUntil &&
+          !activePauseUntil &&
+          !driverStatus.isOnline
+        ) {
+          getCurrentDeviceLocation()
+            .then((location) =>
+              apiClient.setDriverOnline(user.id, true, location),
+            )
+            .then((updated) => {
+              setIsOnline(updated.isOnline);
+              setVerificationStatus(updated.verificationStatus);
+              setPauseUntil(null);
+            })
+            .catch(() => undefined);
+        }
+
+        getCurrentDeviceLocation()
+          .then((location) => {
+            setDriverLocation(location);
+            setLocationAccessBlocked(false);
+          })
+          .catch(() => undefined);
+      } catch (error: any) {
+        showError("Không thể tải dashboard", error.message);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-      const [allBookings, driverVehicles, driverPosts, driverStatus, driverRatings] = await Promise.all([
-        apiClient.getBookings({ driverId: user.id, page: 1, pageSize: 200 }),
-        apiClient.getDriverVehicles(user.id),
-        apiClient.getBlogPosts(1, 20, { driverId: user.id }),
-        apiClient.getDriverStatus(user.id),
-        apiClient.getRatingsForUser(user.id),
-      ]);
-      setBookings(allBookings);
-      setVehicles(driverVehicles);
-      setPosts(driverPosts);
-      setRatings(driverRatings);
-      setIsOnline(!!driverStatus?.isOnline);
-      setVerificationStatus(driverStatus?.verificationStatus ?? 'PENDING');
-      getCurrentDeviceLocation()
-        .then((location) => {
-          setDriverLocation(location);
-          setLocationAccessBlocked(false);
-        })
-        .catch(() => undefined);
-    } catch (error: any) {
-      showError('Không thể tải thống kê', error.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user]);
+    },
+    [user],
+  );
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const scheduleDashboardRefresh = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => loadData(true), 650);
+  }, [loadData]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const refreshIfRelevantBooking = (payload: any) => {
+      const row = (payload.new ?? payload.old) as any;
+      if (!row) return;
+      const isDriverTrip = row.driver_id === user.id;
+      const isOpenTrip =
+        !row.driver_id &&
+        [
+          BOOKING_STATUS.SEARCHING_DRIVER,
+          BOOKING_STATUS.SCHEDULED_PENDING_DRIVER,
+        ].includes(row.status);
+      if (isDriverTrip || isOpenTrip) scheduleDashboardRefresh();
+    };
+
+    const channel = supabase
+      .channel(`driver-dashboard-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "bookings" },
+        refreshIfRelevantBooking,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "booking_dispatches",
+          filter: `driver_id=eq.${user.id}`,
+        },
+        () => scheduleDashboardRefresh(),
+      )
+      .subscribe();
+
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      supabase.removeChannel(channel);
+    };
+  }, [scheduleDashboardRefresh, user]);
+
+  useEffect(
+    () => () => {
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    },
+    [],
+  );
+
+  const activeTrip = useMemo(
+    () =>
+      bookings.find((booking) =>
+        VISIBLE_ACTIVE_BOOKING_STATUSES.includes(booking.status as any),
+      ) ?? null,
+    [bookings],
+  );
+  const activeTripId = activeTrip?.id;
+  const activeTripPhase = useMemo(() => getTripPhase(activeTrip), [activeTrip]);
+
+  useEffect(() => {
+    if (!user || !isOnline || activeTrip) return;
+
+    let cancelled = false;
+    let subscription: Location.LocationSubscription | null = null;
+
+    const startWatch = async () => {
+      const existing = await Location.getForegroundPermissionsAsync();
+      let status = existing.status;
+      if (status !== "granted") {
+        const requested = await Location.requestForegroundPermissionsAsync();
+        status = requested.status;
+      }
+      if (status !== "granted") {
+        setLocationAccessBlocked(true);
+        return;
+      }
+
+      subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 5000,
+          distanceInterval: 10,
+        },
+        (position) => {
+          const nextLocation: DeviceLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            label: driverLocation?.label ?? "Vị trí GPS hiện tại",
+          };
+          setDriverLocation(nextLocation);
+          setLocationAccessBlocked(false);
+
+          const now = Date.now();
+          if (now - lastOnlineLocationSyncRef.current < 15000) return;
+          lastOnlineLocationSyncRef.current = now;
+          apiClient
+            .setDriverOnline(user.id, true, nextLocation)
+            .then((statusRow) =>
+              setVerificationStatus(statusRow.verificationStatus),
+            )
+            .catch((error) => {
+              if (__DEV__)
+                console.warn("Không thể đồng bộ vị trí online tài xế", error);
+            });
+        },
+      );
+
+      if (cancelled) subscription.remove();
+    };
+
+    startWatch().catch((error) => {
+      if (__DEV__) console.warn("Không thể theo dõi vị trí dashboard", error);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, [activeTrip, driverLocation?.label, isOnline, user]);
+
+  useEffect(() => {
+    if (!user || !activeTripId) return;
+
+    let cancelled = false;
+    let subscription: Location.LocationSubscription | null = null;
+    const phase = activeTripPhase;
+
+    startDriverLocationWatch(activeTripId, user.id, phase, (location) => {
+      setDriverLocation({
+        lat: location.latitude,
+        lng: location.longitude,
+        label:
+          phase === "pickup"
+            ? "Đang di chuyển đến điểm đón"
+            : "Đang di chuyển đến điểm đến",
+      });
+      setLocationAccessBlocked(false);
+    })
+      .then((watch) => {
+        subscription = watch;
+        if (cancelled) watch.remove();
+      })
+      .catch((error) => {
+        if (__DEV__)
+          console.warn("Không thể bật GPS realtime cho chuyến", error);
+      });
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, [activeTripId, activeTripPhase, user]);
 
   const toggleOnline = async () => {
     if (!user) return;
@@ -188,28 +356,53 @@ export default function DriverDashboard() {
         setLocationAccessBlocked(true);
         return driverLocation;
       });
+
       if (!location && !isOnline) {
-        showError('Không thể lấy vị trí', 'Vui lòng bật GPS hoặc nhập vị trí hiện tại để nhận chuyến.');
+        showError(
+          "Không thể lấy vị trí",
+          "Vui lòng bật GPS hoặc nhập vị trí hiện tại để nhận chuyến.",
+        );
         return;
       }
-      const updated = await apiClient.setDriverOnline(user.id, !isOnline, location ?? undefined);
+
+      const updated = await apiClient.setDriverOnline(
+        user.id,
+        !isOnline,
+        location ?? undefined,
+      );
       setIsOnline(updated.isOnline);
       setVerificationStatus(updated.verificationStatus);
       if (location) {
         setDriverLocation(location);
         setLocationAccessBlocked(false);
       }
-      showSuccess(updated.isOnline ? 'Đã bật nhận chuyến' : 'Đã tắt nhận chuyến', 'Trạng thái tài xế đã được cập nhật.');
+      if (updated.isOnline) setPauseUntil(null);
+      showSuccess(
+        updated.isOnline ? "Đã bật nhận chuyến" : "Đã tắt nhận chuyến",
+        "Trạng thái tài xế đã được cập nhật.",
+      );
     } catch (error: any) {
-      showError('Không thể cập nhật trạng thái tài xế', error.message);
+      showError("Không thể cập nhật trạng thái tài xế", error.message);
     } finally {
       setOnlineLoading(false);
     }
   };
 
-  const applyManualDriverLocation = (place: { name: string; address: string; placeId: string; latitude?: number; longitude?: number }) => {
-    if (typeof place.latitude !== 'number' || typeof place.longitude !== 'number') {
-      showError('Địa điểm thiếu tọa độ', 'Vui lòng chọn một gợi ý hợp lệ từ danh sách.');
+  const applyManualDriverLocation = (place: {
+    name: string;
+    address: string;
+    placeId: string;
+    latitude?: number;
+    longitude?: number;
+  }) => {
+    if (
+      typeof place.latitude !== "number" ||
+      typeof place.longitude !== "number"
+    ) {
+      showError(
+        "Địa điểm thiếu tọa độ",
+        "Vui lòng chọn một gợi ý hợp lệ từ danh sách.",
+      );
       return;
     }
     setDriverLocation({
@@ -218,34 +411,324 @@ export default function DriverDashboard() {
       lng: place.longitude,
     });
     setLocationAccessBlocked(false);
-    showSuccess('Đã dùng vị trí thủ công', 'Bạn có thể bật nhận chuyến bằng vị trí này.');
+    showSuccess(
+      "Đã dùng vị trí thủ công",
+      "Bạn có thể bật nhận chuyến bằng vị trí này.",
+    );
+  };
+
+  const dispatchByBookingId = useMemo(() => {
+    const map = new Map<string, BookingDispatch>();
+    pendingDispatches.forEach((dispatch) => {
+      if (dispatch.bookingId) map.set(dispatch.bookingId, dispatch);
+    });
+    return map;
+  }, [pendingDispatches]);
+
+  const nearbyBookings = useMemo(() => {
+    const byId = new Map<string, Booking>();
+    pendingDispatches.forEach((dispatch) => {
+      if (
+        dispatch.booking &&
+        !hiddenNearbyBookingIds.has(dispatch.booking.id) &&
+        !serverSkippedBookingIds.has(dispatch.booking.id)
+      ) {
+        byId.set(dispatch.booking.id, dispatch.booking);
+      }
+    });
+    visibleBookings.forEach((booking) => {
+      if (
+        canShowAsNearby(booking) &&
+        !hiddenNearbyBookingIds.has(booking.id) &&
+        !serverSkippedBookingIds.has(booking.id)
+      ) {
+        byId.set(booking.id, booking);
+      }
+    });
+
+    const items = [...byId.values()];
+    if (!driverLocation) return items.slice(0, 8);
+
+    return items
+      .filter((booking) => {
+        if (
+          typeof booking.pickupLat !== "number" ||
+          typeof booking.pickupLng !== "number"
+        )
+          return true;
+        const distance = getDistanceMeters(
+          { latitude: driverLocation.lat, longitude: driverLocation.lng },
+          { latitude: booking.pickupLat, longitude: booking.pickupLng },
+        );
+        return distance <= pickupRadiusKm * 1000;
+      })
+      .sort((a, b) => {
+        const aDistance =
+          typeof a.pickupLat === "number" && typeof a.pickupLng === "number"
+            ? getDistanceMeters(
+                { latitude: driverLocation.lat, longitude: driverLocation.lng },
+                { latitude: a.pickupLat, longitude: a.pickupLng },
+              )
+            : Infinity;
+        const bDistance =
+          typeof b.pickupLat === "number" && typeof b.pickupLng === "number"
+            ? getDistanceMeters(
+                { latitude: driverLocation.lat, longitude: driverLocation.lng },
+                { latitude: b.pickupLat, longitude: b.pickupLng },
+              )
+            : Infinity;
+        return aDistance - bDistance;
+      })
+      .slice(0, 8);
+  }, [
+    driverLocation,
+    hiddenNearbyBookingIds,
+    pendingDispatches,
+    pickupRadiusKm,
+    serverSkippedBookingIds,
+    visibleBookings,
+  ]);
+
+  const stopBookingAlertFeedback = useCallback(async () => {
+    Vibration.cancel();
+    if (bookingAlertStopRef.current) {
+      clearTimeout(bookingAlertStopRef.current);
+      bookingAlertStopRef.current = null;
+    }
+    try {
+      bookingAlertPlayer.pause();
+      await bookingAlertPlayer.seekTo(0);
+    } catch {
+      // Audio feedback is best-effort; notification/realtime UI still works.
+    }
+  }, [bookingAlertPlayer]);
+
+  const playBookingAlertFeedback = useCallback(async () => {
+    Vibration.cancel();
+    Vibration.vibrate([0, 450, 220, 450, 220, 650], false);
+    try {
+      await setAudioModeAsync({ playsInSilentMode: true });
+      bookingAlertPlayer.loop = false;
+      bookingAlertPlayer.volume = 0.78;
+      await bookingAlertPlayer.seekTo(0);
+      bookingAlertPlayer.play();
+      if (bookingAlertStopRef.current) clearTimeout(bookingAlertStopRef.current);
+      bookingAlertStopRef.current = setTimeout(() => {
+        stopBookingAlertFeedback().catch(() => undefined);
+      }, 4200);
+    } catch (error) {
+      if (__DEV__) console.warn("Không thể phát âm báo booking mới", error);
+    }
+  }, [bookingAlertPlayer, stopBookingAlertFeedback]);
+
+  useEffect(() => () => {
+    stopBookingAlertFeedback().catch(() => undefined);
+  }, [stopBookingAlertFeedback]);
+
+  useEffect(() => {
+    const currentIds = new Set(nearbyBookings.map((booking) => booking.id));
+    if (!nearbyAlertReadyRef.current) {
+      knownNearbyBookingIdsRef.current = currentIds;
+      nearbyAlertReadyRef.current = true;
+      return;
+    }
+
+    const newInstantBooking = nearbyBookings.find((booking) => {
+      if (knownNearbyBookingIdsRef.current.has(booking.id)) return false;
+      return booking.status === BOOKING_STATUS.SEARCHING_DRIVER && booking.bookingMode !== "scheduled";
+    });
+
+    knownNearbyBookingIdsRef.current = currentIds;
+    if (!newInstantBooking || !isOnline || activeTrip) return;
+
+    playBookingAlertFeedback().catch(() => undefined);
+    showInfo("Có chuyến mới gần bạn", `${newInstantBooking.pickupLocation} → ${newInstantBooking.dropoffLocation}`);
+  }, [activeTrip, isOnline, nearbyBookings, playBookingAlertFeedback]);
+  const acceptNearbyBooking = async (booking: Booking) => {
+    if (!user) return;
+    try {
+      await stopBookingAlertFeedback();
+      setActionLoadingId(booking.id);
+      const dispatch = dispatchByBookingId.get(booking.id);
+      const updated = dispatch
+        ? await apiClient.acceptBookingDispatch(dispatch)
+        : booking.bookingMode === "scheduled" ||
+            booking.status === BOOKING_STATUS.SCHEDULED_PENDING_DRIVER
+          ? await apiClient.acceptScheduledBooking(booking.id)
+          : await apiClient.acceptBooking(booking.id, user.id);
+      setLastSkippedBooking(null);
+      setBookings((current) => [
+        updated,
+        ...current.filter((item) => item.id !== updated.id),
+      ]);
+      setVisibleBookings((current) =>
+        current.filter((item) => item.id !== updated.id),
+      );
+      setPendingDispatches((current) =>
+        current.filter((item) => item.bookingId !== updated.id),
+      );
+      setFollowDriver(true);
+      showSuccess(
+        "Đã nhận chuyến",
+        "Dashboard sẽ chuyển sang chế độ theo dõi chuyến đi.",
+      );
+      loadData(true);
+    } catch (error: any) {
+      showError("Không thể nhận chuyến", error.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const rejectNearbyBooking = async (booking: Booking) => {
+    try {
+      await stopBookingAlertFeedback();
+      setActionLoadingId(booking.id);
+      const dispatch = dispatchByBookingId.get(booking.id);
+      if (dispatch) {
+        await apiClient.rejectBookingDispatch(dispatch.id);
+        setPendingDispatches((current) =>
+          current.filter((item) => item.id !== dispatch.id),
+        );
+        showSuccess(
+          "Đã từ chối chuyến",
+          "Chuyến này sẽ không còn hiển thị trong danh sách gợi ý của bạn.",
+        );
+      } else {
+        if (user)
+          await apiClient.skipBookingForDriver(
+            user.id,
+            booking.id,
+            "dashboard_dismissed",
+          );
+        setServerSkippedBookingIds(
+          (current) => new Set([...current, booking.id]),
+        );
+        setHiddenNearbyBookingIds(
+          (current) => new Set([...current, booking.id]),
+        );
+        showInfo(
+          "Đã bỏ qua chuyến",
+          "Chuyến này sẽ không hiện lại sau khi bạn refresh dashboard.",
+        );
+      }
+    } catch (error: any) {
+      showError("Không thể từ chối chuyến", error.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const restoreSkippedBooking = async (booking: Booking) => {
+    if (!user) return;
+    try {
+      setActionLoadingId(booking.id);
+      await apiClient.restoreSkippedBookingForDriver(user.id, booking.id);
+      setServerSkippedBookingIds((current) => {
+        const next = new Set(current);
+        next.delete(booking.id);
+        return next;
+      });
+      setHiddenNearbyBookingIds((current) => {
+        const next = new Set(current);
+        next.delete(booking.id);
+        return next;
+      });
+      setLastSkippedBooking(null);
+      showSuccess(
+        "Đã hoàn tác",
+        "Chuyến vừa bỏ qua đã được hiển thị lại nếu còn khả dụng.",
+      );
+      loadData(true);
+    } catch (error: any) {
+      showError("Không thể hoàn tác", error.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+  const pauseReceiving = async (minutes: 15 | 30) => {
+    if (!user) return;
+    const until = new Date(Date.now() + minutes * 60 * 1000);
+    try {
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+      setPauseUntil(until.toISOString());
+      if (isOnline) {
+        const updated = await apiClient.setDriverOnline(
+          user.id,
+          false,
+          driverLocation ?? undefined,
+          until.toISOString(),
+        );
+        setIsOnline(updated.isOnline);
+        setVerificationStatus(updated.verificationStatus);
+      }
+      showInfo(
+        "Đã bật tạm nghỉ",
+        `Bạn sẽ tạm dừng nhận chuyến trong ${minutes} phút.`,
+      );
+      pauseTimerRef.current = setTimeout(
+        async () => {
+          const location = await getCurrentDeviceLocation().catch(
+            () => driverLocation,
+          );
+          if (!location) return;
+          apiClient
+            .setDriverOnline(user.id, true, location)
+            .then((updated) => {
+              setIsOnline(updated.isOnline);
+              setVerificationStatus(updated.verificationStatus);
+              setPauseUntil(null);
+              setDriverLocation(location);
+              showSuccess(
+                "Đã bật lại nhận chuyến",
+                "Thời gian tạm nghỉ đã kết thúc.",
+              );
+            })
+            .catch(() => undefined);
+        },
+        minutes * 60 * 1000,
+      );
+    } catch (error: any) {
+      showError("Không thể bật tạm nghỉ", error.message);
+    }
   };
 
   const stats = useMemo(() => {
-    const completed = bookings.filter((booking) => booking.status === BOOKING_STATUS.TRIP_COMPLETED);
-    const active = bookings.filter((booking) => VISIBLE_ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
-    const cancelledByDriver = bookings.filter((booking) => booking.status === BOOKING_STATUS.DRIVER_CANCELLED);
-    const accepted = bookings.filter((booking) => booking.driverId === user?.id);
-    const revenue = completed.reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
-    const distance = completed.reduce((sum, booking) => sum + (booking.distance ?? 0), 0);
+    const completed = bookings.filter(
+      (booking) => booking.status === BOOKING_STATUS.TRIP_COMPLETED,
+    );
+    const active = bookings.filter((booking) =>
+      VISIBLE_ACTIVE_BOOKING_STATUSES.includes(booking.status as any),
+    );
+    const revenue = completed.reduce(
+      (sum, booking) =>
+        sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0),
+      0,
+    );
     const todayKey = new Date().toISOString().slice(0, 10);
-    const todayCompleted = completed.filter((booking) => booking.date === todayKey);
-    const todayRevenue = todayCompleted.reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
+    const todayCompleted = completed.filter(
+      (booking) => booking.date === todayKey,
+    );
+    const todayRevenue = todayCompleted.reduce(
+      (sum, booking) =>
+        sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0),
+      0,
+    );
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     const weekRevenue = completed
-      .filter((booking) => new Date(booking.date || booking.createdAt) >= sevenDaysAgo)
-      .reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
-    const monthCompleted = completed.filter((booking) => new Date(booking.date || booking.createdAt) >= monthStart);
-    const monthRevenue = monthCompleted.reduce((sum, booking) => sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0), 0);
-    const monthDistance = monthCompleted.reduce((sum, booking) => sum + (booking.distance ?? 0), 0);
-    const averageTrip = completed.length ? Math.round(revenue / completed.length) : 0;
-    const averageRating = ratings.length ? ratings.reduce((sum, item) => sum + item.rating, 0) / ratings.length : 0;
-    const acceptanceRate = bookings.length ? Math.round((accepted.length / bookings.length) * 100) : 0;
-    const rejectionRate = bookings.length ? Math.round((cancelledByDriver.length / bookings.length) * 100) : 0;
+      .filter(
+        (booking) =>
+          new Date(booking.date || booking.createdAt) >= sevenDaysAgo,
+      )
+      .reduce(
+        (sum, booking) =>
+          sum + (booking.actualPrice ?? booking.estimatedPrice ?? 0),
+        0,
+      );
+    const averageRating = ratings.length
+      ? ratings.reduce((sum, item) => sum + item.rating, 0) / ratings.length
+      : 0;
     return {
       completed: completed.length,
       active: active.length,
@@ -253,67 +736,55 @@ export default function DriverDashboard() {
       todayRevenue,
       todayCompleted: todayCompleted.length,
       weekRevenue,
-      averageTrip,
       averageRating,
       ratingCount: ratings.length,
-      acceptanceRate,
-      rejectionRate,
-      distance,
-      monthRevenue,
-      monthDistance,
-      monthTrips: monthCompleted.length,
     };
-  }, [bookings, ratings, user?.id]);
-  const activeTrip = bookings.find((booking) => VISIBLE_ACTIVE_BOOKING_STATUSES.includes(booking.status as any));
+  }, [bookings, ratings]);
 
-  // Chuyến đặt trước hôm nay (chưa bắt đầu)
   const todayScheduledBooking = useMemo(() => {
     const now = new Date();
-    return [...bookings]
-      .filter((booking) => {
-        if (!booking.scheduledStartAt) return false;
-        if (
-          ![
-            BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED,
-            BOOKING_STATUS.SCHEDULED_UPCOMING,
-          ].includes(booking.status as any)
-        ) {
-          return false;
-        }
-        const tripDate = new Date(booking.scheduledStartAt);
-        return (
-          tripDate.getFullYear() === now.getFullYear() &&
-          tripDate.getMonth() === now.getMonth() &&
-          tripDate.getDate() === now.getDate() &&
-          tripDate.getTime() > now.getTime()
-        );
-      })
-      .sort(
-        (a, b) =>
-          new Date(a.scheduledStartAt!).getTime() -
-          new Date(b.scheduledStartAt!).getTime(),
-      )[0] ?? null;
+    return (
+      [...bookings]
+        .filter((booking) => {
+          if (!booking.scheduledStartAt) return false;
+          if (
+            ![
+              BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED,
+              BOOKING_STATUS.SCHEDULED_UPCOMING,
+            ].includes(booking.status as any)
+          )
+            return false;
+          const tripDate = new Date(booking.scheduledStartAt);
+          return (
+            tripDate.getFullYear() === now.getFullYear() &&
+            tripDate.getMonth() === now.getMonth() &&
+            tripDate.getDate() === now.getDate() &&
+            tripDate.getTime() > now.getTime()
+          );
+        })
+        .sort(
+          (a, b) =>
+            new Date(a.scheduledStartAt!).getTime() -
+            new Date(b.scheduledStartAt!).getTime(),
+        )[0] ?? null
+    );
   }, [bookings]);
 
-  const chart = useMemo(() => {
-    const buckets = buildBuckets(mode);
-    bookings.forEach((booking) => {
-      const date = new Date(booking.date || booking.createdAt);
-      const label = getBucketLabel(date, mode);
-      const bucket = buckets.find((item) => item.key === label);
-      if (!bucket) return;
-      bucket.trips += 1;
-      bucket.revenue += booking.actualPrice ?? booking.estimatedPrice ?? 0;
-    });
-    const maxValue = Math.max(...buckets.map((item) => item.revenue), 1);
-    return buckets.map((bucket) => ({ ...bucket, height: Math.max(8, Math.round((bucket.revenue / maxValue) * 132)) }));
-  }, [bookings, mode]);
   const recentBookings = useMemo(() => bookings.slice(0, 5), [bookings]);
+
   const paymentSummary = useMemo(() => {
-    const cash = bookings.filter((booking) => booking.paymentMethod === 'cash');
-    const transfer = bookings.filter((booking) => booking.paymentMethod === 'bank_transfer' || booking.paymentMethod === 'vietqr');
-    const pendingReview = bookings.filter((booking) => ['pending', 'submitted'].includes(booking.paymentStatus ?? 'unpaid'));
-    const paid = bookings.filter((booking) => ['paid', 'driver_verified'].includes(booking.paymentStatus ?? 'unpaid'));
+    const cash = bookings.filter((booking) => booking.paymentMethod === "cash");
+    const transfer = bookings.filter(
+      (booking) =>
+        booking.paymentMethod === "bank_transfer" ||
+        booking.paymentMethod === "vietqr",
+    );
+    const pendingReview = bookings.filter((booking) =>
+      ["pending", "submitted"].includes(booking.paymentStatus ?? "unpaid"),
+    );
+    const paid = bookings.filter((booking) =>
+      ["paid", "driver_verified"].includes(booking.paymentStatus ?? "unpaid"),
+    );
     return {
       cash: cash.length,
       transfer: transfer.length,
@@ -321,13 +792,6 @@ export default function DriverDashboard() {
       paid: paid.length,
     };
   }, [bookings]);
-
-  const summaryCards = [
-    { label: 'Doanh thu', value: money(stats.revenue), icon: <Wallet size={20} color={colors.primary} /> },
-    { label: 'Hoàn thành', value: String(stats.completed), icon: <Briefcase size={20} color={colors.success} /> },
-    { label: 'Đang xử lý', value: String(stats.active), icon: <BarChart3 size={20} color={colors.info} /> },
-    { label: 'Rating', value: stats.ratingCount ? stats.averageRating.toFixed(1) : '--', icon: <Star size={20} color={colors.warning} /> },
-  ];
 
   if (locationAccessBlocked && !driverLocation) {
     return (
@@ -346,335 +810,274 @@ export default function DriverDashboard() {
   }
 
   return (
-    <Screen scroll refreshing={refreshing || loading} onRefresh={() => loadData(true)}>
-      <ActiveTripSheet
-        booking={activeTrip}
-        role="driver"
-        onOpenDetail={(id) => router.push({ pathname: '/(driver)/booking-detail' as any, params: { id } })}
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <DriverMapView
+        location={driverLocation}
+        isOnline={isOnline}
+        activeTrip={activeTrip}
+        nearbyBookings={nearbyBookings}
+        pickupRadiusKm={pickupRadiusKm}
+        followDriver={followDriver}
+        onCenterPress={() => setFollowDriver(true)}
+        onBookingPress={(booking) =>
+          router.push({
+            pathname: "/(driver)/booking-detail" as any,
+            params: { id: booking.id },
+          })
+        }
+        onRouteStateChange={setRouteState}
       />
 
-      {/* Banner nhắc nhở chuyến đặt trước hôm nay */}
-      {!!todayScheduledBooking && (
+      <LinearGradient
+        pointerEvents="none"
+        colors={
+          isDark
+            ? ["rgba(15,23,42,0.88)", "rgba(15,23,42,0.38)", "rgba(15,23,42,0)"]
+            : [
+                "rgba(248,250,252,0.92)",
+                "rgba(248,250,252,0.38)",
+                "rgba(248,250,252,0)",
+              ]
+        }
+        locations={[0, 0.58, 1]}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: insets.top + 146,
+        }}
+      />
+
+      <View
+        style={{
+          position: "absolute",
+          top: insets.top + spacing.sm,
+          left: spacing.lg,
+          right: spacing.lg,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: spacing.md,
+        }}
+      >
         <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => router.push({ pathname: '/(driver)/booking-detail' as any, params: { id: todayScheduledBooking.id } })}
+          activeOpacity={0.84}
+          onPress={() => router.push("/(driver)/profile" as any)}
           style={{
-            backgroundColor: colors.warning + '18',
-            borderTopWidth: 1,
-            borderBottomWidth: 1,
-            borderColor: colors.warning,
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.md,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.md,
-            marginBottom: spacing.lg,
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+            paddingVertical: spacing.sm,
+            paddingHorizontal: spacing.md,
+            borderRadius: borderRadius.full,
+            backgroundColor: isDark
+              ? "rgba(15,23,42,0.92)"
+              : "rgba(255,255,255,0.94)",
+            ...shadows.md,
           }}
         >
-          <CalendarClock size={26} color={colors.warning} />
+          <UserCircle size={28} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.warning, ...fontForWeight('900'), fontSize: 14 }}>
-              Bạn có chuyến đặt trước hôm nay!
+            <Text
+              numberOfLines={1}
+              style={{
+                color: colors.text,
+                fontSize: fontSize.sm,
+                ...fontForWeight("900"),
+              }}
+            >
+              {user?.fullName ?? "Tài xế Daigo"}
             </Text>
-            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-              {new Date(todayScheduledBooking.scheduledStartAt!).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • Đi đón khách tại {todayScheduledBooking.pickupLocation?.split(',')[0] ?? '...'}
+            <Text
+              numberOfLines={1}
+              style={{ color: colors.textSecondary, fontSize: 11 }}
+            >
+              {driverLocation?.label ?? "Đang xác định vị trí"}
             </Text>
           </View>
-          <Text style={{ color: colors.warning, ...fontForWeight('700'), fontSize: 13 }}>Xem ›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          activeOpacity={0.84}
+          onPress={() => router.push("/(driver)/notifications" as any)}
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: 23,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: isDark
+              ? "rgba(15,23,42,0.92)"
+              : "rgba(255,255,255,0.94)",
+            ...shadows.md,
+          }}
+        >
+          <Bell size={21} color={colors.text} />
+          {unreadNotifications > 0 && (
+            <View
+              style={{
+                position: "absolute",
+                top: 7,
+                right: 6,
+                minWidth: 17,
+                height: 17,
+                borderRadius: 9,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.error,
+                paddingHorizontal: 4,
+              }}
+            >
+              <Text
+                style={{ color: "#fff", fontSize: 9, ...fontForWeight("900") }}
+              >
+                {Math.min(unreadNotifications, 99)}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <View
+        style={{ position: "absolute", top: insets.top + 70, left: spacing.lg }}
+      >
+        <DriverStatusPill
+          enabled={isOnline}
+          loading={onlineLoading}
+          verificationStatus={verificationStatus}
+          onPress={toggleOnline}
+        />
+      </View>
+
+      {!!activeTrip && (
+        <TouchableOpacity
+          activeOpacity={0.86}
+          onPress={() =>
+            router.push({
+              pathname: "/(driver)/booking-detail" as any,
+              params: { id: activeTrip.id },
+            })
+          }
+          style={{
+            position: "absolute",
+            top: insets.top + 132,
+            left: spacing.lg,
+            right: spacing.lg,
+            paddingVertical: spacing.sm,
+            paddingHorizontal: spacing.md,
+            borderRadius: borderRadius.lg,
+            backgroundColor: colors.primary,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+            ...shadows.md,
+          }}
+        >
+          <MapPin size={18} color="#fff" />
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: fontSize.sm,
+                ...fontForWeight("900"),
+              }}
+            >
+              Đang có chuyến cần xử lý
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={{ color: "rgba(255,255,255,0.86)", fontSize: 11 }}
+            >
+              {activeTrip.pickupLocation} •{" "}
+              {money(activeTrip.actualPrice ?? activeTrip.estimatedPrice ?? 0)}
+            </Text>
+          </View>
         </TouchableOpacity>
       )}
 
-      <View style={{ paddingHorizontal: spacing.lg }}>
-        <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('800'), marginBottom: spacing.xs, marginTop: spacing.md }}>
-          Thống kê tài xế
-        </Text>
-        <Text style={{ color: colors.textSecondary, marginBottom: spacing.lg }}>
-          Dữ liệu lấy trực tiếp từ booking, xe và bài viết trong database.
-        </Text>
-      </View>
-
-      <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.primaryLight }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
-            <LocateFixed size={22} color="white" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, ...fontForWeight('900')}}>GPS tài xế</Text>
-            <Text numberOfLines={2} style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
-              {driverLocation?.label ?? 'Cho phép GPS để chỉ đường đến điểm đón chính xác hơn.'}
-            </Text>
-            <Text style={{ color: isOnline ? colors.success : colors.textTertiary, ...fontForWeight('800'), marginTop: spacing.xs }}>
-              {isOnline ? 'Đang online nhận chuyến' : 'Đang offline'}
-            </Text>
-          </View>
-        </View>
-        <DriverAvailabilityToggle
-          enabled={isOnline}
-          loading={onlineLoading}
-          onPress={toggleOnline}
-        />
-      </Card>
-
-      {loading && (
-        <>
-          <CardSkeleton style={{ marginBottom: spacing.lg }} />
-          <CardSkeleton style={{ marginBottom: spacing.lg }} />
-        </>
-      )}
-
-      {!loading && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.lg }}>
-        {summaryCards.map((item) => (
-          <Card key={item.label} style={{ width: '47%', minHeight: 104 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
-              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>{item.label}</Text>
-              {item.icon}
-            </View>
-            <Text style={{ color: colors.text, fontSize: 22, ...fontForWeight('900')}}>{item.value}</Text>
-          </Card>
-        ))}
-      </View>}
-
-      {!loading && (
-        <Card style={{ marginBottom: spacing.lg }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
-            <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Chuyến đi gần đây</Text>
-            <Button
-              label="Xem tất cả"
-              size="sm"
-              variant="outline"
-              onPress={() => router.push('/(driver)/bookings' as any)}
-            />
-          </View>
-          {recentBookings.length === 0 ? (
-            <View style={{ padding: spacing.lg, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
-              <Text style={{ color: colors.text, ...fontForWeight('900'), marginBottom: spacing.xs }}>Chưa có chuyến đi</Text>
-              <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>
-                Khi bạn nhận hoặc hoàn thành chuyến, danh sách gần đây sẽ hiển thị tại đây.
-              </Text>
-            </View>
-          ) : (
-            <View style={{ gap: spacing.md }}>
-              {recentBookings.map((booking) => {
-                const statusInfo = getBookingStatusInfo(booking.status);
-                const amount = booking.actualPrice ?? booking.estimatedPrice ?? 0;
-                return (
-                  <TouchableOpacity
-                    key={booking.id}
-                    activeOpacity={0.82}
-                    onPress={() => router.push({ pathname: '/(driver)/booking-detail' as any, params: { id: booking.id } })}
-                    style={{
-                      padding: spacing.md,
-                      borderRadius: borderRadius.lg,
-                      backgroundColor: colors.surfaceAlt,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.sm }}>
-                      <Text numberOfLines={1} style={{ flex: 1, color: colors.text, ...fontForWeight('900')}}>
-                        {booking.pickupLocation}
-                      </Text>
-                      <Text style={{ color: colors.primary, ...fontForWeight('900')}}>{money(amount)}</Text>
-                    </View>
-                    <Text numberOfLines={1} style={{ color: colors.textSecondary, marginBottom: spacing.sm }}>
-                      đến {booking.dropoffLocation}
-                    </Text>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md }}>
-                      <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs }}>
-                        {booking.time} - {formatVietnamDate(booking.date)}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('800')}}>
-                        {statusInfo.label}
-                      </Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm }}>
-                      <PaymentStatusBadge status={booking.paymentStatus} />
-                      <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, ...fontForWeight('700')}}>
-                        {getPaymentMethodLabel(booking.paymentMethod)}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </Card>
-      )}
-
-      {!loading && (
-        <Card style={{ marginBottom: spacing.lg }}>
-          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginBottom: spacing.md }}>
-            Thống kê thanh toán
+      {loading && !refreshing && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: insets.top + 192,
+            alignSelf: "center",
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+            borderRadius: borderRadius.full,
+            backgroundColor: isDark
+              ? "rgba(15,23,42,0.9)"
+              : "rgba(255,255,255,0.92)",
+            ...shadows.sm,
+          }}
+        >
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text
+            style={{
+              color: colors.text,
+              fontSize: fontSize.xs,
+              ...fontForWeight("800"),
+            }}
+          >
+            Đang tải dashboard
           </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            {[
-              { label: 'Tiền mặt', value: paymentSummary.cash, color: colors.success },
-              { label: 'VietQR/CK', value: paymentSummary.transfer, color: colors.primary },
-              { label: 'Chờ xác nhận', value: paymentSummary.pendingReview, color: colors.warning },
-              { label: 'Đã xác nhận', value: paymentSummary.paid, color: colors.info },
-            ].map((item, index) => (
-              <View
-                key={item.label}
-                style={{
-                  width: '50%',
-                  paddingVertical: spacing.md,
-                  paddingHorizontal: spacing.sm,
-                  borderBottomWidth: index < 2 ? 1 : 0,
-                  borderBottomColor: colors.border,
-                }}
-              >
-                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{item.label}</Text>
-                <Text style={{ color: item.color, ...fontForWeight('900'), fontSize: 22, marginTop: spacing.xs }}>{item.value}</Text>
-              </View>
-            ))}
-          </View>
-        </Card>
-      )}
-
-      {!loading && (
-        <Card style={{ marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.primaryLight }}>
-          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginBottom: spacing.md }}>
-            Doanh thu theo ngày
-          </Text>
-          <View style={{ flexDirection: 'row', gap: spacing.md }}>
-            {[
-              { label: 'Hôm nay', value: money(stats.todayRevenue), sub: `${stats.todayCompleted} chuyến hoàn thành` },
-              { label: '7 ngày', value: money(stats.weekRevenue), sub: 'Doanh thu tuần này' },
-              { label: 'TB/chuyến', value: money(stats.averageTrip), sub: 'Giá trị trung bình' },
-            ].map((item) => (
-              <View key={item.label} style={{ flex: 1, padding: spacing.md, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt }}>
-                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{item.label}</Text>
-                <Text numberOfLines={1} style={{ color: colors.text, ...fontForWeight('900'), marginTop: spacing.xs }}>{item.value}</Text>
-                <Text numberOfLines={2} style={{ color: colors.textTertiary, fontSize: 10, marginTop: spacing.xs }}>{item.sub}</Text>
-              </View>
-            ))}
-          </View>
-        </Card>
-      )}
-
-      {!loading && (
-        <Card style={{ marginBottom: spacing.lg }}>
-          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900'), marginBottom: spacing.md }}>
-            Hiệu suất tài xế
-          </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
-            {[
-              { label: 'Tỷ lệ nhận', value: `${stats.acceptanceRate}%`, sub: 'Trong 200 chuyến gần nhất', icon: <Percent size={18} color={colors.success} /> },
-              { label: 'Tỷ lệ từ chối', value: `${stats.rejectionRate}%`, sub: 'Chuyến tài xế hủy', icon: <Percent size={18} color={colors.error} /> },
-              { label: 'Km tháng này', value: `${stats.monthDistance.toFixed(1)} km`, sub: `${stats.monthTrips} chuyến hoàn thành`, icon: <Route size={18} color={colors.info} /> },
-              { label: 'Doanh thu tháng', value: money(stats.monthRevenue), sub: 'Từ chuyến hoàn thành', icon: <TrendingUp size={18} color={colors.primary} /> },
-            ].map((item) => (
-              <View
-                key={item.label}
-                style={{
-                  width: '47%',
-                  padding: spacing.md,
-                  borderRadius: borderRadius.lg,
-                  backgroundColor: colors.surfaceAlt,
-                }}
-              >
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm }}>
-                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight('700')}}>{item.label}</Text>
-                  {item.icon}
-                </View>
-                <Text numberOfLines={1} style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>{item.value}</Text>
-                <Text numberOfLines={2} style={{ color: colors.textTertiary, fontSize: 10, marginTop: spacing.xs }}>{item.sub}</Text>
-              </View>
-            ))}
-          </View>
-        </Card>
-      )}
-
-      {!loading && (
-        <Card style={{ marginBottom: spacing.lg, backgroundColor: colors.surfaceAlt }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: colors.warning, alignItems: 'center', justifyContent: 'center' }}>
-              <Star size={26} color="#ffffff" fill="#ffffff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>
-                {stats.ratingCount ? `${stats.averageRating.toFixed(1)}/5` : 'Chưa có đánh giá'}
-              </Text>
-              <Text style={{ color: colors.textSecondary, marginTop: spacing.xs }}>
-                {stats.ratingCount ? `${stats.ratingCount} đánh giá từ khách hàng` : 'Điểm đánh giá sẽ hiển thị sau chuyến hoàn thành đầu tiên.'}
-              </Text>
-            </View>
-            <Button
-              label="Xem"
-              size="sm"
-              variant="outline"
-              onPress={() => router.push('/(driver)/profile' as any)}
-            />
-          </View>
-        </Card>
-      )}
-
-      {!loading && <Card style={{ marginBottom: spacing.lg }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg }}>
-          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800')}}>Biểu đồ doanh thu</Text>
-          <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-            {[
-              { key: 'day', label: 'Ngày' },
-              { key: 'month', label: 'Tháng' },
-              { key: 'year', label: 'Năm' },
-            ].map((item) => (
-              <TouchableOpacity
-                key={item.key}
-                onPress={() => setMode(item.key as RangeMode)}
-                style={{
-                  paddingHorizontal: spacing.sm,
-                  paddingVertical: spacing.xs,
-                  borderRadius: borderRadius.full,
-                  backgroundColor: mode === item.key ? colors.primary : colors.surfaceAlt,
-                }}
-              >
-                <Text style={{ color: mode === item.key ? 'white' : colors.text, fontSize: fontSize.xs, ...fontForWeight('700')}}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </View>
-
-        <View style={{ height: 168, flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm }}>
-          {chart.map((bucket) => (
-            <View key={bucket.key} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end' }}>
-              <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: 10, marginBottom: spacing.xs }}>
-                {bucket.trips} chuyến
-              </Text>
-              <View
-                style={{
-                  width: '76%',
-                  height: bucket.height,
-                  borderRadius: borderRadius.md,
-                  backgroundColor: bucket.revenue > 0 ? colors.primary : colors.surfaceAlt,
-                }}
-              />
-              <Text numberOfLines={1} style={{ color: colors.textTertiary, fontSize: 10, marginTop: spacing.xs }}>
-                {bucket.label}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </Card>}
-
-      {!loading && <Card>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
-          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800')}}>Hoạt động nội dung</Text>
-          <Newspaper size={20} color={colors.primary} />
-        </View>
-        <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>
-          Bạn có {posts.length} bài viết, {posts.reduce((sum, post) => sum + post.likes, 0)} lượt thích và {posts.reduce((sum, post) => sum + post.comments, 0)} bình luận.
-        </Text>
-      </Card>}
-
-      {!loading && bookings.length === 0 && vehicles.length === 0 && posts.length === 0 && (
-        <EmptyState
-          icon={<BarChart3 size={48} color={colors.primary} />}
-          title="Chưa có dữ liệu"
-          description="Khi có xe, bài viết hoặc chuyến đi, thống kê sẽ tự cập nhật từ database."
-        />
       )}
-    </Screen>
+
+      <ActiveTripSheet
+        booking={activeTrip}
+        role="driver"
+        onOpenDetail={(id) =>
+          router.push({
+            pathname: "/(driver)/booking-detail" as any,
+            params: { id },
+          })
+        }
+      />
+
+      <DriverDashboardSheet
+        loading={loading}
+        refreshing={refreshing}
+        actionLoadingId={actionLoadingId}
+        stats={stats}
+        recentBookings={recentBookings}
+        nearbyBookings={nearbyBookings}
+        activeTrip={activeTrip}
+        lastSkippedBooking={lastSkippedBooking}
+        todayScheduledBooking={todayScheduledBooking}
+        routeState={routeState}
+        pickupRadiusKm={pickupRadiusKm}
+        pauseUntil={pauseUntil}
+        paymentSummary={paymentSummary}
+        onRefresh={() => loadData(true)}
+        onOpenBookings={() => router.push("/(driver)/bookings" as any)}
+        onOpenBookingDetail={(id) =>
+          router.push({
+            pathname: "/(driver)/booking-detail" as any,
+            params: { id },
+          })
+        }
+        onOpenSchedule={() => router.push("/(driver)/schedule" as any)}
+        onOpenRevenue={() => router.push("/(driver)/revenue" as any)}
+        onOpenChat={() => router.push("/(driver)/chat" as any)}
+        onAcceptBooking={acceptNearbyBooking}
+        onRejectBooking={rejectNearbyBooking}
+        onRestoreSkippedBooking={restoreSkippedBooking}
+        onChangePickupRadius={setPickupRadiusKm}
+        onPauseReceiving={pauseReceiving}
+      />
+    </View>
   );
 }
+
+
+
+
+
+
+

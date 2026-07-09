@@ -83,7 +83,12 @@ serve(async (req: Request) => {
       payload.notificationKind === 'incoming_call' ||
       String(title).toLowerCase().includes('cuộc gọi') ||
       String(message).toLowerCase().includes('đang gọi cho bạn');
-    const channelId = isIncomingCall ? 'calls' : 'default';
+    const isBookingCreated =
+      payload.type === 'booking_created' ||
+      payload.notificationKind === 'booking_created' ||
+      String(title).toLowerCase().includes('chuyến đặt trước mới') ||
+      String(title).toLowerCase().includes('yêu cầu đặt xe mới');
+    const channelId = isIncomingCall ? 'calls' : isBookingCreated ? 'bookings' : 'default';
     const messages = tokens
       .map((t) => t.token)
       .filter(isExpoPushToken)
@@ -93,7 +98,7 @@ serve(async (req: Request) => {
         body: message || '',
         data: {
           ...payload,
-          notificationKind: isIncomingCall ? 'incoming_call' : payload.type ?? 'system',
+          notificationKind: isIncomingCall ? 'incoming_call' : isBookingCreated ? 'booking_created' : payload.type ?? 'system',
         },
         sound: 'default',
         priority: 'high',
@@ -133,3 +138,4 @@ serve(async (req: Request) => {
     );
   }
 });
+

@@ -13,7 +13,7 @@ import { paymentService } from '@/services/paymentService';
 import { useTheme } from '@/theme';
 import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Booking, Payment } from '@/types';
-import { calculateBookingPrice, formatCurrency, formatVietnamDate } from '@/utils/helpers';
+import { calculateBookingPrice, calculateWaitingMinutes, formatCurrency, formatVietnamDate } from '@/utils/helpers';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 const paymentMethodLabel = {
@@ -54,8 +54,9 @@ const escapeHtml = (value?: string | number | null) =>
 const buildReceiptHtml = (booking: Booking, payment: Payment | null) => {
   const total = booking.actualPrice ?? booking.estimatedPrice;
   const pricePerKm = booking.distance ? Math.round(total / Math.max(booking.distance, 1)) : booking.vehicle?.pricePerKm;
+  const waitingMinutes = calculateWaitingMinutes(booking.arrivedAt, booking.startedAt);
   const quote = booking.distance && booking.vehicle?.pricePerKm
-    ? calculateBookingPrice(booking.distance, booking.vehicle.pricePerKm, booking.passengers, booking.time)
+    ? calculateBookingPrice(booking.distance, booking.vehicle.pricePerKm, booking.passengers, booking.time, waitingMinutes)
     : null;
   const paymentStatus = payment?.paymentStatus ?? booking.paymentStatus;
   const paymentMethod = payment?.paymentMethod ?? booking.paymentMethod;
@@ -85,9 +86,8 @@ const buildReceiptHtml = (booking: Booking, payment: Payment | null) => {
     ? [
         ['Cước lộ trình', formatCurrency(quote.basePrice)],
         ['Phí nền tảng', formatCurrency(quote.platformFee)],
-        ['Phụ phí cao điểm', quote.peakFee > 0 ? formatCurrency(quote.peakFee) : 'Không áp dụng'],
-        ['Phí đêm', quote.nightFee > 0 ? formatCurrency(quote.nightFee) : 'Không áp dụng'],
-        ['Phí chờ', quote.waitingFee > 0 ? formatCurrency(quote.waitingFee) : 'Chưa phát sinh'],
+        ['Phụ phí cao điểm', quote.peakFee > 0 ? formatCurrency(quote.peakFee) : 'Không áp dụng'],        ['Phí đêm', quote.nightFee > 0 ? formatCurrency(quote.nightFee) : 'Không áp dụng'],
+        ['Phí chờ', quote.waitingFee > 0 ? `${formatCurrency(quote.waitingFee)} (${quote.billableWaitingMinutes} phút tính phí)` : 'Không phát sinh'],
         ['Tạm tính theo công thức', formatCurrency(quote.totalPrice)],
         ['Tổng ghi nhận', formatCurrency(total)],
       ]
@@ -269,6 +269,7 @@ export default function CustomerReceiptScreen() {
   const pricePerKm = booking.distance ? Math.round(total / Math.max(booking.distance, 1)) : booking.vehicle?.pricePerKm;
   const paymentStatus = payment?.paymentStatus ?? booking.paymentStatus;
   const paymentMethod = payment?.paymentMethod ?? booking.paymentMethod;
+  const waitingMinutes = calculateWaitingMinutes(booking.arrivedAt, booking.startedAt);
 
   return (
     <Screen scroll>
@@ -357,6 +358,7 @@ export default function CustomerReceiptScreen() {
               pricePerKm={booking.vehicle.pricePerKm}
               passengers={booking.passengers}
               time={booking.time}
+              waitingMinutes={waitingMinutes}
               compact
             />
           </View>

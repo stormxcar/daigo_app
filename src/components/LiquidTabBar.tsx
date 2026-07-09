@@ -79,7 +79,7 @@ export function LiquidTabBar({
   const getRouteNotifications = (routeName: string, items: NotificationItem[]) => {
     if (routeName === 'blog') {
       return items.filter((notification) =>
-        ['blog_interaction', 'blog_liked', 'blog_commented'].includes(notification.type) ||
+        ['blog_interaction', 'blog_liked', 'blog_commented', 'blog_post_created'].includes(notification.type) ||
         !!notification.relatedPostId
       );
     }
@@ -118,6 +118,9 @@ export function LiquidTabBar({
           'payment_verified',
         ].includes(notification.type)
       );
+    }
+    if (routeName === 'profile') {
+      return items.filter((notification) => notification.type === 'rating_received');
     }
     return [];
   };
@@ -288,3 +291,4 @@ export function LiquidTabBar({
     </View>
   );
 }
+

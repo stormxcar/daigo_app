@@ -84,6 +84,7 @@ export default function DriverLayout() {
 
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
         headerShown: true,
         header: ({ options, route }: { options: { title?: string }; route: { name: string; params?: Record<string, any> } }) => (
@@ -119,6 +120,7 @@ export default function DriverLayout() {
         name="dashboard"
         options={{
           title: 'Bảng điều khiển',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <BarChart3 color={color} size={size} />
           ),
@@ -237,3 +239,6 @@ export default function DriverLayout() {
     </Tabs>
   );
 }
+
+
+

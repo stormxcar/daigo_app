@@ -1,10 +1,12 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import * as SecureStore from 'expo-secure-store';
 import { apiClient } from '@/services/api';
 import { showInfo, showWarning } from '@/utils/toast';
 
 let notificationHandlerReady = false;
 let registeredPushUserId: string | null = null;
+const PUSH_TOKEN_KEY = 'daigo_current_expo_push_token';
 
 async function getNotificationsModule() {
   const Notifications = await import('expo-notifications');
@@ -56,6 +58,14 @@ export async function registerPushNotifications(userId: string) {
       sound: 'default',
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
+    await Notifications.setNotificationChannelAsync('bookings', {
+      name: 'Chuyến xe mới Daigo',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 450, 220, 450, 220, 650],
+      lightColor: '#f59e0b',
+      sound: 'default',
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    });
   }
 
   const current = await Notifications.getPermissionsAsync();
@@ -79,6 +89,7 @@ export async function registerPushNotifications(userId: string) {
   }
 
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  await SecureStore.setItemAsync(PUSH_TOKEN_KEY, token);
   await apiClient.upsertPushToken(userId, token, Platform.OS);
   registeredPushUserId = userId;
   return token;
@@ -95,4 +106,13 @@ export async function setAppIconBadgeCount(count: number) {
   } catch (error) {
     if (__DEV__) console.warn('[DAIGO_BADGE_COUNT_ERROR]', error);
   }
+}
+
+
+export async function getStoredPushToken() {
+  return SecureStore.getItemAsync(PUSH_TOKEN_KEY);
+}
+
+export function resetPushRegistrationState() {
+  registeredPushUserId = null;
 }

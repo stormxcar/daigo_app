@@ -51,6 +51,7 @@ export default function CustomerLayout() {
 
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
         headerShown: true,
         header: ({ options, route }: { options: { title?: string }; route: { name: string; params?: Record<string, any> } }) => (

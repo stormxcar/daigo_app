@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import { DriverLocation, TripPhase } from '@/types';
 import { supabase } from './supabase';
+import { getInstallationDeviceId } from './deviceSession';
 
 interface LocationPoint {
   latitude: number;
@@ -62,24 +63,17 @@ export async function getDriverLocation(bookingId: string): Promise<DriverLocati
 }
 
 export async function upsertDriverLocation(input: UpsertDriverLocationInput): Promise<DriverLocation> {
-  const { data, error } = await supabase
-    .from('driver_locations')
-    .upsert(
-      {
-        booking_id: input.bookingId,
-        driver_id: input.driverId,
-        latitude: input.latitude,
-        longitude: input.longitude,
-        heading: input.heading,
-        speed: input.speed,
-        accuracy: input.accuracy,
-        phase: input.phase ?? 'pickup',
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'booking_id' }
-    )
-    .select('*')
-    .single();
+  const deviceId = await getInstallationDeviceId();
+  const { data, error } = await supabase.rpc('upsert_driver_location_from_device', {
+    p_device_id: deviceId,
+    p_booking_id: input.bookingId,
+    p_latitude: input.latitude,
+    p_longitude: input.longitude,
+    p_heading: input.heading ?? null,
+    p_speed: input.speed ?? null,
+    p_accuracy: input.accuracy ?? null,
+    p_phase: input.phase ?? 'pickup',
+  });
 
   if (error) throw error;
   return mapDriverLocation(data);
@@ -177,3 +171,4 @@ export async function startDriverLocationWatch(
     }
   );
 }
+

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banknote, Car, CheckCircle2, Clock, FileText, MapPin, Navigation, Phone, Route, Star, User } from 'lucide-react-native';
@@ -20,8 +20,8 @@ import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { getDistanceMeters, getDriverLocation, subscribeDriverLocation } from '@/services/driverLocation';
 import { subscribeBookingStatus } from '@/services/bookingRealtimeService';
 import { getDrivingRoute, LatLng } from '@/services/mapRouteService';
-import { calculateBookingPrice, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
-import { BOOKING_STATUS, CUSTOMER_CANCEL_REASONS } from '@/constants';
+import { calculateBookingPrice, calculateWaitingMinutes, formatCurrency, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
+import { BOOKING_STATUS, CUSTOMER_CANCEL_REASONS, PRICE_CONFIG } from '@/constants';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 const ETA_REFRESH_INTERVAL_MS = 20_000;
@@ -32,7 +32,6 @@ const ETA_ACTIVE_STATUSES = [
   BOOKING_STATUS.DRIVER_ARRIVED,
 ] as const;
 const NON_PAYABLE_BOOKING_STATUSES = [
-  BOOKING_STATUS.CUSTOMER_CANCELLED,
   BOOKING_STATUS.DRIVER_CANCELLED,
   BOOKING_STATUS.EXPIRED,
 ] as const;
@@ -107,6 +106,7 @@ export default function BookingDetailScreen() {
   const [rating, setRating] = useState(5);
   const [ratingComment, setRatingComment] = useState('');
   const [cancelReason, setCancelReason] = useState('');
+  const [showCancelFeeModal, setShowCancelFeeModal] = useState(false);
   const [editingRoute, setEditingRoute] = useState(false);
   const [routeDraft, setRouteDraft] = useState({ pickupLocation: '', dropoffLocation: '', note: '' });
   const [loading, setLoading] = useState(false);
@@ -121,6 +121,7 @@ export default function BookingDetailScreen() {
   const passengers = Number(params.passengers) || 1;
   const distance = Number(params.distance) || 1;
   const estimatedPrice = Number(params.estimatedPrice) || distance * (vehicle?.pricePerKm ?? 0);
+  const waitingMinutes = booking ? calculateWaitingMinutes(booking.arrivedAt, booking.startedAt) : 0;
   const previewPriceQuote = vehicle
     ? calculateBookingPrice(distance, vehicle.pricePerKm, passengers, params.time)
     : null;
@@ -132,9 +133,22 @@ export default function BookingDetailScreen() {
   const existingBookingHasMap =
     booking &&
     [booking.pickupLat, booking.pickupLng, booking.dropoffLat, booking.dropoffLng].every((value) => typeof value === 'number');
-  const isNonPayableBooking = !!booking && NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any);
+  const isCancellationFeeBooking = !!booking && booking.status === BOOKING_STATUS.CUSTOMER_CANCELLED && !!booking.actualPrice && booking.actualPrice > 0;
+  const isNonPayableBooking = !!booking && !isCancellationFeeBooking && (
+    NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any) || booking.status === BOOKING_STATUS.CUSTOMER_CANCELLED
+  );
   const isReadOnlyHistory = params.readOnly === 'true';
   const isCreatingBooking = !params.id && (loading || submitted);
+  const cancellationFeeApplies = !!booking?.driverId && [
+    BOOKING_STATUS.DRIVER_ACCEPTED,
+    BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED,
+    BOOKING_STATUS.SCHEDULED_UPCOMING,
+    BOOKING_STATUS.DRIVER_ARRIVING,
+    BOOKING_STATUS.DRIVER_ARRIVED,
+  ].includes(booking.status as any);
+  const cancellationFeeEstimate = cancellationFeeApplies
+    ? Math.ceil((booking?.estimatedPrice ?? 0) * (PRICE_CONFIG.CANCELLATION_FEE_PERCENT / 100))
+    : 0;
   const canEditRouteBeforeAccepted = !!booking && !isReadOnlyHistory && !booking.driverId && [
     BOOKING_STATUS.SEARCHING_DRIVER,
     BOOKING_STATUS.SCHEDULED_PENDING_DRIVER,
@@ -337,23 +351,33 @@ export default function BookingDetailScreen() {
     }
   };
 
-  const handleCancelBooking = async () => {
+  const performCancelBooking = async () => {
     if (!booking) return;
-    if (!cancelReason) {
-      showWarning('Chọn lý do hủy', 'Vui lòng chọn một lý do trước khi hủy chuyến.');
-      return;
-    }
-
     try {
       setLoading(true);
+      setShowCancelFeeModal(false);
       const updated = await apiClient.cancelBooking(booking.id, cancelReason);
       setBooking(updated);
-      showSuccess('Đã hủy chuyến', 'Lý do hủy đã được lưu vào lịch sử chuyến đi.');
+      showSuccess(
+        'Đã hủy chuyến',
+        cancellationFeeEstimate > 0
+          ? `Chuyến đã hủy và phát sinh phí hủy ước tính ${cancellationFeeEstimate.toLocaleString('vi-VN')}đ.`
+          : 'Lý do hủy đã được lưu vào lịch sử chuyến đi.'
+      );
     } catch (error: any) {
       showError('Không thể hủy chuyến', error.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCancelBooking = () => {
+    if (!booking) return;
+    if (!cancelReason) {
+      showWarning('Chọn lý do hủy', 'Vui lòng chọn một lý do trước khi hủy chuyến.');
+      return;
+    }
+    setShowCancelFeeModal(true);
   };
 
   const submitRating = async () => {
@@ -414,7 +438,75 @@ export default function BookingDetailScreen() {
     }
 
     return (
-      <Screen scroll>
+            <Screen scroll>
+        <Modal
+          visible={showCancelFeeModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => !loading && setShowCancelFeeModal(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: 'rgba(15,23,42,0.58)',
+              justifyContent: 'center',
+              paddingHorizontal: spacing.lg,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: colors.surface,
+                borderRadius: borderRadius.lg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: spacing.lg,
+              }}
+            >
+              <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('900'), marginBottom: spacing.sm }}>
+                Xác nhận hủy chuyến
+              </Text>
+              <Text style={{ color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.md }}>
+                {cancellationFeeEstimate > 0
+                  ? `Chuyến đã có tài xế nhận nên khi hủy có thể phát sinh phí hủy ${PRICE_CONFIG.CANCELLATION_FEE_PERCENT}% theo giá ước tính.`
+                  : 'Chuyến hiện chưa phát sinh phí hủy. Bạn vẫn nên hủy sớm để tài xế và hệ thống cập nhật lịch.'}
+              </Text>
+
+              <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border, paddingVertical: spacing.md, marginBottom: spacing.md }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.sm }}>
+                  <Text style={{ color: colors.textSecondary, flex: 1 }}>Giá ước tính chuyến</Text>
+                  <Text style={{ color: colors.text, ...fontForWeight('900') }}>{formatCurrency(booking.estimatedPrice)}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md }}>
+                  <Text style={{ color: colors.textSecondary, flex: 1 }}>Phí hủy dự kiến</Text>
+                  <Text style={{ color: cancellationFeeEstimate > 0 ? colors.error : colors.success, ...fontForWeight('900') }}>
+                    {cancellationFeeEstimate > 0 ? formatCurrency(cancellationFeeEstimate) : '0đ'}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={{ color: colors.textTertiary, lineHeight: 20, marginBottom: spacing.md }}>
+                Lý do: {cancelReason || 'Chưa chọn'}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <Button
+                  label="Quay lại"
+                  onPress={() => setShowCancelFeeModal(false)}
+                  disabled={loading}
+                  variant="outline"
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  label="Vẫn hủy chuyến"
+                  onPress={performCancelBooking}
+                  loading={loading}
+                  disabled={loading}
+                  variant="danger"
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
         <DetailSection>
           <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('800'), marginBottom: spacing.sm }}>
             {booking.bookingCode ?? 'Chuyến đi'}
@@ -693,6 +785,7 @@ export default function BookingDetailScreen() {
                 pricePerKm={booking.vehicle.pricePerKm}
                 passengers={booking.passengers}
                 time={booking.time}
+                waitingMinutes={waitingMinutes}
                 compact
               />
             </View>

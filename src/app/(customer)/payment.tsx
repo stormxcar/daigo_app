@@ -25,7 +25,6 @@ const formatRemainingTime = (milliseconds: number) => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 const NON_PAYABLE_BOOKING_STATUSES = [
-  BOOKING_STATUS.CUSTOMER_CANCELLED,
   BOOKING_STATUS.DRIVER_CANCELLED,
   BOOKING_STATUS.EXPIRED,
 ] as const;
@@ -119,7 +118,7 @@ export default function CustomerPaymentScreen() {
 
   const ensurePayment = async (method: PaymentMethod) => {
     if (!booking || !user) return;
-    if (NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any)) {
+    if (NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any) || (booking.status === BOOKING_STATUS.CUSTOMER_CANCELLED && !(booking.actualPrice && booking.actualPrice > 0))) {
       showWarning('Không cần thanh toán', 'Chuyến đi đã hủy hoặc hết hạn nên không phát sinh thanh toán.');
       return;
     }
@@ -169,7 +168,7 @@ export default function CustomerPaymentScreen() {
     );
   }
 
-  if (NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any)) {
+  if (NON_PAYABLE_BOOKING_STATUSES.includes(booking.status as any) || (booking.status === BOOKING_STATUS.CUSTOMER_CANCELLED && !(booking.actualPrice && booking.actualPrice > 0))) {
     return (
       <Screen padding>
         <Card>

@@ -4,6 +4,7 @@ import { apiClient } from '@/services/api';
 import { useChatStore } from '@/stores/chatStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { toVietnameseAuthError } from '@/utils/authValidation';
+import { getStoredPushToken, resetPushRegistrationState } from '@/services/pushNotifications';
 
 interface AuthStore {
   user: User | null;
@@ -193,8 +194,12 @@ export const useAuthStore = create<AuthStore>((set) => ({
   logout: async () => {
     const currentUser = useAuthStore.getState().user;
     if (currentUser?.id) {
-      await apiClient.disablePushTokens(currentUser.id).catch(() => undefined);
+      const token = await getStoredPushToken().catch(() => null);
+      if (token) {
+        await apiClient.disablePushToken(currentUser.id, token).catch(() => undefined);
+      }
     }
+    resetPushRegistrationState();
     await apiClient.logout();
     useChatStore.getState().clearChatState();
     useNotificationStore.getState().clearNotifications();
@@ -210,3 +215,4 @@ export const useAuthStore = create<AuthStore>((set) => ({
     set({ user, token, isAuthenticated: true, isLoading: false, isSessionRestored: true, error: null });
   },
 }));
+

@@ -20,11 +20,13 @@ import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useNotificationStore } from "@/stores/notificationStore";
 import { AppToast } from "@/components/AppToast";
+import { AppAccessGate } from "@/components/AppAccessGate";
 import { AppNotificationBridge } from "@/components/AppNotificationBridge";
 import { ForceUpdateGate } from "@/components/ForceUpdateGate";
 import { IncomingCallModal } from "@/components/IncomingCallModal";
 import { useIncomingCall } from "@/hooks/useIncomingCall";
 import { registerPushNotifications } from "@/services/pushNotifications";
+import { activateDriverOperationalDevice } from "@/services/deviceSession";
 import { resolveNotificationTarget } from "@/utils/notificationRouter";
 import {
   cleanupBookingStatusSubscriptions,
@@ -64,6 +66,14 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => voi
  * `data` is the payload sent from the edge function / DB trigger.
  */
 
+
+function syncDeviceAfterAuth(user: any) {
+  registerPushNotifications(user.id)
+    .then((token) => activateDriverOperationalDevice(user, token))
+    .catch((error) => {
+      if (__DEV__) console.warn('[DAIGO_DEVICE_SYNC_ERROR]', error);
+    });
+}
 function handleNotificationNavigation(data: Record<string, any>) {
   const user = useAuthStore.getState().user;
 
@@ -136,7 +146,7 @@ export default function RootLayout() {
       if (user) {
         const { data } = await supabase.auth.getSession();
         useAuthStore.getState().restoreSession(user, data.session?.access_token ?? "");
-        registerPushNotifications(user.id).catch(() => undefined);
+        syncDeviceAfterAuth(user);
       } else {
         // No active session – mark as checked so layouts can render the login guard
         useAuthStore.setState({ isSessionRestored: true });
@@ -168,7 +178,7 @@ export default function RootLayout() {
           const user = await apiClient.getCurrentUser();
           if (user) {
             useAuthStore.getState().restoreSession(user, session.access_token);
-            registerPushNotifications(user.id).catch(() => undefined);
+            syncDeviceAfterAuth(user);
           }
         } catch (error: any) {
           if (__DEV__) console.warn('Auth state sync failed', error);
@@ -204,7 +214,7 @@ export default function RootLayout() {
       const { data } = await supabase.auth.getSession();
       if (user && data.session) {
         useAuthStore.getState().restoreSession(user, data.session.access_token);
-        registerPushNotifications(user.id).catch(() => undefined);
+        syncDeviceAfterAuth(user);
         router.replace(user.role === "customer" ? "/(customer)/home" : "/(driver)/dashboard");
         showSuccess("Đăng nhập thành công", "Bạn đã quay lại ứng dụng Daigo Booking.");
       }
@@ -285,9 +295,13 @@ export default function RootLayout() {
             <Stack.Screen name="call" options={{ animation: "slide_from_bottom" }} />
           </Stack>
           <IncomingCallModal call={incomingCall} onClose={clearIncomingCall} />
+          <AppAccessGate />
         </ForceUpdateGate>
         <AppToast />
       </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
 }
+
+
+

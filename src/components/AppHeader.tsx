@@ -66,13 +66,12 @@ export function AppHeader({
           {showBack && (
             <TouchableOpacity
               onPress={() => {
-                if (backHref) {
-                  router.replace(backHref);
-                  return;
-                }
                 if (router.canGoBack()) {
                   router.back();
                   return;
+                }
+                if (backHref) {
+                  router.replace(backHref);
                 }
               }}
               activeOpacity={0.75}
