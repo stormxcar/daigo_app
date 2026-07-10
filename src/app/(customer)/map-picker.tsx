@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
 import { fontForWeight, borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
+import { centerCameraOnPoint } from '@/utils/mapCamera';
 
 const DEFAULT_CENTER = {
   lat: 10.7769,
@@ -110,7 +111,7 @@ export default function CustomerMapPickerScreen() {
       }));
       setPoint(resolved);
       setSavedCurrentPoint(false);
-      cameraRef.current?.flyTo?.({ center: [resolved.lng, resolved.lat], zoom: 16, duration: 450, easing: 'ease' });
+      centerCameraOnPoint(cameraRef.current, { latitude: resolved.lat, longitude: resolved.lng }, { zoom: 16, duration: 450, easing: 'ease' });
     } finally {
       setResolvingAddress(false);
     }

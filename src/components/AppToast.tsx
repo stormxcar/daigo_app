@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, Text, View } from 'react-native';
+import { Animated, Text, TouchableOpacity, View } from 'react-native';
 import Toast, { BaseToastProps, ToastConfig } from 'react-native-toast-message';
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react-native';
 import { borderRadius, fontForWeight, fontSize, shadows, spacing } from '@/theme/tokens';
@@ -27,8 +27,10 @@ const toastMeta = {
   },
 };
 
-function RichToast({ text1, text2, type = 'info' }: BaseToastProps & { type?: keyof typeof toastMeta }) {
+function RichToast({ text1, text2, type = 'info', props }: BaseToastProps & { type?: keyof typeof toastMeta; props?: { actionLabel?: string; onAction?: () => void } }) {
   const meta = toastMeta[type] ?? toastMeta.info;
+  const actionLabel = props?.actionLabel;
+  const onAction = props?.onAction;
 
   return (
     <Animated.View
@@ -64,6 +66,25 @@ function RichToast({ text1, text2, type = 'info' }: BaseToastProps & { type?: ke
             {text2}
           </Text>
         )}
+        {!!actionLabel && !!onAction && (
+          <TouchableOpacity
+            activeOpacity={0.84}
+            onPress={() => {
+              Toast.hide();
+              onAction();
+            }}
+            style={{
+              alignSelf: 'flex-start',
+              marginTop: spacing.sm,
+              paddingHorizontal: spacing.md,
+              paddingVertical: 7,
+              borderRadius: borderRadius.full,
+              backgroundColor: meta.color,
+            }}
+          >
+            <Text style={{ color: 'white', fontSize: fontSize.xs, ...fontForWeight('900') }}>{actionLabel}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </Animated.View>
   );
@@ -79,3 +100,5 @@ const toastConfig: ToastConfig = {
 export function AppToast() {
   return <Toast config={toastConfig} topOffset={54} visibilityTime={5600} />;
 }
+
+

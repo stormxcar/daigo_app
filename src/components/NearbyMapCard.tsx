@@ -5,6 +5,7 @@ import { useTheme } from '@/theme';
 import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button } from '@/components/BaseComponents';
 import { NativeMapUnavailable, getNativeMapLibre } from '@/components/NativeMapLibre';
+import { fitCameraToPoints, getMapBounds, safeCancelInteraction } from '@/utils/mapCamera';
 import { DeviceLocation } from '@/services/deviceLocation';
 import { getDistanceMeters } from '@/services/driverLocation';
 import { DrivingRoute, LatLng, getDrivingRoute } from '@/services/mapRouteService';
@@ -42,11 +43,6 @@ const fallbackMapStyle = {
   layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#dbeafe' } }],
 } as any;
 
-const getBounds = (points: LatLng[]): [number, number, number, number] => {
-  const lngs = points.map((point) => point.longitude);
-  const lats = points.map((point) => point.latitude);
-  return [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
-};
 
 const routeFeature = (route: DrivingRoute | null) => ({
   type: 'FeatureCollection',
@@ -156,7 +152,7 @@ export function NearbyDriverMapCard({ vehicles, currentLocation, onPress }: Near
 
     return () => {
       active = false;
-      task.cancel();
+      safeCancelInteraction(task);
       subscription.remove();
     };
   }, []);
@@ -179,7 +175,7 @@ export function NearbyDriverMapCard({ vehicles, currentLocation, onPress }: Near
 
   const fitMap = useCallback((animated = true) => {
     if (!cameraRef.current || mapPoints.length < 2) return;
-    cameraRef.current.fitBounds(getBounds(mapPoints), {
+    fitCameraToPoints(cameraRef.current, mapPoints, {
       padding: { top: 48, right: 42, bottom: 64, left: 42 },
       duration: animated ? 650 : 0,
       easing: 'ease',
@@ -263,7 +259,7 @@ export function NearbyDriverMapCard({ vehicles, currentLocation, onPress }: Near
               <Camera
                 ref={cameraRef}
                 initialViewState={{
-                  bounds: getBounds([customerPoint, driverPoint]),
+                  bounds: getMapBounds([customerPoint, driverPoint]),
                   padding: { top: 48, right: 42, bottom: 64, left: 42 },
                   zoom: 13,
                 }}

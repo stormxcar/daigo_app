@@ -5,7 +5,13 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { ActivityIndicator, Text, TouchableOpacity, Vibration, View } from "react-native";
+import {
+  ActivityIndicator,
+  Text,
+  TouchableOpacity,
+  Vibration,
+  View,
+} from "react-native";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
@@ -42,7 +48,12 @@ import {
   spacing,
 } from "@/theme/tokens";
 import { Booking, BookingDispatch, RatingReview, TripPhase } from "@/types";
-import { showError, showInfo, showSuccess } from "@/utils/toast";
+import {
+  showError,
+  showInfo,
+  showSuccess,
+  showSuccessAction,
+} from "@/utils/toast";
 
 const money = (value: number) => `${value.toLocaleString("vi-VN")}đ`;
 const defaultRouteState: DriverDashboardRouteState = {
@@ -99,10 +110,14 @@ export default function DriverDashboard() {
   const [routeState, setRouteState] =
     useState<DriverDashboardRouteState>(defaultRouteState);
   const [followDriver, setFollowDriver] = useState(true);
-  const bookingAlertPlayer = useAudioPlayer(require("../../../assets/sounds/incoming-call.mp3"));
+  const bookingAlertPlayer = useAudioPlayer(
+    require("../../../assets/sounds/incoming-call.mp3"),
+  );
   const knownNearbyBookingIdsRef = useRef<Set<string>>(new Set());
   const nearbyAlertReadyRef = useRef(false);
-  const bookingAlertStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bookingAlertStopRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const lastOnlineLocationSyncRef = useRef(0);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -512,7 +527,8 @@ export default function DriverDashboard() {
       bookingAlertPlayer.volume = 0.78;
       await bookingAlertPlayer.seekTo(0);
       bookingAlertPlayer.play();
-      if (bookingAlertStopRef.current) clearTimeout(bookingAlertStopRef.current);
+      if (bookingAlertStopRef.current)
+        clearTimeout(bookingAlertStopRef.current);
       bookingAlertStopRef.current = setTimeout(() => {
         stopBookingAlertFeedback().catch(() => undefined);
       }, 4200);
@@ -521,9 +537,12 @@ export default function DriverDashboard() {
     }
   }, [bookingAlertPlayer, stopBookingAlertFeedback]);
 
-  useEffect(() => () => {
-    stopBookingAlertFeedback().catch(() => undefined);
-  }, [stopBookingAlertFeedback]);
+  useEffect(
+    () => () => {
+      stopBookingAlertFeedback().catch(() => undefined);
+    },
+    [stopBookingAlertFeedback],
+  );
 
   useEffect(() => {
     const currentIds = new Set(nearbyBookings.map((booking) => booking.id));
@@ -535,14 +554,20 @@ export default function DriverDashboard() {
 
     const newInstantBooking = nearbyBookings.find((booking) => {
       if (knownNearbyBookingIdsRef.current.has(booking.id)) return false;
-      return booking.status === BOOKING_STATUS.SEARCHING_DRIVER && booking.bookingMode !== "scheduled";
+      return (
+        booking.status === BOOKING_STATUS.SEARCHING_DRIVER &&
+        booking.bookingMode !== "scheduled"
+      );
     });
 
     knownNearbyBookingIdsRef.current = currentIds;
     if (!newInstantBooking || !isOnline || activeTrip) return;
 
     playBookingAlertFeedback().catch(() => undefined);
-    showInfo("Có chuyến mới gần bạn", `${newInstantBooking.pickupLocation} → ${newInstantBooking.dropoffLocation}`);
+    showInfo(
+      "Có chuyến mới gần bạn",
+      `${newInstantBooking.pickupLocation} → ${newInstantBooking.dropoffLocation}`,
+    );
   }, [activeTrip, isOnline, nearbyBookings, playBookingAlertFeedback]);
   const acceptNearbyBooking = async (booking: Booking) => {
     if (!user) return;
@@ -568,9 +593,18 @@ export default function DriverDashboard() {
         current.filter((item) => item.bookingId !== updated.id),
       );
       setFollowDriver(true);
-      showSuccess(
+      showSuccessAction(
         "Đã nhận chuyến",
-        "Dashboard sẽ chuyển sang chế độ theo dõi chuyến đi.",
+        "Bạn có thể xem chi tiết chuyến để bắt đầu các bước đón khách.",
+        {
+          actionLabel: "Xem chi tiết",
+          onAction: () => {
+            router.push({
+              pathname: "/(driver)/booking-detail" as any,
+              params: { id: updated.id },
+            });
+          },
+        },
       );
       loadData(true);
     } catch (error: any) {
@@ -1074,10 +1108,3 @@ export default function DriverDashboard() {
     </View>
   );
 }
-
-
-
-
-
-
-

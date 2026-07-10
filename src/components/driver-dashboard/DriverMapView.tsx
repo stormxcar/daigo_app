@@ -9,6 +9,7 @@ import { useTheme } from '@/theme';
 import { fontForWeight, fontSize, spacing, shadows } from '@/theme/tokens';
 import { Booking } from '@/types';
 import { BOOKING_STATUS } from '@/constants';
+import { centerCameraOnPoint, fitCameraToPoints, safeCancelInteraction } from '@/utils/mapCamera';
 
 type MapPoint = LatLng;
 
@@ -26,11 +27,6 @@ const fallbackMapStyle = {
 
 const toLngLat = (point: MapPoint): [number, number] => [point.longitude, point.latitude];
 
-const getBounds = (points: MapPoint[]): [number, number, number, number] => {
-  const lngs = points.map((point) => point.longitude);
-  const lats = points.map((point) => point.latitude);
-  return [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
-};
 
 
 const radiusFeature = (center: MapPoint | null, radiusKm: number) => {
@@ -175,7 +171,7 @@ export function DriverMapView({
 
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => setMapReady(true));
-    return () => task.cancel();
+    return () => safeCancelInteraction(task);
   }, []);
 
   useEffect(() => {
@@ -211,28 +207,28 @@ export function DriverMapView({
   useEffect(() => {
     if (!cameraRef.current || !driverPoint || !followDriver) return;
     if (activeTargetPoint && mapPoints.length >= 2) {
-      cameraRef.current.fitBounds(getBounds(mapPoints), {
+      fitCameraToPoints(cameraRef.current, mapPoints, {
         padding: { top: 128, right: 48, bottom: 330, left: 48 },
         duration: 450,
       });
       return;
     }
-    cameraRef.current.setCamera({
-      centerCoordinate: [driverPoint.longitude, driverPoint.latitude],
-      zoomLevel: nearbyPoints.length ? 13 : 14,
-      animationDuration: 420,
+    centerCameraOnPoint(cameraRef.current, driverPoint, {
+      zoom: nearbyPoints.length ? 13 : 14,
+      duration: 420,
+      easing: 'ease',
     });
   }, [activeTargetPoint, driverPoint, followDriver, mapPoints, nearbyPoints.length]);
 
   const centerMap = () => {
     if (!cameraRef.current || !driverPoint) return;
     if (mapPoints.length >= 2) {
-      cameraRef.current.fitBounds(getBounds(mapPoints), {
+      fitCameraToPoints(cameraRef.current, mapPoints, {
         padding: { top: 128, right: 48, bottom: 330, left: 48 },
         duration: 500,
       });
     } else {
-      cameraRef.current.setCamera({ centerCoordinate: [driverPoint.longitude, driverPoint.latitude], zoomLevel: 14, animationDuration: 500 });
+      centerCameraOnPoint(cameraRef.current, driverPoint, { zoom: 14, duration: 500, easing: 'ease' });
     }
     onCenterPress?.();
   };

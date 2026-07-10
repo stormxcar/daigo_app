@@ -7,6 +7,7 @@ import { useTheme } from '@/theme';
 import { fontForWeight, borderRadius, fontSize, shadows, spacing } from '@/theme/tokens';
 import { DrivingRoute, getDrivingRoute, LatLng } from '@/services/mapRouteService';
 import { getNativeMapLibre, NativeMapUnavailable } from '@/components/NativeMapLibre';
+import { centerCameraOnPoint, fitCameraToPoints, getMapBounds } from '@/utils/mapCamera';
 import { showError, showSuccess } from '@/utils/toast';
 
 interface MapPoint {
@@ -42,11 +43,6 @@ const fallbackMapStyle = {
   layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#eef2f7' } }],
 } as any;
 
-const getBounds = (points: LatLng[]): [number, number, number, number] => {
-  const lngs = points.map((point) => point.longitude);
-  const lats = points.map((point) => point.latitude);
-  return [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
-};
 
 const routeFeature = (route: DrivingRoute | null) => ({
   type: 'FeatureCollection',
@@ -127,7 +123,7 @@ export function MapPreview({
 
   const fitMap = useCallback((camera: any, animated = true) => {
     if (!camera || fitPoints.length < 2) return;
-    camera.fitBounds(getBounds(fitPoints), {
+    fitCameraToPoints(camera, fitPoints, {
       padding: { top: 48, right: 42, bottom: 58, left: 42 },
       duration: animated ? 650 : 0,
       easing: 'ease',
@@ -150,8 +146,8 @@ export function MapPreview({
       const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const point = { latitude: location.coords.latitude, longitude: location.coords.longitude };
       setUserLocation(point);
-      compactCameraRef.current?.flyTo({ center: toLngLat(point), zoom: 15, duration: 650, easing: 'ease' });
-      fullscreenCameraRef.current?.flyTo({ center: toLngLat(point), zoom: 15, duration: 650, easing: 'ease' });
+      centerCameraOnPoint(compactCameraRef.current, point, { zoom: 15, duration: 650, easing: 'ease' });
+      centerCameraOnPoint(fullscreenCameraRef.current, point, { zoom: 15, duration: 650, easing: 'ease' });
     } catch (error: any) {
       showError('Không thể lấy vị trí', error.message || 'Vui lòng kiểm tra GPS và thử lại.');
     } finally {
@@ -214,7 +210,7 @@ export function MapPreview({
           <Camera
             ref={cameraRef}
             initialViewState={{
-              bounds: getBounds([pickupPoint, dropoffPoint]),
+              bounds: getMapBounds([pickupPoint, dropoffPoint]),
               padding: { top: 48, right: 42, bottom: 58, left: 42 },
               zoom: 13,
             }}

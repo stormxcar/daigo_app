@@ -10,6 +10,7 @@ import { getDistanceMeters } from '@/services/driverLocation';
 import { DrivingRoute, getDrivingRoute, LatLng } from '@/services/mapRouteService';
 import { getNativeMapLibre, NativeMapUnavailable } from '@/components/NativeMapLibre';
 import { showError, showInfo, showSuccess } from '@/utils/toast';
+import { centerCameraOnPoint, fitCameraToPoints, getMapBounds } from '@/utils/mapCamera';
 
 interface MapPoint {
   label: string;
@@ -53,11 +54,6 @@ const distanceToRouteMeters = (point: LatLng, route: LatLng[]) => {
   return Math.min(...route.map((routePoint) => getDistanceMeters(point, routePoint)));
 };
 
-const getBounds = (points: LatLng[]): [number, number, number, number] => {
-  const lngs = points.map((point) => point.longitude);
-  const lats = points.map((point) => point.latitude);
-  return [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
-};
 
 const routeFeature = (route: DrivingRoute | null) => ({
   type: 'FeatureCollection',
@@ -144,7 +140,7 @@ export function RealtimeTripMap({
       ? route.coordinates
       : [pickupPoint, dropoffPoint, ...(driverPoint ? [driverPoint] : [])];
     if (fitPoints.length < 2) return;
-    cameraRef.current?.fitBounds(getBounds(fitPoints), {
+    fitCameraToPoints(cameraRef.current, fitPoints, {
       padding: { top: 56, right: 42, bottom: expanded ? 96 : 64, left: 42 },
       duration: animated ? 650 : 0,
       easing: 'ease',
@@ -157,8 +153,7 @@ export function RealtimeTripMap({
       return;
     }
     setFollowDriver(true);
-    cameraRef.current?.flyTo({
-      center: toLngLat(driverPoint),
+    centerCameraOnPoint(cameraRef.current, driverPoint, {
       zoom: 16,
       pitch: 45,
       bearing: driverLocation?.heading ?? 0,
@@ -204,8 +199,7 @@ export function RealtimeTripMap({
   useEffect(() => {
     if (!driverPoint || isTerminalStatus(bookingStatus)) return;
     if (followDriver) {
-      cameraRef.current?.flyTo({
-        center: toLngLat(driverPoint),
+      centerCameraOnPoint(cameraRef.current, driverPoint, {
         zoom: 16,
         pitch: 45,
         bearing: driverLocation?.heading ?? 0,
@@ -258,7 +252,7 @@ export function RealtimeTripMap({
             <Camera
               ref={cameraRef}
               initialViewState={{
-                bounds: getBounds([pickupPoint, dropoffPoint]),
+                bounds: getMapBounds([pickupPoint, dropoffPoint]),
                 padding: { top: 56, right: 42, bottom: 64, left: 42 },
                 zoom: 13,
               }}

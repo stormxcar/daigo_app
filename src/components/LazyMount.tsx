@@ -2,6 +2,7 @@ import React, { ReactNode, useEffect, useState } from 'react';
 import { InteractionManager, Text, View, ViewStyle } from 'react-native';
 import { useTheme } from '@/theme';
 import { fontForWeight, borderRadius, spacing } from '@/theme/tokens';
+import { safeCancelInteraction } from '@/utils/mapCamera';
 
 type LazyMountProps = {
   children: ReactNode;
@@ -16,7 +17,7 @@ export function LazyMount({ children, minHeight = 260, label = 'Đang chuẩn b�
 
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => setReady(true));
-    return () => task.cancel();
+    return () => safeCancelInteraction(task);
   }, []);
 
   if (ready) return <>{children}</>;
