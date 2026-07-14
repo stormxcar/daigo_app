@@ -7,7 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { router } from 'expo-router';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { Download, Image as ImageIcon, PhoneCall, Play, Reply, RotateCcw, Send, X } from 'lucide-react-native';
+import { Download, Image as ImageIcon, PhoneCall, Play, Plus, Reply, RotateCcw, Send, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/BaseComponents';
 import { SubmitOverlay } from '@/components/SubmitOverlay';
@@ -42,6 +42,32 @@ const formatMessageTime = (timestamp: string) =>
 const formatCallDuration = (seconds?: number) => {
   if (!seconds) return '';
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+};
+
+const getCallStatusLabel = (status?: Message['callStatus'], fromMe?: boolean) => {
+  switch (status) {
+    case 'accepted':
+    case 'ended':
+      return fromMe ? 'Bạn đã gọi' : 'Đã nghe máy';
+    case 'missed':
+      return 'Cuộc gọi nhỡ';
+    case 'rejected':
+      return fromMe ? 'Người kia từ chối' : 'Bạn đã từ chối';
+    case 'failed':
+      return 'Cuộc gọi lỗi';
+    case 'ringing':
+      return fromMe ? 'Đang gọi đi' : 'Cuộc gọi đến';
+    default:
+      return 'Cuộc gọi';
+  }
+};
+
+const getCallMetaText = (message: Message, fromMe: boolean) => {
+  const parts = [getCallStatusLabel(message.callStatus, fromMe)];
+  const duration = formatCallDuration(message.callDurationSeconds);
+  if (duration) parts.push(`Thời lượng ${duration}`);
+  parts.push(formatMessageTime(message.timestamp));
+  return parts.join(' • ');
 };
 
 function ChatVideoPreview({ uri, onPress }: { uri: string; onPress: () => void }) {
@@ -126,6 +152,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [previewMedia, setPreviewMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const [participantTyping, setParticipantTyping] = useState(false);
+  const [composerActionsOpen, setComposerActionsOpen] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const callOptionsRef = useRef<BottomSheetModal>(null);
@@ -426,7 +453,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
     const isDeleted = !!item.isDeleted;
     const recalledText = fromMe ? 'Bạn đã thu hồi tin nhắn' : 'Người kia đã thu hồi tin nhắn';
     const replyLabel = item.replyToSenderName === user.fullName ? 'Bạn' : item.replyToSenderName ?? roleLabel;
-    const callDuration = formatCallDuration(item.callDurationSeconds);
+    const callMetaText = getCallMetaText(item, fromMe);
 
     return (
       <View style={{ alignItems: fromMe ? 'flex-end' : 'flex-start', paddingHorizontal: spacing.lg, marginBottom: spacing.md }}>
@@ -489,11 +516,9 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
                 <Text style={{ color: isMissedCall ? colors.error : colors.text, ...fontForWeight('900')}}>
                   {item.text}
                 </Text>
-                {!!callDuration && (
-                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
-                    Thời lượng {callDuration}
-                  </Text>
-                )}
+                <Text style={{ color: isMissedCall ? colors.error : colors.textSecondary, fontSize: fontSize.xs, marginTop: 2, ...fontForWeight('700') }}>
+                  {callMetaText}
+                </Text>
               </View>
             </View>
           )}
@@ -662,6 +687,44 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
             </TouchableOpacity>
           </View>
         )}
+        {composerActionsOpen && (
+          <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm }}>
+            <TouchableOpacity
+              onPress={sendImage}
+              disabled={uploadingImage || sending}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.xs,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+                borderRadius: borderRadius.full,
+                backgroundColor: colors.surfaceAlt,
+              }}
+            >
+              {uploadingImage ? <ActivityIndicator size="small" color={colors.primary} /> : <ImageIcon size={16} color={colors.primary} />}
+              <Text style={{ color: colors.text, fontSize: fontSize.sm, ...fontForWeight('800') }}>Ảnh</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                setComposerActionsOpen(false);
+                callOptionsRef.current?.present();
+              }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.xs,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+                borderRadius: borderRadius.full,
+                backgroundColor: colors.surfaceAlt,
+              }}
+            >
+              <PhoneCall size={16} color={colors.primary} />
+              <Text style={{ color: colors.text, fontSize: fontSize.sm, ...fontForWeight('800') }}>Gọi</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <View
           style={{
             flexDirection: 'row',
@@ -674,7 +737,7 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
           }}
         >
           <TouchableOpacity
-            onPress={sendImage}
+            onPress={() => setComposerActionsOpen((value) => !value)}
             disabled={uploadingImage || sending}
             style={{
               width: 42,
@@ -682,10 +745,10 @@ export function ChatThread({ conversation, user, roleLabel, onMessageSent, onMes
               borderRadius: 21,
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: colors.surfaceAlt,
+              backgroundColor: composerActionsOpen ? colors.primary : colors.surfaceAlt,
             }}
           >
-            {uploadingImage ? <ActivityIndicator size="small" color={colors.primary} /> : <ImageIcon size={20} color={colors.primary} />}
+            <Plus size={21} color={composerActionsOpen ? 'white' : colors.primary} />
           </TouchableOpacity>
           <RNTextInput
             value={text}

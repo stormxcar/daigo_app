@@ -353,6 +353,10 @@ class ApiClient {
       .forEach((key) => this.cache.delete(key));
   }
 
+  clearSessionScopedCache() {
+    this.cache.clear();
+  }
+
   private async withTimeout<T>(promise: PromiseLike<T>, timeoutMs = 15000): Promise<T> {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {

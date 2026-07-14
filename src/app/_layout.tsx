@@ -19,6 +19,7 @@ import { supabase } from "@/services/supabase";
 import { useChatStore } from "@/stores/chatStore";
 import { useAuthStore } from "@/stores/authStore";
 import { useNotificationStore } from "@/stores/notificationStore";
+import { useProfileStore } from "@/stores/profileStore";
 import { AppToast } from "@/components/AppToast";
 import { AppAccessGate } from "@/components/AppAccessGate";
 import { AppNotificationBridge } from "@/components/AppNotificationBridge";
@@ -145,7 +146,9 @@ export default function RootLayout() {
       if (!mounted) return;
       if (user) {
         const { data } = await supabase.auth.getSession();
-        useAuthStore.getState().restoreSession(user, data.session?.access_token ?? "");
+        if (data.session?.user.id !== user.id) return;
+        useAuthStore.getState().restoreSession(user, data.session.access_token ?? "");
+        useProfileStore.getState().setProfile(user);
         syncDeviceAfterAuth(user);
       } else {
         // No active session – mark as checked so layouts can render the login guard
@@ -168,18 +171,21 @@ export default function RootLayout() {
               // Cleanup all realtime subscriptions to prevent ghost channels
               cleanupBookingStatusSubscriptions();
               cleanupRealtimeDriverLocationSubscriptions();
+              apiClient.clearSessionScopedCache();
               useChatStore.getState().clearChatState();
               useNotificationStore.getState().clearNotifications();
-              useAuthStore.setState({ user: null, token: null, isAuthenticated: false });
+              useProfileStore.getState().clearProfile();
+              useAuthStore.setState({ user: null, token: null, isAuthenticated: false, isLoading: false, error: null });
             }
             return;
           }
 
           const user = await apiClient.getCurrentUser();
-          if (user) {
-            useAuthStore.getState().restoreSession(user, session.access_token);
-            syncDeviceAfterAuth(user);
-          }
+          const { data: currentSession } = await supabase.auth.getSession();
+          if (!user || currentSession.session?.user.id !== session.user.id || user.id !== session.user.id) return;
+          useAuthStore.getState().restoreSession(user, session.access_token);
+          useProfileStore.getState().setProfile(user);
+          syncDeviceAfterAuth(user);
         } catch (error: any) {
           if (__DEV__) console.warn('Auth state sync failed', error);
           useAuthStore.setState({ isSessionRestored: true, error: error?.message ?? 'Không thể đồng bộ phiên đăng nhập.' });
@@ -212,8 +218,9 @@ export default function RootLayout() {
 
       const user = await apiClient.getCurrentUser();
       const { data } = await supabase.auth.getSession();
-      if (user && data.session) {
+      if (user && data.session && data.session.user.id === user.id) {
         useAuthStore.getState().restoreSession(user, data.session.access_token);
+        useProfileStore.getState().setProfile(user);
         syncDeviceAfterAuth(user);
         router.replace(user.role === "customer" ? "/(customer)/home" : "/(driver)/dashboard");
         showSuccess("Đăng nhập thành công", "Bạn đã quay lại ứng dụng Daigo Booking.");

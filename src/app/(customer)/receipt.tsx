@@ -53,11 +53,12 @@ const escapeHtml = (value?: string | number | null) =>
 
 const buildReceiptHtml = (booking: Booking, payment: Payment | null) => {
   const total = booking.actualPrice ?? booking.estimatedPrice;
-  const pricePerKm = booking.distance ? Math.round(total / Math.max(booking.distance, 1)) : booking.vehicle?.pricePerKm;
+  const pricePerKm = booking.vehicle?.pricePerKm;
   const waitingMinutes = calculateWaitingMinutes(booking.arrivedAt, booking.startedAt);
   const quote = booking.distance && booking.vehicle?.pricePerKm
     ? calculateBookingPrice(booking.distance, booking.vehicle.pricePerKm, booking.passengers, booking.time, waitingMinutes)
     : null;
+  const priceAdjustment = quote ? total - quote.totalPrice : 0;
   const paymentStatus = payment?.paymentStatus ?? booking.paymentStatus;
   const paymentMethod = payment?.paymentMethod ?? booking.paymentMethod;
   const receiptCode = booking.bookingCode ?? booking.id.slice(0, 8);
@@ -89,6 +90,9 @@ const buildReceiptHtml = (booking: Booking, payment: Payment | null) => {
         ['Phụ phí cao điểm', quote.peakFee > 0 ? formatCurrency(quote.peakFee) : 'Không áp dụng'],        ['Phí đêm', quote.nightFee > 0 ? formatCurrency(quote.nightFee) : 'Không áp dụng'],
         ['Phí chờ', quote.waitingFee > 0 ? `${formatCurrency(quote.waitingFee)} (${quote.billableWaitingMinutes} phút tính phí)` : 'Không phát sinh'],
         ['Tạm tính theo công thức', formatCurrency(quote.totalPrice)],
+        ...(Math.abs(priceAdjustment) >= 1
+          ? [[priceAdjustment > 0 ? 'Điều chỉnh thêm' : 'Điều chỉnh giảm', formatCurrency(Math.abs(priceAdjustment))]]
+          : []),
         ['Tổng ghi nhận', formatCurrency(total)],
       ]
     : [['Tổng ghi nhận', formatCurrency(total)]];
@@ -266,7 +270,7 @@ export default function CustomerReceiptScreen() {
   }
 
   const total = booking.actualPrice ?? booking.estimatedPrice;
-  const pricePerKm = booking.distance ? Math.round(total / Math.max(booking.distance, 1)) : booking.vehicle?.pricePerKm;
+  const pricePerKm = booking.vehicle?.pricePerKm;
   const paymentStatus = payment?.paymentStatus ?? booking.paymentStatus;
   const paymentMethod = payment?.paymentMethod ?? booking.paymentMethod;
   const waitingMinutes = calculateWaitingMinutes(booking.arrivedAt, booking.startedAt);
@@ -297,6 +301,22 @@ export default function CustomerReceiptScreen() {
         <Text style={{ color: '#ffffff', fontSize: 28, ...fontForWeight('900')}}>
           {formatCurrency(total)}
         </Text>
+        <View
+          style={{
+            alignSelf: 'flex-start',
+            marginTop: spacing.sm,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.xs,
+            borderRadius: borderRadius.full,
+            backgroundColor: paymentStatus === 'paid' ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.16)',
+            borderWidth: 1,
+            borderColor: paymentStatus === 'paid' ? 'rgba(167,243,208,0.7)' : 'rgba(255,255,255,0.26)',
+          }}
+        >
+          <Text style={{ color: '#ffffff', fontSize: fontSize.sm, ...fontForWeight('900') }}>
+            {paymentStatus === 'paid' ? 'Tổng đã thanh toán' : 'Chưa thanh toán'}
+          </Text>
+        </View>
       </ReceiptSection>
 
       <ReceiptSection>
@@ -359,6 +379,8 @@ export default function CustomerReceiptScreen() {
               passengers={booking.passengers}
               time={booking.time}
               waitingMinutes={waitingMinutes}
+              recordedTotal={total}
+              totalLabel="Tổng tiền"
               compact
             />
           </View>

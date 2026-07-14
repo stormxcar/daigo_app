@@ -13,6 +13,8 @@ type PriceBreakdownProps = {
   time?: string;
   waitingMinutes?: number;
   compact?: boolean;
+  recordedTotal?: number;
+  totalLabel?: string;
 };
 
 function Row({
@@ -52,9 +54,14 @@ export function PriceBreakdown({
   time,
   waitingMinutes = 0,
   compact = false,
+  recordedTotal,
+  totalLabel = 'Tổng ghi nhận',
 }: PriceBreakdownProps) {
   const { colors } = useTheme();
   const quote = calculateBookingPrice(distance || 1, pricePerKm || 0, passengers, time, waitingMinutes);
+  const finalTotal = typeof recordedTotal === 'number' && Number.isFinite(recordedTotal) ? recordedTotal : quote.totalPrice;
+  const adjustment = finalTotal - quote.totalPrice;
+  const hasAdjustment = Math.abs(adjustment) >= 1;
 
   return (
     <View style={{ gap: compact ? spacing.xs : spacing.sm }}>
@@ -84,6 +91,14 @@ export function PriceBreakdown({
         value={quote.waitingFee > 0 ? formatCurrency(quote.waitingFee) : `Miễn ${PRICE_CONFIG.WAITING_FREE_MINUTES} phút đầu`}
       />
 
+      {hasAdjustment && (
+        <Row
+          icon={<Banknote size={16} color={adjustment > 0 ? colors.warning : colors.success} />}
+          label={adjustment > 0 ? 'Điều chỉnh thêm' : 'Điều chỉnh giảm'}
+          value={formatCurrency(Math.abs(adjustment))}
+        />
+      )}
+
       <View
         style={{
           borderTopWidth: 1,
@@ -95,9 +110,9 @@ export function PriceBreakdown({
           justifyContent: 'space-between',
         }}
       >
-        <Text style={{ color: colors.text, ...fontForWeight('900') }}>Tạm tính</Text>
+        <Text style={{ color: colors.text, ...fontForWeight('900') }}>{hasAdjustment ? totalLabel : 'Tạm tính'}</Text>
         <Text style={{ color: colors.primary, fontSize: compact ? 18 : 22, ...fontForWeight('900') }}>
-          {formatCurrency(quote.totalPrice)}
+          {formatCurrency(finalTotal)}
         </Text>
       </View>
     </View>

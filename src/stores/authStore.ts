@@ -3,6 +3,7 @@ import { AuthCredentials, DriverOnboardingData, RegisterData, User } from '@/typ
 import { apiClient } from '@/services/api';
 import { useChatStore } from '@/stores/chatStore';
 import { useNotificationStore } from '@/stores/notificationStore';
+import { useProfileStore } from '@/stores/profileStore';
 import { toVietnameseAuthError } from '@/utils/authValidation';
 import { getStoredPushToken, resetPushRegistrationState } from '@/services/pushNotifications';
 
@@ -201,9 +202,11 @@ export const useAuthStore = create<AuthStore>((set) => ({
     }
     resetPushRegistrationState();
     await apiClient.logout();
+    apiClient.clearSessionScopedCache();
     useChatStore.getState().clearChatState();
     useNotificationStore.getState().clearNotifications();
-    set({ user: null, token: null, isAuthenticated: false, error: null });
+    useProfileStore.getState().clearProfile();
+    set({ user: null, token: null, isAuthenticated: false, isLoading: false, error: null });
   },
 
   setUser: (user) => set({ user, isAuthenticated: !!user }),

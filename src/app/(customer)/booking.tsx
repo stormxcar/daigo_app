@@ -71,6 +71,61 @@ import {
 import { createIdempotencyKey } from "@/utils/idempotency";
 import { showError, showSuccess, showWarning } from "@/utils/toast";
 
+
+type LocationActionChipProps = {
+  label: string;
+  icon: React.ReactNode;
+  onPress: () => void;
+  color: string;
+  loading?: boolean;
+  disabled?: boolean;
+};
+
+function LocationActionChip({ label, icon, onPress, color, loading, disabled }: LocationActionChipProps) {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity
+      activeOpacity={0.82}
+      onPress={onPress}
+      disabled={disabled || loading}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 8,
+        borderRadius: borderRadius.full,
+        backgroundColor: `${color}12`,
+        borderWidth: 1,
+        borderColor: `${color}35`,
+        opacity: disabled ? 0.55 : 1,
+      }}
+    >
+      {loading ? <ActivityIndicator size="small" color={color} /> : icon}
+      <Text style={{ color: colors.text, fontSize: fontSize.xs, ...fontForWeight('800') }}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function LocationFieldShell({ children, color }: { children: React.ReactNode; color: string }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        borderWidth: 1,
+        borderColor: `${color}55`,
+        borderLeftWidth: 4,
+        borderLeftColor: color,
+        borderRadius: borderRadius.lg,
+        backgroundColor: colors.surface,
+        padding: spacing.sm,
+        marginBottom: spacing.md,
+      }}
+    >
+      {children}
+    </View>
+  );
+}
 type SortMode =
   | "price_asc"
   | "price_desc"
@@ -121,6 +176,7 @@ export default function BookingScreen() {
   const routeParams = useLocalSearchParams<Record<string, string | string[]>>();
   const savedLocationsSheetRef = useRef<BottomSheetModal>(null);
   const vehicleResultsSheetRef = useRef<BottomSheetModal>(null);
+  const advancedFiltersSheetRef = useRef<BottomSheetModal>(null);
   const modeSlideAnim = useRef(new Animated.Value(0)).current;
   const autoPickupAttemptedRef = useRef(false);
   const pickupEditedByUserRef = useRef(false);
@@ -145,7 +201,6 @@ export default function BookingScreen() {
   const [note, setNote] = useState("");
   const [onlyAvailable, setOnlyAvailable] = useState(true);
   const [sortMode, setSortMode] = useState<SortMode>("price_asc");
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
     null,
   );
@@ -824,7 +879,6 @@ export default function BookingScreen() {
     setStatusFilter("all");
     setOnlyAvailable(true);
     setSortMode("price_asc");
-    setFiltersExpanded(false);
     setRoute(null);
     setBookedVehicleIds([]);
     setScheduledAvailableVehicleIds(null);
@@ -1177,53 +1231,28 @@ export default function BookingScreen() {
           })}
         </View>
 
-        <TextInput
-          label="Điểm đón"
-          placeholder="Nhập địa chỉ đón"
-          value={pickupLocation}
-          onChangeText={(text) => {
-            pickupEditedByUserRef.current = true;
-            setPickupLocation(text);
-            setPickupPoint(null);
-          }}
-          icon={<MapPin size={20} color={colors.primary} />}
-          style={{ marginBottom: spacing.md }}
-        />
-        <Button
-          label="Địa điểm đã lưu"
-          onPress={() => openSavedLocations("pickup")}
-          variant="secondary"
-          size="sm"
-          icon={<Heart size={16} color={colors.primary} />}
-          style={{ marginBottom: spacing.md }}
-        />
-        <Button
-          label="Dùng vị trí hiện tại"
-          onPress={handleUseCurrentLocation}
-          loading={gpsLoading}
-          variant="outline"
-          size="sm"
-          icon={<LocateFixed size={16} color={colors.primary} />}
-          style={{ marginBottom: spacing.sm }}
-        />
-        <Button
-          label="Chọn điểm đón trên bản đồ"
-          onPress={() => openMapPicker("pickup")}
-          variant="secondary"
-          size="sm"
-          icon={<MapPin size={16} color={colors.primary} />}
-          style={{ marginBottom: spacing.md }}
-        />
-        {pickupPoint && (
-          <Button
-            label="Lưu điểm đón này"
-            onPress={() => saveLocation("pickup")}
-            loading={savingLocation === "pickup"}
-            variant="secondary"
-            size="sm"
-            style={{ marginBottom: spacing.md }}
+        <LocationFieldShell color={colors.primary}>
+          <TextInput
+            label="Điểm đón"
+            placeholder="Nhập địa chỉ đón"
+            value={pickupLocation}
+            onChangeText={(text) => {
+              pickupEditedByUserRef.current = true;
+              setPickupLocation(text);
+              setPickupPoint(null);
+            }}
+            icon={<MapPin size={20} color={colors.primary} />}
+            style={{ marginBottom: spacing.sm }}
           />
-        )}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+            <LocationActionChip label="Đã lưu" color={colors.primary} icon={<Heart size={14} color={colors.primary} />} onPress={() => openSavedLocations("pickup")} />
+            <LocationActionChip label="GPS" color={colors.primary} icon={<LocateFixed size={14} color={colors.primary} />} onPress={handleUseCurrentLocation} loading={gpsLoading} />
+            <LocationActionChip label="Bản đồ" color={colors.primary} icon={<MapPin size={14} color={colors.primary} />} onPress={() => openMapPicker("pickup")} />
+            {pickupPoint && (
+              <LocationActionChip label="Lưu điểm này" color={colors.success} icon={<Heart size={14} color={colors.success} />} onPress={() => saveLocation("pickup")} loading={savingLocation === "pickup"} />
+            )}
+          </View>
+        </LocationFieldShell>
         {locationLoading === "pickup" && (
           <ActivityIndicator
             color={colors.primary}
@@ -1253,43 +1282,26 @@ export default function BookingScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-        <TextInput
-          label="Điểm đến"
-          placeholder="Nhập địa chỉ đến"
-          value={dropoffLocation}
-          onChangeText={(text) => {
-            setDropoffLocation(text);
-            setDropoffPoint(null);
-          }}
-          icon={<MapPin size={20} color={colors.error} />}
-          style={{ marginBottom: spacing.md }}
-        />
-        <Button
-          label="Chọn điểm đến trên bản đồ"
-          onPress={() => openMapPicker("dropoff")}
-          variant="secondary"
-          size="sm"
-          icon={<MapPin size={16} color={colors.error} />}
-          style={{ marginBottom: spacing.md }}
-        />
-        <Button
-          label="Địa điểm đã lưu"
-          onPress={() => openSavedLocations("dropoff")}
-          variant="secondary"
-          size="sm"
-          icon={<Heart size={16} color={colors.error} />}
-          style={{ marginBottom: spacing.md }}
-        />
-        {dropoffPoint && (
-          <Button
-            label="Lưu điểm đến này"
-            onPress={() => saveLocation("dropoff")}
-            loading={savingLocation === "dropoff"}
-            variant="secondary"
-            size="sm"
-            style={{ marginBottom: spacing.md }}
+        <LocationFieldShell color={colors.error}>
+          <TextInput
+            label="Điểm đến"
+            placeholder="Nhập địa chỉ đến"
+            value={dropoffLocation}
+            onChangeText={(text) => {
+              setDropoffLocation(text);
+              setDropoffPoint(null);
+            }}
+            icon={<MapPin size={20} color={colors.error} />}
+            style={{ marginBottom: spacing.sm }}
           />
-        )}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+            <LocationActionChip label="Đã lưu" color={colors.error} icon={<Heart size={14} color={colors.error} />} onPress={() => openSavedLocations("dropoff")} />
+            <LocationActionChip label="Bản đồ" color={colors.error} icon={<MapPin size={14} color={colors.error} />} onPress={() => openMapPicker("dropoff")} />
+            {dropoffPoint && (
+              <LocationActionChip label="Lưu điểm này" color={colors.success} icon={<Heart size={14} color={colors.success} />} onPress={() => saveLocation("dropoff")} loading={savingLocation === "dropoff"} />
+            )}
+          </View>
+        </LocationFieldShell>
         {locationLoading === "dropoff" && (
           <ActivityIndicator
             color={colors.primary}
@@ -1600,325 +1612,107 @@ export default function BookingScreen() {
           style={{ marginBottom: spacing.md }}
         />
 
-        <TouchableOpacity
-          onPress={() => setFiltersExpanded((value) => !value)}
-          activeOpacity={0.84}
+        <View
           style={{
             flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: spacing.md,
-            borderRadius: borderRadius.lg,
-            backgroundColor: colors.surfaceAlt,
-            marginBottom: spacing.md,
+            flexWrap: "wrap",
+            gap: spacing.sm,
+            marginBottom: spacing.lg,
           }}
         >
-          <View
+          <TouchableOpacity
+            onPress={() => setOnlyAvailable((value) => !value)}
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing.sm,
+              paddingVertical: spacing.sm,
+              paddingHorizontal: spacing.md,
+              borderRadius: borderRadius.full,
+              backgroundColor: onlyAvailable ? colors.primary : colors.surfaceAlt,
             }}
           >
-            <SlidersHorizontal size={18} color={colors.primary} />
-            <Text style={{ color: colors.text, ...fontForWeight("900")}}>
-              Bộ lọc và sắp xếp
+            <Text style={{ color: onlyAvailable ? "white" : colors.text, ...fontForWeight("700"), fontSize: fontSize.sm }}>
+              Xe trống
             </Text>
-            {activeFilterCount > 0 && (
-              <View
-                style={{
-                  minWidth: 22,
-                  height: 22,
-                  borderRadius: borderRadius.full,
-                  backgroundColor: colors.primary,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    color: "white",
-                    fontSize: fontSize.xs,
-                    ...fontForWeight("900"),
-                  }}
-                >
-                  {activeFilterCount}
-                </Text>
-              </View>
-            )}
-          </View>
-          {filtersExpanded ? (
-            <ChevronUp size={18} color={colors.text} />
-          ) : (
-            <ChevronDown size={18} color={colors.text} />
-          )}
-        </TouchableOpacity>
-
-        {filtersExpanded ? (
-          <View style={{ marginBottom: spacing.lg }}>
-            <View style={{ flexDirection: "row", gap: spacing.md }}>
-              <TextInput
-                label="Giá từ/km"
-                placeholder="10000"
-                value={minPrice}
-                onChangeText={setMinPrice}
-                keyboardType="numeric"
-                style={{ flex: 1, marginBottom: spacing.md }}
-              />
-              <TextInput
-                label="Giá đến/km"
-                placeholder="20000"
-                value={maxPrice}
-                onChangeText={setMaxPrice}
-                keyboardType="numeric"
-                style={{ flex: 1, marginBottom: spacing.md }}
-              />
-            </View>
-            <TextInput
-              label="Số ghế tối thiểu"
-              placeholder="4"
-              value={minSeats}
-              onChangeText={setMinSeats}
-              keyboardType="numeric"
-              style={{ marginBottom: spacing.md }}
-            />
-
-            <Text
-              style={{
-                color: colors.text,
-                ...fontForWeight("800"),
-                marginBottom: spacing.sm,
-              }}
-            >
-              Trạng thái xe
-            </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: spacing.sm,
-                marginBottom: spacing.md,
-              }}
-            >
-              {(["all", "Sẵn sàng", "Đang bận", "Bảo trì"] as const).map(
-                (status) => (
-                  <TouchableOpacity
-                    key={status}
-                    onPress={() => setStatusFilter(status)}
-                    style={{
-                      paddingVertical: spacing.sm,
-                      paddingHorizontal: spacing.md,
-                      borderRadius: borderRadius.full,
-                      backgroundColor:
-                        statusFilter === status
-                          ? colors.primary
-                          : colors.surfaceAlt,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: statusFilter === status ? "white" : colors.text,
-                        ...fontForWeight("700"),
-                        fontSize: fontSize.sm,
-                      }}
-                    >
-                      {status === "all" ? "Tất cả" : status}
-                    </Text>
-                  </TouchableOpacity>
-                ),
-              )}
-            </View>
-
-            <Text
-              style={{
-                color: colors.text,
-                ...fontForWeight("800"),
-                marginBottom: spacing.sm,
-              }}
-            >
-              Hãng xe
-            </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: spacing.sm,
-                marginBottom: spacing.md,
-              }}
-            >
-              {["all", ...brandOptions].map((brand) => (
-                <TouchableOpacity
-                  key={brand}
-                  onPress={() => setBrandFilter(brand)}
-                  style={{
-                    paddingVertical: spacing.sm,
-                    paddingHorizontal: spacing.md,
-                    borderRadius: borderRadius.full,
-                    backgroundColor:
-                      brandFilter === brand
-                        ? colors.primary
-                        : colors.surfaceAlt,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: brandFilter === brand ? "white" : colors.text,
-                      ...fontForWeight("700"),
-                      fontSize: fontSize.sm,
-                    }}
-                  >
-                    {brand === "all" ? "Tất cả hãng" : brand}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text
-              style={{
-                color: colors.text,
-                ...fontForWeight("800"),
-                marginBottom: spacing.sm,
-              }}
-            >
-              Sắp xếp
-            </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: spacing.sm,
-                marginBottom: spacing.md,
-              }}
-            >
-              {sortOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  onPress={() => setSortMode(option.value)}
-                  style={{
-                    paddingVertical: spacing.sm,
-                    paddingHorizontal: spacing.md,
-                    borderRadius: borderRadius.full,
-                    backgroundColor:
-                      sortMode === option.value
-                        ? colors.primary
-                        : colors.surfaceAlt,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: sortMode === option.value ? "white" : colors.text,
-                      ...fontForWeight("700"),
-                      fontSize: fontSize.sm,
-                    }}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={{ flexDirection: "row", gap: spacing.sm }}>
-              <TouchableOpacity
-                onPress={() => setOnlyAvailable((value) => !value)}
-                style={{
-                  flex: 1,
-                  paddingVertical: spacing.md,
-                  paddingHorizontal: spacing.md,
-                  borderRadius: borderRadius.lg,
-                  alignItems: "center",
-                  backgroundColor: onlyAvailable
-                    ? colors.primary
-                    : colors.surfaceAlt,
-                }}
-              >
-                <Text
-                  style={{
-                    color: onlyAvailable ? "white" : colors.text,
-                    ...fontForWeight("800"),
-                  }}
-                >
-                  Xe trống đúng giờ
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => {
-                  setMinPrice("");
-                  setMaxPrice("");
-                  setMinSeats("");
-                  setBrandFilter("all");
-                  setStatusFilter("all");
-                  setOnlyAvailable(true);
-                  setSortMode("price_asc");
-                }}
-                style={{
-                  paddingVertical: spacing.md,
-                  paddingHorizontal: spacing.md,
-                  borderRadius: borderRadius.lg,
-                  alignItems: "center",
-                  backgroundColor: colors.surfaceAlt,
-                }}
-              >
-                <Text style={{ color: colors.text, ...fontForWeight("800")}}>
-                  Đặt lại
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: spacing.sm,
-              marginBottom: spacing.lg,
-            }}
-          >
+          </TouchableOpacity>
+          {sortOptions.slice(0, 2).map((option) => (
             <TouchableOpacity
-              onPress={() => setOnlyAvailable((value) => !value)}
+              key={option.value}
+              onPress={() => setSortMode(option.value)}
               style={{
                 paddingVertical: spacing.sm,
                 paddingHorizontal: spacing.md,
                 borderRadius: borderRadius.full,
-                backgroundColor: onlyAvailable
-                  ? colors.primary
-                  : colors.surfaceAlt,
+                backgroundColor: sortMode === option.value ? colors.primary : colors.surfaceAlt,
               }}
             >
-              <Text
-                style={{
-                  color: onlyAvailable ? "white" : colors.text,
-                  ...fontForWeight("600"),
-                }}
-              >
-                Xe trống đúng giờ
+              <Text style={{ color: sortMode === option.value ? "white" : colors.text, ...fontForWeight("700"), fontSize: fontSize.sm }}>
+                {option.label}
               </Text>
             </TouchableOpacity>
-            {sortOptions.slice(0, 3).map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                onPress={() => setSortMode(option.value)}
-                style={{
-                  paddingVertical: spacing.sm,
-                  paddingHorizontal: spacing.md,
-                  borderRadius: borderRadius.full,
-                  backgroundColor:
-                    sortMode === option.value
-                      ? colors.primary
-                      : colors.surfaceAlt,
-                }}
-              >
-                <Text
-                  style={{
-                    color: sortMode === option.value ? "white" : colors.text,
-                    ...fontForWeight("600"),
-                  }}
-                >
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          ))}
+          <TouchableOpacity
+            onPress={() => advancedFiltersSheetRef.current?.present()}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.xs,
+              paddingVertical: spacing.sm,
+              paddingHorizontal: spacing.md,
+              borderRadius: borderRadius.full,
+              backgroundColor: activeFilterCount > 0 ? `${colors.primary}16` : colors.surfaceAlt,
+              borderWidth: 1,
+              borderColor: activeFilterCount > 0 ? `${colors.primary}55` : colors.border,
+            }}
+          >
+            <SlidersHorizontal size={15} color={colors.primary} />
+            <Text style={{ color: colors.text, ...fontForWeight("800"), fontSize: fontSize.sm }}>
+              Bộ lọc{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <View
+          style={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: borderRadius.lg,
+            backgroundColor: colors.surfaceAlt,
+            padding: spacing.md,
+            marginBottom: spacing.md,
+            gap: spacing.sm,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md }}>
+            <Text style={{ color: colors.text, ...fontForWeight("900"), fontSize: fontSize.sm }}>Kiểm tra chuyến</Text>
+            <Text style={{ color: colors.textSecondary, ...fontForWeight("700"), fontSize: fontSize.xs }}>
+              {bookingMode === "scheduled" ? "Đặt trước" : "Đi ngay"}
+            </Text>
           </View>
-        )}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+            <MapPin size={15} color={colors.primary} />
+            <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: fontSize.sm, ...fontForWeight("800") }}>
+              {pickupLocation || "Chưa chọn điểm đón"}
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+            <MapPin size={15} color={colors.error} />
+            <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: fontSize.sm, ...fontForWeight("800") }}>
+              {dropoffLocation || "Chưa chọn điểm đến"}
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, flex: 1 }}>
+              <Clock size={14} color={colors.textSecondary} />
+              <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight("800") }}>
+                {dateInput || "Chưa chọn ngày"} • {time || "Chưa chọn giờ"}
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+              <Users size={14} color={colors.textSecondary} />
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, ...fontForWeight("800") }}>
+                {passengerCount} người
+              </Text>
+            </View>
+          </View>
+        </View>
 
         <Button
           label={routeLoading ? "Đang tải lộ trình Goong" : "Tìm xe phù hợp"}
@@ -2240,6 +2034,80 @@ export default function BookingScreen() {
               />
             </View>
           )}
+        </BottomSheetScrollView>
+      </BottomSheetModal>
+
+      <BottomSheetModal
+        ref={advancedFiltersSheetRef}
+        snapPoints={["62%", "88%"]}
+        backgroundStyle={{ backgroundColor: colors.surface }}
+        handleIndicatorStyle={{ backgroundColor: colors.border }}
+      >
+        <BottomSheetScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight("900") }}>Bộ lọc xe</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs }}>
+                Tinh chỉnh kết quả xe phù hợp với chuyến đi.
+              </Text>
+            </View>
+            {activeFilterCount > 0 && (
+              <View style={{ minWidth: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: "white", ...fontForWeight("900"), fontSize: fontSize.xs }}>{activeFilterCount}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={{ flexDirection: "row", gap: spacing.md }}>
+            <TextInput label="Giá từ/km" placeholder="10000" value={minPrice} onChangeText={setMinPrice} keyboardType="numeric" style={{ flex: 1, marginBottom: spacing.md }} />
+            <TextInput label="Giá đến/km" placeholder="20000" value={maxPrice} onChangeText={setMaxPrice} keyboardType="numeric" style={{ flex: 1, marginBottom: spacing.md }} />
+          </View>
+          <TextInput label="Số ghế tối thiểu" placeholder="4" value={minSeats} onChangeText={setMinSeats} keyboardType="numeric" style={{ marginBottom: spacing.md }} />
+
+          <Text style={{ color: colors.text, ...fontForWeight("800"), marginBottom: spacing.sm }}>Trạng thái xe</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md }}>
+            {(["all", "Sẵn sàng", "Đang bận", "Bảo trì"] as const).map((status) => (
+              <TouchableOpacity key={status} onPress={() => setStatusFilter(status)} style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: borderRadius.full, backgroundColor: statusFilter === status ? colors.primary : colors.surfaceAlt }}>
+                <Text style={{ color: statusFilter === status ? "white" : colors.text, ...fontForWeight("700"), fontSize: fontSize.sm }}>{status === "all" ? "Tất cả" : status}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={{ color: colors.text, ...fontForWeight("800"), marginBottom: spacing.sm }}>Hãng xe</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md }}>
+            {["all", ...brandOptions].map((brand) => (
+              <TouchableOpacity key={brand} onPress={() => setBrandFilter(brand)} style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: borderRadius.full, backgroundColor: brandFilter === brand ? colors.primary : colors.surfaceAlt }}>
+                <Text style={{ color: brandFilter === brand ? "white" : colors.text, ...fontForWeight("700"), fontSize: fontSize.sm }}>{brand === "all" ? "Tất cả hãng" : brand}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={{ color: colors.text, ...fontForWeight("800"), marginBottom: spacing.sm }}>Sắp xếp</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md }}>
+            {sortOptions.map((option) => (
+              <TouchableOpacity key={option.value} onPress={() => setSortMode(option.value)} style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: borderRadius.full, backgroundColor: sortMode === option.value ? colors.primary : colors.surfaceAlt }}>
+                <Text style={{ color: sortMode === option.value ? "white" : colors.text, ...fontForWeight("700"), fontSize: fontSize.sm }}>{option.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <Button
+              label="Đặt lại"
+              variant="outline"
+              onPress={() => {
+                setMinPrice("");
+                setMaxPrice("");
+                setMinSeats("");
+                setBrandFilter("all");
+                setStatusFilter("all");
+                setOnlyAvailable(true);
+                setSortMode("price_asc");
+              }}
+              style={{ flex: 1 }}
+            />
+            <Button label="Áp dụng" onPress={() => advancedFiltersSheetRef.current?.dismiss()} style={{ flex: 1 }} />
+          </View>
         </BottomSheetScrollView>
       </BottomSheetModal>
 
