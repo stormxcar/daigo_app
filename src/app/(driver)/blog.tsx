@@ -16,6 +16,7 @@ import { showError, showSuccess, showWarning } from '@/utils/toast';
 import { BlogMediaGrid } from '@/components/BlogMediaGrid';
 import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { useSubmitLeaveGuard } from '@/hooks/useSubmitLeaveGuard';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 const BLOG_FILTERS = [
   { key: 'all', label: 'Tất cả' },
@@ -133,6 +134,18 @@ export default function DriverBlog() {
   useEffect(() => {
     loadPosts();
   }, [loadPosts]);
+
+  const blogRealtimeTargets = useMemo(
+    () => (user?.id ? [{ table: 'blog_posts', filter: `driver_id=eq.${user.id}` }, { table: 'blog_comments' }, { table: 'blog_likes' }] : []),
+    [user?.id],
+  );
+
+  useRealtimeRefresh({
+    channelKey: `driver-blog-${user?.id ?? 'guest'}`,
+    targets: blogRealtimeTargets,
+    enabled: !!user?.id,
+    onRefresh: loadPosts,
+  });
 
   const filteredPosts = useMemo(() => {
     let result = [...posts];

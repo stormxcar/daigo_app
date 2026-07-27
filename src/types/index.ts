@@ -96,6 +96,7 @@ export type BookingStatus =
 export type PaymentMethod = 'cash' | 'bank_transfer' | 'vietqr';
 export type PaymentStatus = 'pending' | 'submitted' | 'driver_verified' | 'rejected' | 'expired';
 export type BookingPaymentStatus = 'unpaid' | 'pending' | 'submitted' | 'paid' | 'rejected' | 'expired';
+export type BookingSource = 'normal' | 'scheduled' | 'gonow';
 
 export interface Booking {
   id: string;
@@ -114,6 +115,8 @@ export interface Booking {
   date: string;
   time: string;
   bookingMode?: 'instant' | 'scheduled';
+  bookingSource?: BookingSource;
+  gonowSessionId?: string;
   scheduledStartAt?: string;
   scheduledEndAt?: string;
   scheduledStatus?: 'pending_driver' | 'driver_accepted' | 'driver_rejected' | 'cancelled' | 'upcoming';
@@ -144,10 +147,35 @@ export interface Booking {
   startedAt?: string;
   completedAt?: string;
   cancelledAt?: string;
+  lastDriverActionAt?: string;
+  lastCustomerActionAt?: string;
+  lastDriverLocationAt?: string;
+  timeoutWarningSentAt?: string;
+  timeoutStage?: string;
+  requiresAdminReview?: boolean;
   cancelledBy?: 'CUSTOMER' | 'DRIVER' | 'SYSTEM';
   cancelReason?: string;
 }
 
+
+export interface GonowSession {
+  sessionId: string;
+  pin: string;
+  expiresAt: string;
+  vehicleId?: string;
+}
+
+export interface GonowPreview {
+  sessionId: string;
+  expiresAt: string;
+  driver: {
+    id: string;
+    fullName: string;
+    phone?: string;
+    avatarUrl?: string;
+  };
+  vehicle: Vehicle;
+}
 export type BookingDispatchStatus = 'pending' | 'accepted' | 'rejected' | 'timeout' | 'skipped';
 
 export interface BookingDispatch {
@@ -391,6 +419,9 @@ export interface PaginatedResponse<T> {
   pageSize: number;
   hasMore: boolean;
 }
+
+
+
 
 
 

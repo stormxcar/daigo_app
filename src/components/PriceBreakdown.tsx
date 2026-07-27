@@ -1,7 +1,6 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import { Banknote, Clock, Moon, Percent, Route } from 'lucide-react-native';
-import { PRICE_CONFIG } from '@/constants';
 import { useTheme } from '@/theme';
 import { fontForWeight, fontSize, spacing } from '@/theme/tokens';
 import { calculateBookingPrice, formatCurrency } from '@/utils/helpers';
@@ -11,7 +10,6 @@ type PriceBreakdownProps = {
   pricePerKm: number;
   passengers?: number;
   time?: string;
-  waitingMinutes?: number;
   compact?: boolean;
   recordedTotal?: number;
   totalLabel?: string;
@@ -52,13 +50,12 @@ export function PriceBreakdown({
   pricePerKm,
   passengers = 1,
   time,
-  waitingMinutes = 0,
   compact = false,
   recordedTotal,
   totalLabel = 'Tổng ghi nhận',
 }: PriceBreakdownProps) {
   const { colors } = useTheme();
-  const quote = calculateBookingPrice(distance || 1, pricePerKm || 0, passengers, time, waitingMinutes);
+  const quote = calculateBookingPrice(distance || 1, pricePerKm || 0, passengers, time);
   const finalTotal = typeof recordedTotal === 'number' && Number.isFinite(recordedTotal) ? recordedTotal : quote.totalPrice;
   const adjustment = finalTotal - quote.totalPrice;
   const hasAdjustment = Math.abs(adjustment) >= 1;
@@ -84,11 +81,6 @@ export function PriceBreakdown({
         icon={<Moon size={16} color={quote.nightFee > 0 ? colors.warning : colors.textTertiary} />}
         label="Phí đêm"
         value={quote.nightFee > 0 ? formatCurrency(quote.nightFee) : 'Không áp dụng'}
-      />
-      <Row
-        icon={<Banknote size={16} color={quote.waitingFee > 0 ? colors.warning : colors.textTertiary} />}
-        label={`Phí chờ${waitingMinutes > 0 ? ` (${quote.billableWaitingMinutes} phút tính phí)` : ''}`}
-        value={quote.waitingFee > 0 ? formatCurrency(quote.waitingFee) : `Miễn ${PRICE_CONFIG.WAITING_FREE_MINUTES} phút đầu`}
       />
 
       {hasAdjustment && (

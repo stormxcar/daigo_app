@@ -143,8 +143,6 @@ export const PRICE_CONFIG = {
   PLATFORM_FEE_PERCENT: 10, // 10%
   SURGE_MULTIPLIER_PEAK: 1.2, // 20% increase during peak hours
   NIGHT_FEE_PERCENT: 12, // 12% surcharge for late-night trips
-  WAITING_FREE_MINUTES: 5, // first 5 minutes after driver arrives are free
-  WAITING_FEE_PER_MINUTE: 3000, // VND per billable waiting minute
   CANCELLATION_FEE_PERCENT: 50, // 50% of estimated price
 } as const;
 

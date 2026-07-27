@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import {
   Briefcase,
@@ -430,6 +430,12 @@ export default function DriverBookings() {
     };
   }, [fetchBookings, fetchPendingDispatches, user?.id]);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchBookings();
+      fetchPendingDispatches();
+    }, [fetchBookings, fetchPendingDispatches])
+  );
   useEffect(() => {
     if (pendingOffer) {
       offerSheetRef.current?.present();

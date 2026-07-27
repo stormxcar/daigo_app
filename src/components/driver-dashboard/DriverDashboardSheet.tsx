@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { BarChart3, CalendarClock, ChevronRight, MapPin, MessageCircle, PauseCircle, RefreshCw, RotateCcw, Route, UserRound, Wallet, XCircle } from 'lucide-react-native';
+import { BarChart3, CalendarClock, ChevronRight, KeyRound, MapPin, MessageCircle, RefreshCw, RotateCcw, Route, UserRound, Wallet, XCircle } from 'lucide-react-native';
 import { Button } from '@/components/BaseComponents';
 import type { DriverDashboardRouteState } from '@/components/driver-dashboard/DriverMapView';
 import { PaymentStatusBadge, getPaymentMethodLabel } from '@/components/PaymentStatusBadge';
 import { useTheme } from '@/theme';
 import { borderRadius, fontForWeight, fontSize, spacing } from '@/theme/tokens';
+import { BOOKING_STATUS } from '@/constants';
 import { Booking } from '@/types';
 import { formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 
@@ -33,7 +34,6 @@ type Props = {
   todayScheduledBooking?: Booking | null;
   routeState: DriverDashboardRouteState;
   pickupRadiusKm: 2 | 5 | 10;
-  pauseUntil?: string | null;
   paymentSummary: { cash: number; transfer: number; pendingReview: number; paid: number };
   onRefresh: () => void;
   onOpenBookings: () => void;
@@ -41,11 +41,15 @@ type Props = {
   onOpenSchedule: () => void;
   onOpenRevenue: () => void;
   onOpenChat: () => void;
+  onOpenGonow: () => void;
   onAcceptBooking: (booking: Booking) => void;
   onRejectBooking: (booking: Booking) => void;
   onRestoreSkippedBooking: (booking: Booking) => void;
   onChangePickupRadius: (radius: 2 | 5 | 10) => void;
-  onPauseReceiving: (minutes: 15 | 30) => void;
+  onDriverArriving: (booking: Booking) => void;
+  onDriverArrived: (booking: Booking) => void;
+  onStartTrip: (booking: Booking) => void;
+  onCompleteTrip: (booking: Booking) => void;
 };
 
 const money = (value: number) => `${value.toLocaleString('vi-VN')}đ`;
@@ -72,7 +76,7 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: s
 function QuickAction({ label, icon, onPress }: { label: string; icon: React.ReactNode; onPress: () => void }) {
   const { colors } = useTheme();
   return (
-    <TouchableOpacity activeOpacity={0.82} onPress={onPress} style={{ width: '23%', minHeight: 74, alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border }}>
+    <TouchableOpacity activeOpacity={0.82} onPress={onPress} style={{ width: '18.5%', minHeight: 74, alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: borderRadius.lg, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border }}>
       {icon}
       <Text numberOfLines={2} style={{ color: colors.text, textAlign: 'center', fontSize: 10, lineHeight: 13, ...fontForWeight('800') }}>{label}</Text>
     </TouchableOpacity>
@@ -174,7 +178,6 @@ export function DriverDashboardSheet({
   todayScheduledBooking,
   routeState,
   pickupRadiusKm,
-  pauseUntil,
   paymentSummary,
   onRefresh,
   onOpenBookings,
@@ -182,17 +185,35 @@ export function DriverDashboardSheet({
   onOpenSchedule,
   onOpenRevenue,
   onOpenChat,
+  onOpenGonow,
   onAcceptBooking,
   onRejectBooking,
   onRestoreSkippedBooking,
   onChangePickupRadius,
-  onPauseReceiving,
+  onDriverArriving,
+  onDriverArrived,
+  onStartTrip,
+  onCompleteTrip,
 }: Props) {
   const { colors, isDark } = useTheme();
   const snapPoints = useMemo(() => ['24%', '56%', '90%'], []);
   const primaryNearbyBooking = nearbyBookings[0] ?? null;
-  const pauseLabel = pauseUntil ? `Tạm nghỉ đến ${new Date(pauseUntil).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}` : null;
-
+  const activeTripAction = useMemo(() => {
+    if (!activeTrip) return null;
+    if ([BOOKING_STATUS.SCHEDULED_DRIVER_ACCEPTED, BOOKING_STATUS.SCHEDULED_UPCOMING, BOOKING_STATUS.DRIVER_ACCEPTED].includes(activeTrip.status as any)) {
+      return { label: 'Tôi đang tới', onPress: onDriverArriving };
+    }
+    if (activeTrip.status === BOOKING_STATUS.DRIVER_ARRIVING) {
+      return { label: 'Đã tới nơi', onPress: onDriverArrived };
+    }
+    if (activeTrip.status === BOOKING_STATUS.DRIVER_ARRIVED) {
+      return { label: 'Bắt đầu chuyến', onPress: onStartTrip };
+    }
+    if (activeTrip.status === BOOKING_STATUS.TRIP_STARTED) {
+      return { label: 'Hoàn thành', onPress: onCompleteTrip };
+    }
+    return null;
+  }, [activeTrip, onCompleteTrip, onDriverArrived, onDriverArriving, onStartTrip]);
   return (
     <BottomSheet index={1} snapPoints={snapPoints} enablePanDownToClose={false} backgroundStyle={{ backgroundColor: isDark ? 'rgba(15,23,42,0.97)' : 'rgba(255,255,255,0.98)', borderTopLeftRadius: 28, borderTopRightRadius: 28 }} handleIndicatorStyle={{ backgroundColor: colors.textTertiary, width: 44 }}>
       <BottomSheetScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing['4xl'] }}>
@@ -200,7 +221,6 @@ export function DriverDashboardSheet({
           <View style={{ flex: 1, paddingRight: spacing.md }}>
             <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight('900') }}>{activeTrip ? 'Đang trong chuyến' : 'Bảng điều khiển'}</Text>
             <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 2 }}>{loading ? 'Đang tải dữ liệu tài xế...' : activeTrip ? `${activeTrip.pickupLocation} → ${activeTrip.dropoffLocation}` : `${nearbyBookings.length} chuyến trong ${pickupRadiusKm} km • ${stats.todayCompleted} chuyến hôm nay`}</Text>
-            {!!pauseLabel && <Text style={{ color: colors.warning, fontSize: fontSize.xs, marginTop: spacing.xs, ...fontForWeight('800') }}>{pauseLabel}</Text>}
           </View>
           <TouchableOpacity activeOpacity={0.82} onPress={onRefresh} disabled={refreshing || loading} style={{ width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt, opacity: refreshing || loading ? 0.6 : 1 }}>
             <RefreshCw size={19} color={colors.primary} />
@@ -208,17 +228,40 @@ export function DriverDashboardSheet({
         </View>
 
         {!!activeTrip && (
-          <TouchableOpacity activeOpacity={0.86} onPress={() => onOpenBookingDetail(activeTrip.id)} style={{ marginBottom: spacing.md, paddingVertical: spacing.md, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.primary, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.primary + '14' }}>
-            <Route size={24} color={colors.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.primary, fontSize: fontSize.sm, ...fontForWeight('900') }}>Tiếp tục xử lý chuyến hiện tại</Text>
-              <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>{activeTrip.customerName} • {activeTrip.pickupLocation}</Text>
+          <View style={{ marginBottom: spacing.md, paddingVertical: spacing.md, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.primary, backgroundColor: colors.primary + '12' }}>
+            <TouchableOpacity activeOpacity={0.86} onPress={() => onOpenBookingDetail(activeTrip.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.sm }}>
+              <Route size={24} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.primary, fontSize: fontSize.sm, ...fontForWeight('900') }}>Chuyến đang diễn ra</Text>
+                <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>{activeTrip.customerName} • {activeTrip.pickupLocation}</Text>
+              </View>
+              <ChevronRight size={18} color={colors.primary} />
+            </TouchableOpacity>
+            <View style={{ paddingHorizontal: spacing.sm }}>
               <TripInfoBreakdown booking={activeTrip} routeState={routeState} />
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
+                {activeTripAction && (
+                  <Button
+                    label={activeTripAction.label}
+                    size="sm"
+                    loading={actionLoadingId === activeTrip.id}
+                    disabled={!!actionLoadingId}
+                    onPress={() => activeTripAction.onPress(activeTrip)}
+                    style={{ flex: 1 }}
+                  />
+                )}
+                <Button
+                  label="Chi tiết"
+                  size="sm"
+                  variant="outline"
+                  disabled={!!actionLoadingId}
+                  onPress={() => onOpenBookingDetail(activeTrip.id)}
+                  style={{ flex: activeTripAction ? 0 : 1 }}
+                />
+              </View>
             </View>
-            <ChevronRight size={18} color={colors.primary} />
-          </TouchableOpacity>
+          </View>
         )}
-
         {!activeTrip && <RadiusSelector value={pickupRadiusKm} onChange={onChangePickupRadius} />}
 
         {!activeTrip && !!lastSkippedBooking && (
@@ -249,13 +292,6 @@ export function DriverDashboardSheet({
           </View>
         )}
 
-        {!activeTrip && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
-            <PauseCircle size={19} color={colors.warning} />
-            <Button label="Tạm nghỉ 15 phút" size="sm" variant="outline" onPress={() => onPauseReceiving(15)} style={{ flex: 1 }} />
-            <Button label="30 phút" size="sm" variant="outline" onPress={() => onPauseReceiving(30)} />
-          </View>
-        )}
 
         {!!todayScheduledBooking && !activeTrip && (
           <TouchableOpacity activeOpacity={0.86} onPress={() => onOpenBookingDetail(todayScheduledBooking.id)} style={{ marginBottom: spacing.md, paddingVertical: spacing.md, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.warning, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.warning + '14' }}>
@@ -271,7 +307,8 @@ export function DriverDashboardSheet({
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm, marginBottom: spacing.md }}>
           <QuickAction label="Lịch" icon={<CalendarClock size={22} color={colors.primary} />} onPress={onOpenSchedule} />
           <QuickAction label="Doanh thu" icon={<Wallet size={22} color={colors.success} />} onPress={onOpenRevenue} />
-          <QuickAction label="Chuyến đi" icon={<Route size={22} color={colors.info} />} onPress={onOpenBookings} />
+          <QuickAction label="Lịch sử" icon={<Route size={22} color={colors.info} />} onPress={onOpenBookings} />
+          <QuickAction label="Gonow" icon={<KeyRound size={22} color={colors.primary} />} onPress={onOpenGonow} />
           <QuickAction label="Tin nhắn" icon={<MessageCircle size={22} color={colors.warning} />} onPress={onOpenChat} />
         </View>
 
@@ -314,6 +351,10 @@ export function DriverDashboardSheet({
     </BottomSheet>
   );
 }
+
+
+
+
 
 
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Share, Text, View } from 'react-native';
+import { Share, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -13,7 +13,7 @@ import { paymentService } from '@/services/paymentService';
 import { useTheme } from '@/theme';
 import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Booking, Payment } from '@/types';
-import { calculateBookingPrice, calculateWaitingMinutes, formatCurrency, formatVietnamDate } from '@/utils/helpers';
+import { calculateBookingPrice, formatCurrency, formatVietnamDate } from '@/utils/helpers';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 
 const paymentMethodLabel = {
@@ -22,7 +22,17 @@ const paymentMethodLabel = {
   vietqr: 'VietQR',
 };
 
-function ReceiptSection({ children, style }: { children: React.ReactNode; style?: any }) {
+function ReceiptSection({
+  title,
+  icon,
+  children,
+  style,
+}: {
+  title?: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  style?: any;
+}) {
   const { colors } = useTheme();
   return (
     <View
@@ -38,11 +48,29 @@ function ReceiptSection({ children, style }: { children: React.ReactNode; style?
         style,
       ]}
     >
+      {!!title && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm }}>
+          {!!icon && (
+            <View
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: borderRadius.full,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: colors.background,
+              }}
+            >
+              {icon}
+            </View>
+          )}
+          <Text style={{ color: colors.text, fontSize: fontSize.base, ...fontForWeight('900') }}>{title}</Text>
+        </View>
+      )}
       {children}
     </View>
   );
 }
-
 const escapeHtml = (value?: string | number | null) =>
   String(value ?? 'Chưa có')
     .replace(/&/g, '&amp;')
@@ -54,9 +82,8 @@ const escapeHtml = (value?: string | number | null) =>
 const buildReceiptHtml = (booking: Booking, payment: Payment | null) => {
   const total = booking.actualPrice ?? booking.estimatedPrice;
   const pricePerKm = booking.vehicle?.pricePerKm;
-  const waitingMinutes = calculateWaitingMinutes(booking.arrivedAt, booking.startedAt);
   const quote = booking.distance && booking.vehicle?.pricePerKm
-    ? calculateBookingPrice(booking.distance, booking.vehicle.pricePerKm, booking.passengers, booking.time, waitingMinutes)
+    ? calculateBookingPrice(booking.distance, booking.vehicle.pricePerKm, booking.passengers, booking.time)
     : null;
   const priceAdjustment = quote ? total - quote.totalPrice : 0;
   const paymentStatus = payment?.paymentStatus ?? booking.paymentStatus;
@@ -87,8 +114,8 @@ const buildReceiptHtml = (booking: Booking, payment: Payment | null) => {
     ? [
         ['Cước lộ trình', formatCurrency(quote.basePrice)],
         ['Phí nền tảng', formatCurrency(quote.platformFee)],
-        ['Phụ phí cao điểm', quote.peakFee > 0 ? formatCurrency(quote.peakFee) : 'Không áp dụng'],        ['Phí đêm', quote.nightFee > 0 ? formatCurrency(quote.nightFee) : 'Không áp dụng'],
-        ['Phí chờ', quote.waitingFee > 0 ? `${formatCurrency(quote.waitingFee)} (${quote.billableWaitingMinutes} phút tính phí)` : 'Không phát sinh'],
+        ['Phụ phí cao điểm', quote.peakFee > 0 ? formatCurrency(quote.peakFee) : 'Không áp dụng'],
+        ['Phí đêm', quote.nightFee > 0 ? formatCurrency(quote.nightFee) : 'Không áp dụng'],
         ['Tạm tính theo công thức', formatCurrency(quote.totalPrice)],
         ...(Math.abs(priceAdjustment) >= 1
           ? [[priceAdjustment > 0 ? 'Điều chỉnh thêm' : 'Điều chỉnh giảm', formatCurrency(Math.abs(priceAdjustment))]]
@@ -170,15 +197,62 @@ const buildReceiptHtml = (booking: Booking, payment: Payment | null) => {
 function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
   const { colors } = useTheme();
   return (
-    <View style={{ paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-      <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>{label}</Text>
-      <Text style={{ color: colors.text, ...fontForWeight('800'), marginTop: spacing.xs }}>
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: spacing.md,
+        paddingVertical: spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+      }}
+    >
+      <Text style={{ flex: 0.42, color: colors.textSecondary, fontSize: fontSize.sm }}>{label}</Text>
+      <Text style={{ flex: 0.58, color: colors.text, ...fontForWeight('800'), textAlign: 'right', lineHeight: 20 }}>
         {value || 'Chưa có'}
       </Text>
     </View>
   );
 }
 
+function ReceiptAction({
+  label,
+  icon,
+  onPress,
+  primary,
+  disabled,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  onPress: () => void;
+  primary?: boolean;
+  disabled?: boolean;
+}) {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity
+      activeOpacity={0.82}
+      onPress={onPress}
+      disabled={disabled}
+      style={{
+        flex: 1,
+        minHeight: 48,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        backgroundColor: primary ? colors.primary : colors.surface,
+        opacity: disabled ? 0.55 : 1,
+      }}
+    >
+      {icon}
+      <Text style={{ color: primary ? '#ffffff' : colors.primary, fontSize: fontSize.sm, ...fontForWeight('900') }}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
 export default function CustomerReceiptScreen() {
   const { colors } = useTheme();
   const { bookingId } = useLocalSearchParams<{ bookingId?: string }>();
@@ -206,9 +280,9 @@ export default function CustomerReceiptScreen() {
     if (!booking) return;
     const total = booking.actualPrice ?? booking.estimatedPrice;
     await Share.share({
-      title: `Biên nhận ${booking.bookingCode ?? booking.id.slice(0, 8)}`,
+      title: `Biên nhận ${receiptCode}`,
       message: [
-        `Biên nhận chuyến đi ${booking.bookingCode ?? booking.id.slice(0, 8)}`,
+        `Biên nhận chuyến đi ${receiptCode}`,
         `Điểm đón: ${booking.pickupLocation}`,
         `Điểm đến: ${booking.dropoffLocation}`,
         `Tài xế: ${booking.driverName}`,
@@ -238,7 +312,7 @@ export default function CustomerReceiptScreen() {
 
       await Sharing.shareAsync(uri, {
         mimeType: 'application/pdf',
-        dialogTitle: `Lưu biên nhận ${booking.bookingCode ?? booking.id.slice(0, 8)}`,
+        dialogTitle: `Lưu biên nhận ${receiptCode}`,
         UTI: 'com.adobe.pdf',
       });
       showSuccess('Đã tạo PDF', 'Bạn có thể lưu hoặc chia sẻ biên nhận từ share sheet.');
@@ -273,7 +347,8 @@ export default function CustomerReceiptScreen() {
   const pricePerKm = booking.vehicle?.pricePerKm;
   const paymentStatus = payment?.paymentStatus ?? booking.paymentStatus;
   const paymentMethod = payment?.paymentMethod ?? booking.paymentMethod;
-  const waitingMinutes = calculateWaitingMinutes(booking.arrivedAt, booking.startedAt);
+  const receiptCode = booking.bookingCode ?? booking.id.slice(0, 8);
+  const paymentLabel = paymentMethod ? paymentMethodLabel[paymentMethod] : 'Chưa chọn';
 
   return (
     <Screen scroll>
@@ -294,7 +369,7 @@ export default function CustomerReceiptScreen() {
           <View style={{ flex: 1 }}>
             <Text style={{ color: '#ffffff', fontSize: 22, ...fontForWeight('900')}}>Biên nhận chuyến đi</Text>
             <Text style={{ color: 'rgba(255,255,255,0.82)', marginTop: spacing.xs }}>
-              {booking.bookingCode ?? booking.id.slice(0, 8)}
+              {receiptCode}
             </Text>
           </View>
         </View>
@@ -319,57 +394,37 @@ export default function CustomerReceiptScreen() {
         </View>
       </ReceiptSection>
 
-      <ReceiptSection>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
-          <MapPin size={20} color={colors.primary} />
-          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Lộ trình</Text>
-        </View>
+      <ReceiptSection title="Lộ trình" icon={<MapPin size={17} color={colors.primary} />}>
         <InfoRow label="Điểm đón" value={booking.pickupLocation} />
         <InfoRow label="Điểm đến" value={booking.dropoffLocation} />
         <InfoRow label="Quãng đường" value={booking.distance ? `${booking.distance} km` : 'Chưa có'} />
       </ReceiptSection>
 
-      <ReceiptSection>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
-          <CalendarClock size={20} color={colors.info} />
-          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Thời gian</Text>
-        </View>
+      <ReceiptSection title="Thời gian" icon={<CalendarClock size={17} color={colors.info} />}>
         <InfoRow label="Lịch đặt" value={`${booking.time} - ${formatVietnamDate(booking.date)}`} />
         <InfoRow label="Bắt đầu chuyến" value={booking.startedAt ? new Date(booking.startedAt).toLocaleString('vi-VN') : undefined} />
         <InfoRow label="Hoàn thành" value={booking.completedAt ? new Date(booking.completedAt).toLocaleString('vi-VN') : undefined} />
       </ReceiptSection>
 
-      <ReceiptSection>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
-          <User size={20} color={colors.primary} />
-          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Người đi và tài xế</Text>
-        </View>
+      <ReceiptSection title="Người đi và tài xế" icon={<User size={17} color={colors.primary} />}>
         <InfoRow label="Customer" value={booking.customerName} />
         <InfoRow label="Số điện thoại customer" value={booking.customerPhone} />
         <InfoRow label="Driver" value={booking.driverName} />
         <InfoRow label="Số điện thoại driver" value={booking.driverPhone} />
       </ReceiptSection>
 
-      <ReceiptSection>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
-          <Car size={20} color={colors.warning} />
-          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Xe</Text>
-        </View>
+      <ReceiptSection title="Xe" icon={<Car size={17} color={colors.warning} />}>
         <InfoRow label="Tên xe" value={booking.vehicle?.name} />
         <InfoRow label="Biển số" value={booking.vehicle?.licensePlate} />
         <InfoRow label="Màu xe" value={booking.vehicle?.color} />
         <InfoRow label="Số ghế" value={booking.vehicle?.seats ? `${booking.vehicle.seats} chỗ` : undefined} />
       </ReceiptSection>
 
-      <ReceiptSection>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
-          <Banknote size={20} color={colors.success} />
-          <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Thanh toán</Text>
-        </View>
+      <ReceiptSection title="Thanh toán" icon={<Banknote size={17} color={colors.success} />}>
         <View style={{ marginBottom: spacing.md }}>
           <PaymentStatusBadge status={paymentStatus} size="md" />
         </View>
-        <InfoRow label="Phương thức" value={paymentMethod ? paymentMethodLabel[paymentMethod] : 'Chưa chọn'} />
+        <InfoRow label="Phương thức" value={paymentLabel} />
         <InfoRow label="Giá/km" value={pricePerKm ? `${pricePerKm.toLocaleString('vi-VN')} VND/km` : undefined} />
         {!!booking.distance && !!booking.vehicle?.pricePerKm && (
           <View style={{ marginTop: spacing.md, marginBottom: spacing.sm }}>
@@ -378,7 +433,6 @@ export default function CustomerReceiptScreen() {
               pricePerKm={booking.vehicle.pricePerKm}
               passengers={booking.passengers}
               time={booking.time}
-              waitingMinutes={waitingMinutes}
               recordedTotal={total}
               totalLabel="Tổng tiền"
               compact
@@ -389,26 +443,34 @@ export default function CustomerReceiptScreen() {
       </ReceiptSection>
 
       {!!booking.note && (
-        <ReceiptSection>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
-            <Navigation size={20} color={colors.textSecondary} />
-            <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('900')}}>Ghi chú</Text>
-          </View>
+        <ReceiptSection title="Ghi chú" icon={<Navigation size={17} color={colors.textSecondary} />}>
           <Text style={{ color: colors.textSecondary, lineHeight: 22 }}>{booking.note}</Text>
         </ReceiptSection>
       )}
 
-      <View style={{ gap: spacing.md, marginBottom: spacing.lg }}>
-        <Button label="Chia sẻ biên nhận" onPress={shareReceipt} icon={<Share2 size={18} color="#ffffff" />} />
-        <Button
-          label="Lưu PDF"
-          onPress={exportPdf}
-          loading={exportingPdf}
-          disabled={exportingPdf}
-          variant="outline"
-          icon={<Download size={18} color={colors.primary} />}
-        />
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl, backgroundColor: colors.background }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            overflow: 'hidden',
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: borderRadius.md,
+            backgroundColor: colors.surface,
+          }}
+        >
+          <ReceiptAction label="Chia sẻ" onPress={shareReceipt} primary icon={<Share2 size={17} color="#ffffff" />} />
+          <View style={{ width: 1, backgroundColor: colors.border }} />
+          <ReceiptAction
+            label={exportingPdf ? 'Đang tạo...' : 'Lưu PDF'}
+            onPress={exportPdf}
+            disabled={exportingPdf}
+            icon={<Download size={17} color={colors.primary} />}
+          />
+        </View>
       </View>
     </Screen>
   );
 }
+
+

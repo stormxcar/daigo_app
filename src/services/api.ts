@@ -1,5 +1,5 @@
 import * as WebBrowser from 'expo-web-browser';
-import { AuthCredentials, AuthResponse, BlogComment, BlogPost, Booking, BookingDispatch, ChatConversation, DriverOnboardingData, DriverStatus, Message, NotificationItem, ProfileSettings, RatingReview, RegisterData, SavedLocation, User, Vehicle } from '@/types';
+import { AuthCredentials, AuthResponse, BlogComment, BlogPost, Booking, BookingDispatch, ChatConversation, DriverOnboardingData, DriverStatus, GonowPreview, GonowSession, Message, NotificationItem, ProfileSettings, RatingReview, RegisterData, SavedLocation, User, Vehicle } from '@/types';
 import { ACTIVE_BOOKING_STATUSES, BOOKING_STATUS } from '@/constants';
 import { supabase } from './supabase';
 import { getAuthRedirectUri } from '@/utils/authRedirect';
@@ -167,6 +167,8 @@ const mapBooking = (row: any): Booking => {
     date: row.booking_date,
     time: String(row.booking_time).slice(0, 5),
     bookingMode: row.booking_mode ?? 'instant',
+    bookingSource: row.booking_source ?? (row.booking_mode === 'scheduled' ? 'scheduled' : 'normal'),
+    gonowSessionId: row.gonow_session_id ?? undefined,
     scheduledStartAt: row.scheduled_start_at ?? undefined,
     scheduledEndAt: row.scheduled_end_at ?? undefined,
     scheduledStatus: row.scheduled_status ?? undefined,
@@ -197,6 +199,12 @@ const mapBooking = (row: any): Booking => {
     startedAt: row.started_at ?? undefined,
     completedAt: row.completed_at ?? undefined,
     cancelledAt: row.cancelled_at ?? undefined,
+    lastDriverActionAt: row.last_driver_action_at ?? undefined,
+    lastCustomerActionAt: row.last_customer_action_at ?? undefined,
+    lastDriverLocationAt: row.last_driver_location_at ?? undefined,
+    timeoutWarningSentAt: row.timeout_warning_sent_at ?? undefined,
+    timeoutStage: row.timeout_stage ?? undefined,
+    requiresAdminReview: !!row.requires_admin_review,
     cancelledBy: row.cancelled_by ?? undefined,
     cancelReason: row.cancel_reason ?? undefined,
   } as Booking;
@@ -1131,6 +1139,112 @@ class ApiClient {
     return data?.[0] ? mapBooking(data[0]) : null;
   }
 
+
+  async createGonowSession(vehicleId?: string): Promise<GonowSession> {
+    const { data, error } = await supabase.rpc('create_gonow_session', {
+      p_vehicle_id: vehicleId ?? null,
+    });
+    if (error) throw error;
+    if (!data) throw new Error('Không thể tạo mã Gonow.');
+    return {
+      sessionId: data.session_id,
+      pin: String(data.pin ?? ''),
+      expiresAt: data.expires_at,
+      vehicleId: data.vehicle_id ?? undefined,
+    };
+  }
+
+  async cancelGonowSession(sessionId: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('cancel_gonow_session', {
+      p_session_id: sessionId,
+    });
+    if (error) throw error;
+    return Boolean(data);
+  }
+
+  async verifyGonowPin(pin: string): Promise<GonowPreview> {
+    const { data, error } = await supabase.rpc('verify_gonow_pin', {
+      p_pin: pin,
+    });
+    if (error) throw error;
+    if (!data) throw new Error('Không tìm thấy mã Gonow.');
+
+    const driver = data.driver ?? {};
+    const vehicle = data.vehicle ?? {};
+    return {
+      sessionId: data.session_id,
+      expiresAt: data.expires_at,
+      driver: {
+        id: driver.id,
+        fullName: driver.full_name ?? 'Tài xế Daigo',
+        phone: driver.phone ?? undefined,
+        avatarUrl: driver.avatar_url ?? undefined,
+      },
+      vehicle: {
+        id: vehicle.id,
+        driverId: driver.id,
+        driverName: driver.full_name ?? undefined,
+        driverPhone: driver.phone ?? undefined,
+        driverAvatar: driver.avatar_url ?? undefined,
+        name: vehicle.name ?? 'Xe Daigo',
+        brand: vehicle.brand ?? '',
+        licensePlate: vehicle.license_plate ?? '',
+        color: vehicle.color ?? '',
+        seats: Number(vehicle.seats ?? 0),
+        pricePerKm: Number(vehicle.price_per_km ?? 0),
+        status: vehicle.status ?? 'Sẵn sàng',
+        image: vehicle.image ?? '',
+        imageUrls: vehicle.image_urls?.length ? vehicle.image_urls : vehicle.image ? [vehicle.image] : [],
+        createdAt: vehicle.created_at ?? new Date().toISOString(),
+        updatedAt: vehicle.updated_at ?? new Date().toISOString(),
+      },
+    };
+  }
+
+  async createGonowBooking(data: {
+    sessionId: string;
+    customerId: string;
+    pickupLocation: string;
+    dropoffLocation: string;
+    pickupLat?: number;
+    pickupLng?: number;
+    dropoffLat?: number;
+    dropoffLng?: number;
+    date: string;
+    time: string;
+    passengers: number;
+    note?: string;
+    distance?: number;
+    estimatedPrice?: number;
+    idempotencyKey?: string;
+  }): Promise<Booking> {
+    if (!data.customerId) throw new Error('Bạn cần đăng nhập để dùng Gonow.');
+
+    const activeBooking = await this.getActiveBooking(data.customerId, 'customer');
+    if (activeBooking) {
+      throw new Error('Bạn đang có một chuyến xe đang hoạt động. Vui lòng hoàn thành hoặc hủy chuyến hiện tại trước khi đặt chuyến mới.');
+    }
+
+    const { data: inserted, error } = await supabase.rpc('create_gonow_booking', {
+      p_session_id: data.sessionId,
+      p_pickup_location: data.pickupLocation,
+      p_dropoff_location: data.dropoffLocation,
+      p_pickup_lat: data.pickupLat ?? null,
+      p_pickup_lng: data.pickupLng ?? null,
+      p_dropoff_lat: data.dropoffLat ?? null,
+      p_dropoff_lng: data.dropoffLng ?? null,
+      p_booking_date: data.date,
+      p_booking_time: data.time,
+      p_passengers: data.passengers,
+      p_note: data.note ?? null,
+      p_distance: data.distance ?? null,
+      p_estimated_price: data.estimatedPrice ?? 0,
+      p_idempotency_key: data.idempotencyKey ?? null,
+    });
+    if (error) throw error;
+    if (!inserted?.id) throw new Error('Không thể tạo chuyến Gonow.');
+    return this.getBookingById(inserted.id);
+  }
   async createBooking(data: Partial<Booking> & { pickupLat?: number; pickupLng?: number; dropoffLat?: number; dropoffLng?: number }): Promise<Booking> {
     if (!data.customerId) {
       throw new Error('Bạn cần đăng nhập để đặt xe.');
@@ -1965,8 +2079,14 @@ class ApiClient {
 
     const hiddenIds = new Set((hiddenData ?? []).map((item: any) => item.conversation_id));
 
-    const conversations = (data ?? []).filter((row: any) => !hiddenIds.has(row.id)).map((row: any) => {
-      const participant = row.customer_id === userId ? row.driver : row.customer;
+    const conversations = (data ?? [])
+      .filter((row: any) => {
+        if (hiddenIds.has(row.id)) return false;
+        const participantId = row.customer_id === userId ? row.driver_id : row.customer_id;
+        return Boolean(participantId);
+      })
+      .map((row: any) => {
+        const participant = row.customer_id === userId ? row.driver : row.customer;
       const messages = [...(row.messages ?? [])].sort(
         (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
@@ -1978,7 +2098,7 @@ class ApiClient {
         bookingId: row.booking_id ?? undefined,
         threadIds: [row.id],
         participantId: participant?.id ?? '',
-        participantName: participant?.full_name ?? 'Tài xế sẽ xác nhận',
+        participantName: participant?.full_name ?? 'Người dùng',
         participantPhone: participant?.phone ?? undefined,
         participantAvatar: participant?.avatar_url ?? undefined,
         lastMessage: lastMessage?.text ?? 'Chưa có tin nhắn',
@@ -2030,7 +2150,7 @@ class ApiClient {
     });
     if (error) throw error;
 
-    return (data ?? []).map((row: any) => {
+    return (data ?? []).filter((row: any) => Boolean(row.participant_id)).map((row: any) => {
       const lastMessageTime = row.last_message_time
         ? new Date(row.last_message_time).toLocaleString('vi-VN')
         : '';
@@ -2039,7 +2159,7 @@ class ApiClient {
         bookingId: row.booking_id ?? undefined,
         threadIds: row.thread_ids ?? [row.id],
         participantId: row.participant_id ?? '',
-        participantName: row.participant_name ?? 'Tài xế sẽ xác nhận',
+        participantName: row.participant_name ?? 'Người dùng',
         participantPhone: row.participant_phone ?? undefined,
         participantAvatar: row.participant_avatar ?? undefined,
         lastMessage: row.last_message ?? 'Chưa có tin nhắn',
@@ -2062,6 +2182,11 @@ class ApiClient {
     const baseRow: any = baseConversation;
     if (baseRow.customer_id !== userId && baseRow.driver_id !== userId) {
       throw new Error('Bạn không có quyền xem cuộc trò chuyện này.');
+    }
+
+    const participantId = baseRow.customer_id === userId ? baseRow.driver_id : baseRow.customer_id;
+    if (!participantId) {
+      throw new Error('Cuộc trò chuyện chưa có người tham gia hợp lệ.');
     }
 
     const { data: rows, error: listError } = await supabase
@@ -2234,6 +2359,9 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+
+
+
 
 
 

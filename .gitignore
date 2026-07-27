@@ -47,3 +47,6 @@ coverage/
 # Production
 build/
 out/
+supabase/.temp/
+eslint-report.json
+

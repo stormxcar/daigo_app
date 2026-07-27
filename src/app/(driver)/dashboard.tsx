@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Text,
   TouchableOpacity,
   Vibration,
@@ -16,9 +17,9 @@ import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { Bell, MapPin, UserCircle } from "lucide-react-native";
+import { Bell, KeyRound, MapPin, X, UserCircle } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ActiveTripSheet } from "@/components/ActiveTripSheet";
+import { Button } from "@/components/BaseComponents";
 import { LocationAccessFallback } from "@/components/LocationAccessFallback";
 import { DriverDashboardSheet } from "@/components/driver-dashboard/DriverDashboardSheet";
 import {
@@ -47,12 +48,13 @@ import {
   shadows,
   spacing,
 } from "@/theme/tokens";
-import { Booking, BookingDispatch, RatingReview, TripPhase } from "@/types";
+import { Booking, BookingDispatch, GonowSession, RatingReview, TripPhase } from "@/types";
 import {
   showError,
   showInfo,
   showSuccess,
   showSuccessAction,
+  showWarning,
 } from "@/utils/toast";
 
 const money = (value: number) => `${value.toLocaleString("vi-VN")}đ`;
@@ -71,6 +73,20 @@ const canShowAsNearby = (booking: Booking) =>
     BOOKING_STATUS.SEARCHING_DRIVER,
     BOOKING_STATUS.SCHEDULED_PENDING_DRIVER,
   ].includes(booking.status as any);
+
+const getScheduledActionGate = (booking: Booking) => {
+  if (booking.bookingMode !== "scheduled")
+    return { allowed: true, message: "" };
+  if (!booking.scheduledStartAt) return { allowed: true, message: "" };
+
+  const allowedAt = new Date(booking.scheduledStartAt).getTime();
+  if (Date.now() >= allowedAt) return { allowed: true, message: "" };
+
+  return {
+    allowed: false,
+    message: `Chuyến đặt trước chỉ có thể bắt đầu thao tác từ ${new Date(allowedAt).toLocaleString("vi-VN")}.`,
+  };
+};
 
 export default function DriverDashboard() {
   const { colors, isDark } = useTheme();
@@ -106,7 +122,10 @@ export default function DriverDashboard() {
     null,
   );
   const [pickupRadiusKm, setPickupRadiusKm] = useState<2 | 5 | 10>(5);
-  const [pauseUntil, setPauseUntil] = useState<string | null>(null);
+  const [gonowSession, setGonowSession] = useState<GonowSession | null>(null);
+  const [gonowVisible, setGonowVisible] = useState(false);
+  const [gonowLoading, setGonowLoading] = useState(false);
+  const [gonowNow, setGonowNow] = useState(Date.now());
   const [routeState, setRouteState] =
     useState<DriverDashboardRouteState>(defaultRouteState);
   const [followDriver, setFollowDriver] = useState(true);
@@ -120,7 +139,6 @@ export default function DriverDashboard() {
   );
   const lastOnlineLocationSyncRef = useRef(0);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadData = useCallback(
     async (manualRefresh = false) => {
@@ -165,7 +183,6 @@ export default function DriverDashboard() {
           new Date(driverStatus.pauseUntil).getTime() > Date.now()
             ? driverStatus.pauseUntil
             : null;
-        setPauseUntil(activePauseUntil);
         setIsOnline(!!driverStatus?.isOnline && !activePauseUntil);
         setVerificationStatus(driverStatus?.verificationStatus ?? "PENDING");
 
@@ -181,7 +198,6 @@ export default function DriverDashboard() {
             .then((updated) => {
               setIsOnline(updated.isOnline);
               setVerificationStatus(updated.verificationStatus);
-              setPauseUntil(null);
             })
             .catch(() => undefined);
         }
@@ -252,13 +268,6 @@ export default function DriverDashboard() {
     };
   }, [scheduleDashboardRefresh, user]);
 
-  useEffect(
-    () => () => {
-      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-    },
-    [],
-  );
-
   const activeTrip = useMemo(
     () =>
       bookings.find((booking) =>
@@ -266,6 +275,23 @@ export default function DriverDashboard() {
       ) ?? null,
     [bookings],
   );
+
+  useEffect(() => {
+    if (!gonowVisible || !gonowSession) return;
+    const timer = setInterval(() => setGonowNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [gonowSession, gonowVisible]);
+
+  const gonowSecondsLeft = useMemo(() => {
+    if (!gonowSession) return 0;
+    return Math.max(0, Math.ceil((new Date(gonowSession.expiresAt).getTime() - gonowNow) / 1000));
+  }, [gonowNow, gonowSession]);
+
+  const gonowCountdownLabel = useMemo(() => {
+    const minutes = Math.floor(gonowSecondsLeft / 60).toString().padStart(2, "0");
+    const seconds = (gonowSecondsLeft % 60).toString().padStart(2, "0");
+    return `${minutes}:${seconds}`;
+  }, [gonowSecondsLeft]);
   const activeTripId = activeTrip?.id;
   const activeTripPhase = useMemo(() => getTripPhase(activeTrip), [activeTrip]);
 
@@ -391,7 +417,6 @@ export default function DriverDashboard() {
         setDriverLocation(location);
         setLocationAccessBlocked(false);
       }
-      if (updated.isOnline) setPauseUntil(null);
       showSuccess(
         updated.isOnline ? "Đã bật nhận chuyến" : "Đã tắt nhận chuyến",
         "Trạng thái tài xế đã được cập nhật.",
@@ -569,6 +594,61 @@ export default function DriverDashboard() {
       `${newInstantBooking.pickupLocation} → ${newInstantBooking.dropoffLocation}`,
     );
   }, [activeTrip, isOnline, nearbyBookings, playBookingAlertFeedback]);
+
+  const getGonowCreateErrorMessage = (error: any) => {
+    const message = String(error?.message ?? "");
+    if (message.includes("digest(") || message.includes("function digest")) {
+      return "Hệ thống Gonow cần cập nhật trên Supabase. Vui lòng chạy migration sửa pgcrypto rồi thử lại.";
+    }
+    return message || "Vui lòng thử lại.";
+  };
+
+  const createGonowPin = async (forceNew = false) => {
+    const shouldForceNew = forceNew === true;
+    if (activeTrip) {
+      showWarning("Đang có chuyến", "Bạn cần hoàn thành chuyến hiện tại trước khi tạo mã Gonow.");
+      return;
+    }
+    if (!isOnline) {
+      showWarning("Chưa bật nhận chuyến", "Hãy bật online trước khi tạo mã Gonow.");
+      return;
+    }
+    if (!shouldForceNew && gonowSession && gonowSecondsLeft > 0) {
+      setGonowVisible(true);
+      return;
+    }
+
+    try {
+      setGonowVisible(true);
+      setGonowLoading(true);
+      const session = await apiClient.createGonowSession();
+      setGonowSession(session);
+      setGonowNow(Date.now());
+      showSuccess("Đã tạo mã Gonow", "Hãy đưa mã này cho khách đang đứng gần bạn.");
+    } catch (error: any) {
+      showError("Không thể tạo mã Gonow", getGonowCreateErrorMessage(error));
+    } finally {
+      setGonowLoading(false);
+    }
+  };
+
+  const cancelGonowPin = async () => {
+    if (!gonowSession) {
+      setGonowVisible(false);
+      return;
+    }
+    try {
+      setGonowLoading(true);
+      await apiClient.cancelGonowSession(gonowSession.sessionId);
+      setGonowSession(null);
+      setGonowVisible(false);
+      showInfo("Đã hủy Gonow", "Mã Gonow hiện tại không còn hiệu lực.");
+    } catch (error: any) {
+      showError("Không thể hủy Gonow", error.message || "Vui lòng thử lại.");
+    } finally {
+      setGonowLoading(false);
+    }
+  };
   const acceptNearbyBooking = async (booking: Booking) => {
     if (!user) return;
     try {
@@ -680,53 +760,91 @@ export default function DriverDashboard() {
       setActionLoadingId(null);
     }
   };
-  const pauseReceiving = async (minutes: 15 | 30) => {
-    if (!user) return;
-    const until = new Date(Date.now() + minutes * 60 * 1000);
+  const ensureScheduledActionAllowed = (booking: Booking) => {
+    const gate = getScheduledActionGate(booking);
+    if (gate.allowed) return true;
+    showWarning("Chưa đến giờ chuyến đặt trước", gate.message);
+    return false;
+  };
+
+  const syncUpdatedBooking = useCallback((updated: Booking) => {
+    setBookings((current) => [
+      updated,
+      ...current.filter((item) => item.id !== updated.id),
+    ]);
+    setVisibleBookings((current) =>
+      current.filter((item) => item.id !== updated.id),
+    );
+    setFollowDriver(true);
+  }, []);
+
+  const handleDriverArriving = async (booking: Booking) => {
+    if (!ensureScheduledActionAllowed(booking)) return;
     try {
-      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-      setPauseUntil(until.toISOString());
-      if (isOnline) {
-        const updated = await apiClient.setDriverOnline(
-          user.id,
-          false,
-          driverLocation ?? undefined,
-          until.toISOString(),
-        );
-        setIsOnline(updated.isOnline);
-        setVerificationStatus(updated.verificationStatus);
-      }
-      showInfo(
-        "Đã bật tạm nghỉ",
-        `Bạn sẽ tạm dừng nhận chuyến trong ${minutes} phút.`,
-      );
-      pauseTimerRef.current = setTimeout(
-        async () => {
-          const location = await getCurrentDeviceLocation().catch(
-            () => driverLocation,
-          );
-          if (!location) return;
-          apiClient
-            .setDriverOnline(user.id, true, location)
-            .then((updated) => {
-              setIsOnline(updated.isOnline);
-              setVerificationStatus(updated.verificationStatus);
-              setPauseUntil(null);
-              setDriverLocation(location);
-              showSuccess(
-                "Đã bật lại nhận chuyến",
-                "Thời gian tạm nghỉ đã kết thúc.",
-              );
-            })
-            .catch(() => undefined);
-        },
-        minutes * 60 * 1000,
+      setActionLoadingId(booking.id);
+      const updated = await apiClient.markDriverArriving(booking.id);
+      syncUpdatedBooking(updated);
+      showSuccess(
+        "Đang tới điểm đón",
+        "Dashboard sẽ bám theo lộ trình tới khách.",
       );
     } catch (error: any) {
-      showError("Không thể bật tạm nghỉ", error.message);
+      showError("Không thể cập nhật chuyến", error.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+  const handleDriverArrived = async (booking: Booking) => {
+    if (!ensureScheduledActionAllowed(booking)) return;
+    try {
+      setActionLoadingId(booking.id);
+      const updated = await apiClient.markDriverArrived(booking.id);
+      syncUpdatedBooking(updated);
+      showSuccess(
+        "Đã đến điểm đón",
+        "Bạn có thể bắt đầu chuyến khi khách đã lên xe.",
+      );
+    } catch (error: any) {
+      showError("Không thể cập nhật chuyến", error.message);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
+  const handleStartTrip = async (booking: Booking) => {
+    if (!ensureScheduledActionAllowed(booking)) return;
+    try {
+      setActionLoadingId(booking.id);
+      const updated = await apiClient.startTrip(booking.id);
+      syncUpdatedBooking(updated);
+      showSuccess(
+        "Đã bắt đầu chuyến",
+        "Dashboard sẽ bám theo lộ trình đến điểm đến.",
+      );
+    } catch (error: any) {
+      showError("Không thể bắt đầu chuyến", error.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleCompleteTrip = async (booking: Booking) => {
+    if (!ensureScheduledActionAllowed(booking)) return;
+    try {
+      setActionLoadingId(booking.id);
+      const updated = await apiClient.completeBooking(booking.id);
+      syncUpdatedBooking(updated);
+      showSuccess(
+        "Đã hoàn thành chuyến",
+        "Chuyến đi đã được chuyển vào lịch sử.",
+      );
+      loadData(true);
+    } catch (error: any) {
+      showError("Không thể hoàn thành chuyến", error.message);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
   const stats = useMemo(() => {
     const completed = bookings.filter(
       (booking) => booking.status === BOOKING_STATUS.TRIP_COMPLETED,
@@ -1063,17 +1181,44 @@ export default function DriverDashboard() {
         </View>
       )}
 
-      <ActiveTripSheet
-        booking={activeTrip}
-        role="driver"
-        onOpenDetail={(id) =>
-          router.push({
-            pathname: "/(driver)/booking-detail" as any,
-            params: { id },
-          })
-        }
-      />
 
+      <Modal visible={gonowVisible} transparent animationType="fade" onRequestClose={() => setGonowVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.48)", justifyContent: "center", padding: spacing.lg }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: borderRadius.xl, padding: spacing.lg, borderWidth: 1, borderColor: colors.border }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                <KeyRound size={24} color={colors.primary} />
+                <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight("900") }}>Gonow</Text>
+              </View>
+              <TouchableOpacity onPress={() => setGonowVisible(false)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
+                <X size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>
+              Đưa mã này cho khách đang đứng gần bạn. Mã chỉ dùng một lần và hết hạn sau 2 phút.
+            </Text>
+
+            <View style={{ marginVertical: spacing.lg, paddingVertical: spacing.lg, alignItems: "center", borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border }}>
+              {gonowLoading && !gonowSession ? (
+                <ActivityIndicator size="large" color={colors.primary} />
+              ) : (
+                <Text selectable style={{ color: colors.primary, fontSize: 42, letterSpacing: 8, ...fontForWeight("900") }}>
+                  {gonowSession?.pin ?? "------"}
+                </Text>
+              )}
+              <Text style={{ color: gonowSecondsLeft > 0 ? colors.textSecondary : colors.error, marginTop: spacing.sm, ...fontForWeight("800") }}>
+                {gonowSession ? (gonowSecondsLeft > 0 ? `Còn hiệu lực ${gonowCountdownLabel}` : "Mã đã hết hạn") : "Chưa có mã đang hoạt động"}
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
+              <Button label={gonowSession ? "Tạo mã mới" : "Tạo mã"} onPress={() => createGonowPin(true)} loading={gonowLoading} disabled={gonowLoading} style={{ flex: 1 }} />
+              <Button label="Hủy" variant="outline" onPress={cancelGonowPin} disabled={gonowLoading} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
       <DriverDashboardSheet
         loading={loading}
         refreshing={refreshing}
@@ -1086,7 +1231,6 @@ export default function DriverDashboard() {
         todayScheduledBooking={todayScheduledBooking}
         routeState={routeState}
         pickupRadiusKm={pickupRadiusKm}
-        pauseUntil={pauseUntil}
         paymentSummary={paymentSummary}
         onRefresh={() => loadData(true)}
         onOpenBookings={() => router.push("/(driver)/bookings" as any)}
@@ -1099,12 +1243,25 @@ export default function DriverDashboard() {
         onOpenSchedule={() => router.push("/(driver)/schedule" as any)}
         onOpenRevenue={() => router.push("/(driver)/revenue" as any)}
         onOpenChat={() => router.push("/(driver)/chat" as any)}
+        onOpenGonow={() => createGonowPin(false)}
         onAcceptBooking={acceptNearbyBooking}
         onRejectBooking={rejectNearbyBooking}
         onRestoreSkippedBooking={restoreSkippedBooking}
         onChangePickupRadius={setPickupRadiusKm}
-        onPauseReceiving={pauseReceiving}
+        onDriverArriving={handleDriverArriving}
+        onDriverArrived={handleDriverArrived}
+        onStartTrip={handleStartTrip}
+        onCompleteTrip={handleCompleteTrip}
       />
     </View>
   );
 }
+
+
+
+
+
+
+
+
+

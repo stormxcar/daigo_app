@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Image, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Banknote, Car, CheckCircle2, Clock, FileText, MapPin, Navigation, Phone, Route, Star, User } from 'lucide-react-native';
+import { AlertTriangle, Banknote, Car, CheckCircle2, Clock, FileText, MapPin, Navigation, Phone, Route, Star, User } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Button, TextInput } from '@/components/BaseComponents';
@@ -20,7 +20,7 @@ import { SubmitOverlay } from '@/components/SubmitOverlay';
 import { getDistanceMeters, getDriverLocation, subscribeDriverLocation } from '@/services/driverLocation';
 import { subscribeBookingStatus } from '@/services/bookingRealtimeService';
 import { getDrivingRoute, LatLng } from '@/services/mapRouteService';
-import { calculateBookingPrice, calculateWaitingMinutes, formatCurrency, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
+import { calculateBookingPrice, formatCurrency, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { BOOKING_STATUS, CUSTOMER_CANCEL_REASONS, PRICE_CONFIG } from '@/constants';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 
@@ -121,7 +121,6 @@ export default function BookingDetailScreen() {
   const passengers = Number(params.passengers) || 1;
   const distance = Number(params.distance) || 1;
   const estimatedPrice = Number(params.estimatedPrice) || distance * (vehicle?.pricePerKm ?? 0);
-  const waitingMinutes = booking ? calculateWaitingMinutes(booking.arrivedAt, booking.startedAt) : 0;
   const previewPriceQuote = vehicle
     ? calculateBookingPrice(distance, vehicle.pricePerKm, passengers, params.time)
     : null;
@@ -149,6 +148,23 @@ export default function BookingDetailScreen() {
   const cancellationFeeEstimate = cancellationFeeApplies
     ? Math.ceil((booking?.estimatedPrice ?? 0) * (PRICE_CONFIG.CANCELLATION_FEE_PERCENT / 100))
     : 0;
+  const bookingTimeoutAlert = booking?.requiresAdminReview
+    ? {
+        title: 'Chuyến cần xác minh hoàn thành',
+        message: 'Chuyến đã bắt đầu nhưng chưa được xác nhận hoàn thành trong thời gian dài. Daigo sẽ cần xác minh thêm nếu có tranh chấp.',
+        tone: colors.warning,
+      }
+    : booking?.timeoutWarningSentAt
+      ? {
+          title: 'Tài xế không hoạt động',
+          message: booking.timeoutStage?.includes('arriving')
+            ? 'Tài xế đang tới điểm đón nhưng hệ thống chưa nhận được cập nhật mới. Bạn có thể hủy chuyến không mất phí nếu tiếp tục chờ quá lâu.'
+            : booking.timeoutStage?.includes('arrived')
+              ? 'Tài xế đã báo đến điểm đón nhưng chuyến chưa bắt đầu. Hãy liên hệ tài xế hoặc hủy chuyến nếu cần.'
+              : 'Tài xế chưa cập nhật trạng thái chuyến trong thời gian dài. Bạn có thể theo dõi thêm hoặc hủy chuyến nếu cần.',
+          tone: colors.warning,
+        }
+      : null;
   const canEditRouteBeforeAccepted = !!booking && !isReadOnlyHistory && !booking.driverId && [
     BOOKING_STATUS.SEARCHING_DRIVER,
     BOOKING_STATUS.SCHEDULED_PENDING_DRIVER,
@@ -522,6 +538,24 @@ export default function BookingDetailScreen() {
           </Text>
           <BookingTimeline status={booking.status} />
         </DetailSection>
+        {!!bookingTimeoutAlert && (
+          <DetailSection style={{ borderColor: bookingTimeoutAlert.tone, backgroundColor: bookingTimeoutAlert.tone + '12' }}>
+            <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' }}>
+              <AlertTriangle size={22} color={bookingTimeoutAlert.tone} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: bookingTimeoutAlert.tone, fontSize: 16, ...fontForWeight('900'), marginBottom: spacing.xs }}>
+                  {bookingTimeoutAlert.title}
+                </Text>
+                <Text style={{ color: colors.text, lineHeight: 21 }}>{bookingTimeoutAlert.message}</Text>
+                {!booking.requiresAdminReview && (
+                  <Text style={{ color: colors.textSecondary, lineHeight: 20, marginTop: spacing.sm }}>
+                    Nếu chuyến bị hủy tự động bởi hệ thống, bạn sẽ nhận thông báo và có thể đặt lại chuyến mới.
+                  </Text>
+                )}
+              </View>
+            </View>
+          </DetailSection>
+        )}
 
         {booking.status === BOOKING_STATUS.SEARCHING_DRIVER && (
           <DetailSection style={{ alignItems: 'center' }}>
@@ -785,7 +819,6 @@ export default function BookingDetailScreen() {
                 pricePerKm={booking.vehicle.pricePerKm}
                 passengers={booking.passengers}
                 time={booking.time}
-                waitingMinutes={waitingMinutes}
                 compact
               />
             </View>
@@ -1062,3 +1095,4 @@ export default function BookingDetailScreen() {
     </Screen>
   );
 }
+

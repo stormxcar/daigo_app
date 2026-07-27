@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Image, Text, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +15,7 @@ import { showError, showSuccess, showWarning } from "@/utils/toast";
 import { shareBlogPostNative } from "@/utils/share";
 import { BlogMediaGrid } from "@/components/BlogMediaGrid";
 import { useVideoFeedPlayback } from "@/hooks/useVideoFeedPlayback";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 const BLOG_FILTERS = [
   { key: "all", label: "Tất cả" },
@@ -67,7 +68,7 @@ export default function BlogScreen() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [activeSort, setActiveSort] = useState("newest");
 
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
     setLoading(true);
     apiClient
       .getBlogPosts(1, BLOG_PAGE_SIZE)
@@ -78,7 +79,7 @@ export default function BlogScreen() {
       })
       .catch(() => setPosts([]))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
   const loadMorePosts = async () => {
     if (loading || loadingMore || !hasMore) return;
@@ -101,7 +102,18 @@ export default function BlogScreen() {
 
   useEffect(() => {
     loadPosts();
-  }, []);
+  }, [loadPosts]);
+
+  const blogRealtimeTargets = useMemo(
+    () => [{ table: 'blog_posts' }, { table: 'blog_comments' }, { table: 'blog_likes' }],
+    [],
+  );
+
+  useRealtimeRefresh({
+    channelKey: 'customer-blog',
+    targets: blogRealtimeTargets,
+    onRefresh: loadPosts,
+  });
 
   const updatePost = (updated: BlogPost) => {
     setPosts((current) =>

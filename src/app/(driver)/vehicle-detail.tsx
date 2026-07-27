@@ -164,7 +164,6 @@ export default function DriverVehicleDetail() {
   const normalQuote = calculateBookingPrice(10, vehicle.pricePerKm, 1, "10:00");
   const peakQuote = calculateBookingPrice(10, vehicle.pricePerKm, 1, "08:00");
   const nightQuote = calculateBookingPrice(10, vehicle.pricePerKm, 1, "23:00");
-  const waitingQuote = calculateBookingPrice(10, vehicle.pricePerKm, 1, "10:00", 12);
   const cancellationFeeExample = Math.ceil(normalQuote.totalPrice * (PRICE_CONFIG.CANCELLATION_FEE_PERCENT / 100));
 
   return (
@@ -327,11 +326,6 @@ export default function DriverVehicleDetail() {
           note="Áp dụng khung 22:00-05:00."
         />
         <FeeRow
-          label="Phí chờ"
-          value={`${PRICE_CONFIG.WAITING_FEE_PER_MINUTE.toLocaleString("vi-VN")}đ/phút`}
-          note={`Miễn ${PRICE_CONFIG.WAITING_FREE_MINUTES} phút đầu sau khi tài xế đến điểm đón; chỉ tính phần phút chờ vượt quá.`}
-        />
-        <FeeRow
           label="Phí hủy chuyến"
           value={`${PRICE_CONFIG.CANCELLATION_FEE_PERCENT}% giá ước tính`}
           note="Áp dụng khi khách hủy sau khi tài xế đã nhận/đang tới/đã tới điểm đón; hủy trước khi có tài xế thì không thu."
@@ -344,7 +338,6 @@ export default function DriverVehicleDetail() {
           <FeeRow label="Giờ thường 10:00" value={formatCurrency(normalQuote.totalPrice)} />
           <FeeRow label="Cao điểm 08:00" value={formatCurrency(peakQuote.totalPrice)} />
           <FeeRow label="Ban đêm 23:00" value={formatCurrency(nightQuote.totalPrice)} />
-          <FeeRow label="Chờ 12 phút" value={formatCurrency(waitingQuote.totalPrice)} note={`Gồm ${waitingQuote.billableWaitingMinutes} phút tính phí sau thời gian miễn phí.`} />
           <FeeRow label="Khách hủy sau khi nhận" value={formatCurrency(cancellationFeeExample)} />
         </View>
       </DetailSection>

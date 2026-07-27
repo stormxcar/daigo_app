@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Image,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import {
   Bell,
   Camera,
@@ -457,6 +458,22 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (user?.id) fetchBookings({ customerId: user.id });
   }, [user?.id, fetchBookings]);
+
+  const refreshLiveProfileData = React.useCallback(() => {
+    if (user?.id) fetchBookings({ customerId: user.id });
+  }, [fetchBookings, user?.id]);
+
+  const profileRealtimeTargets = React.useMemo(
+    () => (user?.id ? [{ table: 'bookings', filter: `customer_id=eq.${user.id}` }] : []),
+    [user?.id],
+  );
+
+  useRealtimeRefresh({
+    channelKey: `customer-profile-${user?.id ?? 'guest'}`,
+    targets: profileRealtimeTargets,
+    enabled: !!user?.id,
+    onRefresh: refreshLiveProfileData,
+  });
 
   useEffect(() => {
     let mounted = true;

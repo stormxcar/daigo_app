@@ -92,16 +92,13 @@ export const calculateBookingPrice = (
   distance: number,
   pricePerKm: number,
   _passengerCount: number = 1,
-  time?: string,
-  waitingMinutes: number = 0
+  time?: string
 ): {
   basePrice: number;
   distanceFare: number;
   platformFee: number;
   peakFee: number;
   nightFee: number;
-  waitingFee: number;
-  billableWaitingMinutes: number;
   totalPrice: number;
   peakMultiplier: number;
   isPeakHour: boolean;
@@ -118,10 +115,7 @@ export const calculateBookingPrice = (
   const peakMultiplier = isPeakHour ? PRICE_CONFIG.SURGE_MULTIPLIER_PEAK : 1;
   const peakFee = Math.floor((basePrice + platformFee) * (peakMultiplier - 1));
   const nightFee = isNightTrip ? Math.floor(basePrice * (PRICE_CONFIG.NIGHT_FEE_PERCENT / 100)) : 0;
-  const safeWaitingMinutes = Number.isFinite(waitingMinutes) ? Math.max(0, Math.ceil(Number(waitingMinutes))) : 0;
-  const billableWaitingMinutes = Math.max(0, safeWaitingMinutes - PRICE_CONFIG.WAITING_FREE_MINUTES);
-  const waitingFee = billableWaitingMinutes * PRICE_CONFIG.WAITING_FEE_PER_MINUTE;
-  const totalPrice = basePrice + platformFee + peakFee + nightFee + waitingFee;
+  const totalPrice = basePrice + platformFee + peakFee + nightFee;
 
   return {
     basePrice,
@@ -129,8 +123,6 @@ export const calculateBookingPrice = (
     platformFee,
     peakFee,
     nightFee,
-    waitingFee,
-    billableWaitingMinutes,
     totalPrice,
     peakMultiplier,
     isPeakHour,

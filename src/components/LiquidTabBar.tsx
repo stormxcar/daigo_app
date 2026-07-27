@@ -34,6 +34,7 @@ export function LiquidTabBar({
   const hiddenRoutes = [
     'notifications',
     'booking-detail',
+    'bookings',
     'blog-detail',
     'chat-detail',
     'notification-detail',
@@ -291,4 +292,6 @@ export function LiquidTabBar({
     </View>
   );
 }
+
+
 

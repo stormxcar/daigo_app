@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Image,
   ImageBackground,
@@ -30,6 +30,7 @@ import { Badge, Button, Card, Skeleton } from "@/components/BaseComponents";
 import { Screen } from "@/components/ScreenComponents";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking } from "@/hooks/useBooking";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { PromoBanner } from "@/components/PromoBanner";
 import { QuickActionRow } from "@/components/QuickActionRow";
 import { NearbyDriverMapCard } from "@/components/NearbyMapCard";
@@ -496,6 +497,29 @@ export default function HomeScreen() {
       .catch(() => undefined);
   }, [pathname, user?.id]);
 
+  const liveRefreshTargets = useMemo(
+    () => [
+      { table: "blog_posts" },
+      { table: "blog_comments" },
+      { table: "blog_likes" },
+      { table: "vehicles" },
+      ...(user?.id ? [{ table: "bookings", filter: `customer_id=eq.${user.id}` }] : []),
+    ],
+    [user?.id],
+  );
+
+  const refreshLiveHomeData = useCallback(async () => {
+    await fetchVehicles();
+    if (user?.id) await fetchBookings({ customerId: user.id });
+    const posts = await apiClient.getBlogPosts(1, 6);
+    setBlogPosts(posts);
+  }, [fetchBookings, fetchVehicles, user?.id]);
+
+  useRealtimeRefresh({
+    channelKey: `customer-home-${user?.id ?? "guest"}`,
+    targets: liveRefreshTargets,
+    onRefresh: refreshLiveHomeData,
+  });
   const refreshHome = async () => {
     setRefreshing(true);
     try {

@@ -19,6 +19,7 @@ import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Booking, BookingPaymentStatus } from '@/types';
 import { formatCurrency, formatVietnamDate, getBookingStatusInfo } from '@/utils/helpers';
 import { showError } from '@/utils/toast';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type DateFilter = 'all' | '7d' | '30d' | 'scheduled_future';
 type PaymentFilter = 'all' | BookingPaymentStatus;
@@ -195,6 +196,18 @@ export default function CustomerHistoryScreen() {
   useEffect(() => {
     loadBookings(1);
   }, [loadBookings]);
+
+  const historyRealtimeTargets = useMemo(
+    () => (user?.id ? [{ table: 'bookings', filter: `customer_id=eq.${user.id}` }] : []),
+    [user?.id],
+  );
+
+  useRealtimeRefresh({
+    channelKey: `customer-history-${user?.id ?? 'guest'}`,
+    targets: historyRealtimeTargets,
+    enabled: !!user?.id,
+    onRefresh: () => loadBookings(1),
+  });
 
   const filteredBookings = useMemo(() => {
     const now = Date.now();

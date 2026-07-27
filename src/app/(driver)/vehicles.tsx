@@ -16,6 +16,7 @@ import { EmptyState, Screen } from "@/components/ScreenComponents";
 import { SearchFilterBar } from "@/components/SearchFilterBar";
 import { SubmitOverlay } from "@/components/SubmitOverlay";
 import { useSubmitLeaveGuard } from "@/hooks/useSubmitLeaveGuard";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { apiClient } from "@/services/api";
 import { uploadMediaToCloudinary } from "@/services/cloudinary";
 import { useAuthStore } from "@/stores/authStore";
@@ -96,6 +97,18 @@ export default function DriverVehicles() {
   useEffect(() => {
     loadVehicles();
   }, [loadVehicles]);
+
+  const vehicleRealtimeTargets = useMemo(
+    () => (user?.id ? [{ table: 'vehicles', filter: `driver_id=eq.${user.id}` }] : []),
+    [user?.id],
+  );
+
+  useRealtimeRefresh({
+    channelKey: `driver-vehicles-${user?.id ?? 'guest'}`,
+    targets: vehicleRealtimeTargets,
+    enabled: !!user?.id,
+    onRefresh: loadVehicles,
+  });
 
   const filteredVehicles = useMemo(() => {
     let result = [...vehicles];
@@ -545,7 +558,7 @@ export default function DriverVehicles() {
             style={{ marginBottom: spacing.xs }}
           />
           <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, lineHeight: 18, marginBottom: spacing.md }}>
-            Đây là giá vận hành của xe. Phí nền tảng, phụ phí cao điểm, phí đêm và phí chờ do hệ thống tính thêm theo chính sách chung.
+            Đây là giá vận hành của xe. Phí nền tảng, phụ phí cao điểm và phí đêm do hệ thống tính thêm theo chính sách chung.
           </Text>
 
           <Text

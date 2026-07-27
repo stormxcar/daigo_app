@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Banknote, Car, Clock, FileText, Mail, MapPin, Navigation, Phone, Route, User, Users } from 'lucide-react-native';
+import { AlertTriangle, Banknote, Car, Clock, FileText, Mail, MapPin, Navigation, Phone, Route, User, Users } from 'lucide-react-native';
 import { useTheme } from '@/theme';
 import { fontForWeight, borderRadius, fontSize, spacing } from '@/theme/tokens';
 import { Badge, Button } from '@/components/BaseComponents';
@@ -345,8 +345,24 @@ export default function DriverBookingDetail() {
         : booking.status === BOOKING_STATUS.SEARCHING_DRIVER || booking.status === BOOKING_STATUS.SCHEDULED_PENDING_DRIVER
           ? 'warning'
           : 'info';
-  const waitingMinutes = booking ? calculateWaitingMinutes(booking.arrivedAt, booking.startedAt) : 0;
   const isCancellationFeeBooking = booking?.status === BOOKING_STATUS.CUSTOMER_CANCELLED && !!booking.actualPrice && booking.actualPrice > 0;
+  const bookingTimeoutAlert = booking.requiresAdminReview
+    ? {
+        title: 'Chuyến cần xác minh hoàn thành',
+        message: 'Chuyến đang đi đã kéo dài bất thường. Nếu đã trả khách, hãy bấm Hoàn thành để tránh tranh chấp và giữ điểm tin cậy tài xế.',
+        tone: colors.warning,
+      }
+    : booking.timeoutWarningSentAt
+      ? {
+          title: 'Cần cập nhật chuyến',
+          message: booking.timeoutStage?.includes('arriving')
+            ? 'Bạn đang ở bước tới điểm đón nhưng hệ thống chưa nhận được GPS hoặc thao tác mới. Vui lòng mở app và cập nhật trạng thái.'
+            : booking.timeoutStage?.includes('arrived')
+              ? 'Bạn đã báo đến điểm đón nhưng chưa bắt đầu chuyến. Hãy cập nhật trạng thái để tránh chuyến bị treo.'
+              : 'Bạn đã nhận chuyến nhưng chưa có thao tác tiếp theo. Vui lòng cập nhật trạng thái chuyến.',
+          tone: colors.warning,
+        }
+      : null;
   const isNonPayableBooking = !isCancellationFeeBooking && [
     BOOKING_STATUS.DRIVER_CANCELLED,
     BOOKING_STATUS.EXPIRED,
@@ -394,6 +410,22 @@ export default function DriverBookingDetail() {
         <Text style={{ color: colors.text, fontSize: 18, ...fontForWeight('800'), marginBottom: spacing.md }}>Tiến trình chuyến đi</Text>
         <BookingTimeline status={booking.status} />
       </DetailSection>
+      {!!bookingTimeoutAlert && (
+        <DetailSection style={{ borderColor: bookingTimeoutAlert.tone, backgroundColor: bookingTimeoutAlert.tone + '12' }}>
+          <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' }}>
+            <AlertTriangle size={22} color={bookingTimeoutAlert.tone} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: bookingTimeoutAlert.tone, fontSize: 16, ...fontForWeight('900'), marginBottom: spacing.xs }}>
+                {bookingTimeoutAlert.title}
+              </Text>
+              <Text style={{ color: colors.text, lineHeight: 21 }}>{bookingTimeoutAlert.message}</Text>
+              <Text style={{ color: colors.textSecondary, lineHeight: 20, marginTop: spacing.sm }}>
+                Các chuyến bị treo nhiều lần có thể ảnh hưởng đến độ tin cậy và quyền nhận chuyến.
+              </Text>
+            </View>
+          </View>
+        </DetailSection>
+      )}
 
       {hasMap && (
         <DetailSection>
@@ -487,7 +519,6 @@ export default function DriverBookingDetail() {
               pricePerKm={booking.vehicle.pricePerKm}
               passengers={booking.passengers}
               time={booking.time}
-              waitingMinutes={waitingMinutes}
               compact
             />
           </View>
@@ -610,3 +641,4 @@ export default function DriverBookingDetail() {
     </Screen>
   );
 }
+

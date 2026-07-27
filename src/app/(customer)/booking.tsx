@@ -43,7 +43,7 @@ import { AuthRequired } from "@/components/AuthRequired";
 import { Screen } from "@/components/ScreenComponents";
 import { LocationAccessFallback } from "@/components/LocationAccessFallback";
 import { useAuthStore } from "@/stores/authStore";
-import { SavedLocation, Vehicle } from "@/types";
+import { GonowPreview, SavedLocation, Vehicle } from "@/types";
 import { apiClient } from "@/services/api";
 import {
   getDistanceKm,
@@ -177,6 +177,7 @@ export default function BookingScreen() {
   const savedLocationsSheetRef = useRef<BottomSheetModal>(null);
   const vehicleResultsSheetRef = useRef<BottomSheetModal>(null);
   const advancedFiltersSheetRef = useRef<BottomSheetModal>(null);
+  const gonowSheetRef = useRef<BottomSheetModal>(null);
   const modeSlideAnim = useRef(new Animated.Value(0)).current;
   const autoPickupAttemptedRef = useRef(false);
   const pickupEditedByUserRef = useRef(false);
@@ -204,6 +205,10 @@ export default function BookingScreen() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
     null,
   );
+  const [gonowPin, setGonowPin] = useState("");
+  const [gonowPreview, setGonowPreview] = useState<GonowPreview | null>(null);
+  const [gonowLoading, setGonowLoading] = useState(false);
+  const [gonowCreating, setGonowCreating] = useState(false);
   const [searched, setSearched] = useState(false);
   const [vehiclesData, setVehiclesData] = useState<Vehicle[]>([]);
   const [bookedVehicleIds, setBookedVehicleIds] = useState<string[]>([]);
@@ -1091,6 +1096,82 @@ export default function BookingScreen() {
     });
   };
 
+
+  const openGonowSheet = () => {
+    if (bookingMode === "scheduled") {
+      showWarning("Gonow chỉ dùng cho đi ngay", "Đặt trước cần tài xế phản hồi theo lịch, không dùng mã Gonow ở bước này.");
+      return;
+    }
+    if (!bookingDate) {
+      showError("Ngày chưa hợp lệ", "Vui lòng nhập theo định dạng dd/MM/yyyy.");
+      return;
+    }
+    if (!pickupPoint || !dropoffPoint) {
+      showError("Thiếu tọa độ", "Vui lòng chọn điểm đón và điểm đến hợp lệ.");
+      return;
+    }
+    setGonowPin("");
+    setGonowPreview(null);
+    gonowSheetRef.current?.present();
+  };
+
+  const verifyGonowPin = async () => {
+    const pin = gonowPin.replace(/\D/g, "").slice(0, 6);
+    setGonowPin(pin);
+    if (pin.length !== 6) {
+      showError("Mã chưa hợp lệ", "Mã Gonow gồm 6 số từ tài xế.");
+      return;
+    }
+    try {
+      setGonowLoading(true);
+      const preview = await apiClient.verifyGonowPin(pin);
+      setGonowPreview(preview);
+      showSuccess("Đã tìm thấy tài xế", "Vui lòng kiểm tra thông tin trước khi xác nhận.");
+    } catch (error: any) {
+      setGonowPreview(null);
+      showError("Không thể kiểm tra Gonow", error.message || "Mã không hợp lệ hoặc đã hết hạn.");
+    } finally {
+      setGonowLoading(false);
+    }
+  };
+
+  const confirmGonowBooking = async () => {
+    if (!user || !gonowPreview || !pickupPoint || !dropoffPoint || !bookingDate) return;
+    try {
+      setGonowCreating(true);
+      const priceQuote = calculateBookingPrice(
+        routeDistance || 1,
+        gonowPreview.vehicle.pricePerKm,
+        passengerCount,
+        time,
+      );
+      const created = await apiClient.createGonowBooking({
+        sessionId: gonowPreview.sessionId,
+        customerId: user.id,
+        pickupLocation,
+        dropoffLocation,
+        pickupLat: pickupPoint.lat,
+        pickupLng: pickupPoint.lng,
+        dropoffLat: dropoffPoint.lat,
+        dropoffLng: dropoffPoint.lng,
+        date: bookingDate,
+        time,
+        passengers: passengerCount,
+        note,
+        distance: routeDistance,
+        estimatedPrice: priceQuote.totalPrice,
+        idempotencyKey: createIdempotencyKey("gonow"),
+      });
+      gonowSheetRef.current?.dismiss();
+      vehicleResultsSheetRef.current?.dismiss();
+      showSuccess("Đã kết nối Gonow", "Chuyến đi đã được gán trực tiếp cho tài xế này.");
+      router.push({ pathname: "/(customer)/booking-detail" as any, params: { id: created.id } });
+    } catch (error: any) {
+      showError("Không thể tạo chuyến Gonow", error.message || "Vui lòng thử lại.");
+    } finally {
+      setGonowCreating(false);
+    }
+  };
   if (!isAuthenticated) {
     return (
       <AuthRequired description="Bạn cần đăng nhập để đặt xe và xem lịch sử chuyến đi." />
@@ -2020,6 +2101,23 @@ export default function BookingScreen() {
                     {priceQuote.peakFee > 0 ? `, cao điểm ${formatCurrency(priceQuote.peakFee)}` : ""}
                     {priceQuote.nightFee > 0 ? `, phí đêm ${formatCurrency(priceQuote.nightFee)}` : ""}
                   </Text>
+                  <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
+                    <Button
+                      label="Đặt xe"
+                      size="sm"
+                      onPress={() => openBookingDetailWithVehicle(vehicle)}
+                      style={{ flex: 1 }}
+                    />
+                    {bookingMode === "instant" && (
+                      <Button
+                        label="Gonow"
+                        size="sm"
+                        variant="outline"
+                        onPress={openGonowSheet}
+                        style={{ flex: 1 }}
+                      />
+                    )}
+                  </View>
                 </TouchableOpacity>
               );
             })
@@ -2037,6 +2135,71 @@ export default function BookingScreen() {
         </BottomSheetScrollView>
       </BottomSheetModal>
 
+      <BottomSheetModal
+        ref={gonowSheetRef}
+        snapPoints={["48%", "78%"]}
+        backgroundStyle={{ backgroundColor: colors.surface }}
+        handleIndicatorStyle={{ backgroundColor: colors.border }}
+      >
+        <BottomSheetScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}>
+          <Text style={{ color: colors.text, fontSize: 20, ...fontForWeight("900") }}>Gonow</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: spacing.xs, lineHeight: 21 }}>
+            Nhập mã 6 số từ tài xế Daigo đang đứng gần bạn. Gonow chỉ dùng cho chuyến đi ngay.
+          </Text>
+
+          <TextInput
+            label="Mã Gonow"
+            placeholder="123456"
+            value={gonowPin}
+            onChangeText={(value) => {
+              setGonowPin(value.replace(/\D/g, "").slice(0, 6));
+              setGonowPreview(null);
+            }}
+            keyboardType="numeric"
+            style={{ marginTop: spacing.lg, marginBottom: spacing.md }}
+          />
+          <Button
+            label="Kiểm tra tài xế"
+            onPress={verifyGonowPin}
+            loading={gonowLoading}
+            disabled={gonowLoading || gonowPin.length !== 6}
+          />
+
+          {gonowPreview && (
+            <View style={{ marginTop: spacing.lg, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border, paddingVertical: spacing.md }}>
+              <Text style={{ color: colors.text, ...fontForWeight("900"), marginBottom: spacing.sm }}>Tài xế Gonow</Text>
+              <View style={{ flexDirection: "row", gap: spacing.md, alignItems: "center" }}>
+                {gonowPreview.driver.avatarUrl ? (
+                  <Image source={{ uri: gonowPreview.driver.avatarUrl }} style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.surfaceAlt }} />
+                ) : (
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.surfaceAlt, alignItems: "center", justifyContent: "center" }}>
+                    <Users size={24} color={colors.primary} />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontSize: 16, ...fontForWeight("900") }}>{gonowPreview.driver.fullName}</Text>
+                  <Text style={{ color: colors.textSecondary, marginTop: 2 }}>{gonowPreview.vehicle.name} • {gonowPreview.vehicle.seats} chỗ</Text>
+                  <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 2 }}>{gonowPreview.vehicle.licensePlate || "Chưa có biển số"}</Text>
+                </View>
+              </View>
+              <View style={{ marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Text numberOfLines={1} style={{ color: colors.textSecondary }}>Đón: {pickupLocation}</Text>
+                <Text numberOfLines={1} style={{ color: colors.textSecondary, marginTop: spacing.xs }}>Đến: {dropoffLocation}</Text>
+                <Text style={{ color: colors.primary, marginTop: spacing.sm, ...fontForWeight("900") }}>
+                  Ước tính {formatCurrency(calculateBookingPrice(routeDistance || 1, gonowPreview.vehicle.pricePerKm, passengerCount, time).totalPrice)}
+                </Text>
+              </View>
+              <Button
+                label="Xác nhận kết nối Gonow"
+                onPress={confirmGonowBooking}
+                loading={gonowCreating}
+                disabled={gonowCreating}
+                style={{ marginTop: spacing.md }}
+              />
+            </View>
+          )}
+        </BottomSheetScrollView>
+      </BottomSheetModal>
       <BottomSheetModal
         ref={advancedFiltersSheetRef}
         snapPoints={["62%", "88%"]}
@@ -2277,3 +2440,10 @@ export default function BookingScreen() {
     </Screen>
   );
 }
+
+
+
+
+
+
+

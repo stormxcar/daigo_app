@@ -13,6 +13,7 @@ import { BlogComment, BlogPost } from '@/types';
 import { showError, showSuccess, showWarning } from '@/utils/toast';
 import { shareBlogPostNative } from '@/utils/share';
 import { BlogMediaGrid } from '@/components/BlogMediaGrid';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 const COMMENT_COOLDOWN_MS = 10_000;
 
@@ -49,6 +50,22 @@ export default function BlogDetailScreen() {
   useEffect(() => {
     loadPost();
   }, [loadPost]);
+
+  const blogDetailRealtimeTargets = React.useMemo(
+    () => (id ? [
+      { table: 'blog_posts', filter: `id=eq.${id}` },
+      { table: 'blog_comments', filter: `post_id=eq.${id}` },
+      { table: 'blog_likes', filter: `post_id=eq.${id}` },
+    ] : []),
+    [id],
+  );
+
+  useRealtimeRefresh({
+    channelKey: `blog-detail-${id ?? 'none'}`,
+    targets: blogDetailRealtimeTargets,
+    enabled: !!id,
+    onRefresh: loadPost,
+  });
 
   const requireAuth = (action: string) => {
     if (isAuthenticated && user) return true;

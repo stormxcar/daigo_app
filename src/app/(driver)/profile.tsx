@@ -21,6 +21,7 @@ import {
   UploadCloud,
   UserCircle,
   Wallet,
+  Route,
   XCircle,
 } from 'lucide-react-native';
 import { useTheme } from '@/theme';
@@ -718,6 +719,41 @@ export default function DriverProfile() {
         </View>
         <ChevronRight size={20} color={colors.textSecondary} />
       </TouchableOpacity>
+      <TouchableOpacity
+        activeOpacity={0.84}
+        onPress={() => router.push('/(driver)/bookings' as any)}
+        style={{
+          backgroundColor: colors.surface,
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          minHeight: 64,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.md,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.md,
+        }}
+      >
+        <View
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: borderRadius.full,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.surfaceAlt,
+          }}
+        >
+          <Route size={18} color={colors.info} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.text, fontSize: 16, ...fontForWeight('900')}}>Lịch sử chuyến đi</Text>
+          <Text numberOfLines={1} style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 3 }}>
+            Xem lại chuyến đã hoàn thành, đã hủy và bộ lọc chi tiết
+          </Text>
+        </View>
+        <ChevronRight size={20} color={colors.textSecondary} />
+      </TouchableOpacity>
 
       <ProfileSection
         title="Tổng quan hoạt động"
@@ -903,3 +939,5 @@ export default function DriverProfile() {
     </Screen>
   );
 }
+
+

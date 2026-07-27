@@ -4,7 +4,7 @@ import { Href, Tabs, router } from 'expo-router';
 import {
   BarChart3,
   Car,
-  Briefcase,
+  CalendarDays,
   UserCircle,
   MessageCircle,
   Newspaper,
@@ -22,12 +22,12 @@ export default function DriverLayout() {
   const missingVerificationCount = user
     ? [!user.emailVerified, !user.phoneVerified].filter(Boolean).length
     : 0;
-  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'payment-review', 'receipt', 'blog-detail', 'revenue', 'vehicle-detail', 'schedule'];
+  const detailRoutes = ['notifications', 'chat-detail', 'booking-detail', 'payment-review', 'receipt', 'blog-detail', 'revenue', 'vehicle-detail', 'bookings'];
   const backHrefByRoute: Partial<Record<string, Href>> = {
     notifications: '/(driver)/dashboard',
     'chat-detail': '/(driver)/chat',
-    'booking-detail': '/(driver)/bookings',
-    schedule: '/(driver)/bookings',
+    'booking-detail': '/(driver)/dashboard',
+    bookings: '/(driver)/profile',
     'blog-detail': '/(driver)/blog',
     'vehicle-detail': '/(driver)/vehicles',
     revenue: '/(driver)/profile',
@@ -147,9 +147,16 @@ export default function DriverLayout() {
       <Tabs.Screen
         name="bookings"
         options={{
-          title: 'Chuyến đi',
+          href: null,
+          title: 'Lịch sử chuyến',
+        }}
+      />
+      <Tabs.Screen
+        name="schedule"
+        options={{
+          title: 'Lịch',
           tabBarIcon: ({ color, size }) => (
-            <Briefcase color={color} size={size} />
+            <CalendarDays color={color} size={size} />
           ),
         }}
       />
@@ -208,13 +215,7 @@ export default function DriverLayout() {
           title: 'Chi tiết chuyến đi',
         }}
       />
-      <Tabs.Screen
-        name="schedule"
-        options={{
-          href: null,
-          title: 'Quản lý lịch',
-        }}
-      />
+
       <Tabs.Screen
         name="payment-review"
         options={{
@@ -239,6 +240,10 @@ export default function DriverLayout() {
     </Tabs>
   );
 }
+
+
+
+
 
 
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { BarChart3, CalendarDays, CheckCircle2, Filter, TrendingUp, Wallet } from 'lucide-react-native';
@@ -12,6 +12,7 @@ import { BOOKING_STATUS } from '@/constants';
 import { Booking } from '@/types';
 import { formatVietnamDate } from '@/utils/helpers';
 import { showError } from '@/utils/toast';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 
 type RevenueRange = 'day' | 'month' | 'year';
 type RevenueSort = 'newest' | 'highest';
@@ -114,7 +115,7 @@ export default function DriverRevenueScreen() {
   const [date, setDate] = useState(() => new Date());
   const [sort, setSort] = useState<RevenueSort>('newest');
 
-  const loadData = async (manual = false) => {
+  const loadData = useCallback(async (manual = false) => {
     if (!user?.id) return;
     try {
       manual ? setRefreshing(true) : setLoading(true);
@@ -126,11 +127,23 @@ export default function DriverRevenueScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     loadData();
-  }, [user?.id]);
+  }, [loadData]);
+
+  const revenueRealtimeTargets = useMemo(
+    () => (user?.id ? [{ table: 'bookings', filter: `driver_id=eq.${user.id}` }, { table: 'payments' }] : []),
+    [user?.id],
+  );
+
+  useRealtimeRefresh({
+    channelKey: `driver-revenue-${user?.id ?? 'guest'}`,
+    targets: revenueRealtimeTargets,
+    enabled: !!user?.id,
+    onRefresh: () => loadData(true),
+  });
 
   const revenue = useMemo(() => {
     const start = startOfRange(date, range);
